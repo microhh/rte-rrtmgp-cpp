@@ -77,8 +77,8 @@ class Gas_optics_nn : public Optical_props<TF>
             const TF md_index, const TF sb_index);
 
         void compute_tau_ssa_nn(
-                Network& ssa_network,
-                Network& tsw_network,
+                const Network& ssa_network,
+                const Network& tsw_network,
                 const int ncol, const int nlay, const int ngpt,
                 const int nband, const int idx_tropo,
                 const double* restrict const play,
@@ -89,8 +89,8 @@ class Gas_optics_nn : public Optical_props<TF>
                 const bool lower_atm, const bool upper_atm) const;
 
         void compute_tau_sources_nn(
-                Network& tlw_network,
-                Network& plk_network,
+                const Network& tlw_network,
+                const Network& plk_network,
                 const int ncol, const int nlay, const int ngpt,
                 const int nband, const int idx_tropo,
                 const double* restrict const play, 
@@ -119,6 +119,7 @@ class Gas_optics_nn : public Optical_props<TF>
         Network ssa_network;
         Network tlw_network;
         Network plk_network;
+
         int n_layers;
         int n_layer1;
         int n_layer2;

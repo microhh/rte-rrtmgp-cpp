@@ -320,8 +320,8 @@ void Gas_optics_nn<TF>::lay2sfc_factor(
 //Currently only implemented for atmospheric profilfes ordered bottom-first
 template<typename TF>
 void Gas_optics_nn<TF>::compute_tau_ssa_nn(
-        Network& SSA,
-        Network& TSW,
+        const Network& SSA,
+        const Network& TSW,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -330,7 +330,7 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         const bool lower_atm, const bool upper_atm) const
 {
-    constexpr int nlay_in = this->n_gases + 3; //minimum input: h2o,T,P
+    const int nlay_in = this->n_gases + 3; //minimum input: h2o,T,P
     double* tau = optical_props->get_tau().ptr();
     double* ssa = optical_props->get_ssa().ptr();
     
@@ -464,8 +464,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
 //Currently only implemented for atmospheric profilfes ordered bottom-first
 template<typename TF>
 void Gas_optics_nn<TF>::compute_tau_sources_nn(
-        Network& TLW,
-        Network& PLK,
+        const Network& TLW,
+        const Network& PLK,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -476,7 +476,7 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         const bool lower_atm, const bool upper_atm) const
 {
-    constexpr int nlay_in = this->n_gases + 3; //minimum input: h2o,T,P
+    const int nlay_in = this->n_gases + 3; //minimum input: h2o,T,P
 
     double* tau = optical_props->get_tau().ptr();
     double* src_layer = sources.get_lay_source().ptr();

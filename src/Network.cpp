@@ -156,7 +156,7 @@ void Network::inference(
         const int n_layers,
         const int n_layer1,
         const int n_layer2,
-        const int n_layer3)
+        const int n_layer3) const
 {
     if (lower_atmos == 1)
     {
