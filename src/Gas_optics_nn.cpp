@@ -140,8 +140,6 @@ Gas_optics_nn<TF>::Gas_optics_nn(
 // Gas optics solver longwave variant.
 template<typename TF>
 void Gas_optics_nn<TF>::gas_optics(
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TLW,
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& PLK,
         const Array<TF,2>& play,
         const Array<TF,2>& plev,
         const Array<TF,2>& tlay,
@@ -149,22 +147,21 @@ void Gas_optics_nn<TF>::gas_optics(
         const Gas_concs<TF>& gas_desc,
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         Source_func_lw<TF>& sources,
-        const Array<TF,2>& tlev,
-        const int idx_tropo, 
-        const bool lower_atm, const bool upper_atm) const
+        const Array<TF,2>& tlev) const
 {
     const int ncol = play.dim(1);
     const int nlay = play.dim(2);
     const int ngpt = this->get_ngpt();
     const int nband = this->get_nband();
 
-    compute_tau_sources_nn(TLW, PLK,
-            ncol, nlay, ngpt, nband, idx_tropo, 
+    compute_tau_sources_nn(
+            this->tlw_network, this->plk_network,
+            ncol, nlay, ngpt, nband, this->idx_tropo,
             play.ptr(), plev.ptr(), 
             tlay.ptr(), tlev.ptr(),
             gas_desc, sources, 
             optical_props,
-            lower_atm, upper_atm);   
+            this->lower_atm, this->upper_atm);
 
     //fill surface sources  
     lay2sfc_factor(tlay,tsfc,sources,ncol,nlay,nband);   
@@ -174,27 +171,23 @@ void Gas_optics_nn<TF>::gas_optics(
 //template<typename TF>
 template<typename TF>
 void Gas_optics_nn<TF>::gas_optics(
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& SSA,
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TSW,
         const Array<TF,2>& play,
         const Array<TF,2>& plev,
         const Array<TF,2>& tlay,
         const Gas_concs<TF>& gas_desc,
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
-        Array<TF,2>& toa_src,
-        const int idx_tropo, 
-        const bool lower_atm, const bool upper_atm) const
+        Array<TF,2>& toa_src) const
 {   
     const int ncol = play.dim(1);
     const int nlay = play.dim(2);
     const int ngpt = this->get_ngpt();
     const int nband = this->get_nband();
     compute_tau_ssa_nn(
-            SSA, TSW,
-            ncol, nlay, ngpt, nband, idx_tropo, 
+            this->ssa_network, this->tsw_network,
+            ncol, nlay, ngpt, nband, this->idx_tropo,
             play.ptr(), plev.ptr(), tlay.ptr(), 
             gas_desc, optical_props,
-            lower_atm, upper_atm);
+            this->lower_atm, this->upper_atm);
 
     // External source function is constant.
     for (int igpt=1; igpt<=ngpt; ++igpt)
@@ -215,6 +208,73 @@ void Gas_optics_nn<TF>::set_solar_variability(
                                      + (mg_index - a_offset) * this->solar_source_facular({igpt})
                                      + (sb_index - b_offset) * this->solar_source_sunspot({igpt});
     }
+}
+
+template<typename TF>
+void Gas_optics_nn<TF>::initialize_networks(
+        const std::string& wgth_file,
+        const std::string& input_file)
+{
+    Netcdf_file nc_file(input_file, Netcdf_mode::Read);
+    Netcdf_group nc_input = nc_file.get_group("radiation1");
+    const int n_lay = nc_input.get_dimension_size("lay");
+    const int n_col = nc_input.get_dimension_size("col");
+    Array<TF,2> p_lay(nc_input.get_variable<TF>("p_lay", {n_lay, n_col}), {n_col, n_lay});
+    idx_tropo = 0;
+    for (int i=1; i<=n_lay; i++)
+        if (p_lay({1,i}) > 9948.431564193395)
+            idx_tropo += 1;
+    const int idxlower = idx_tropo * n_col;
+    const int idxupper = (n_lay-idx_tropo) * n_col;
+    this->lower_atm = (idxlower>0);
+    this->upper_atm = (idxupper>0);
+    this->idx_tropo = idx_tropo;
+
+    Netcdf_file nc_wgth(wgth_file, Netcdf_mode::Read);
+    const int n_layers = nc_wgth.get_dimension_size("nlayers");
+    const int n_layer1 = nc_wgth.get_dimension_size("nlayer1");
+    const int n_layer2 = nc_wgth.get_dimension_size("nlayer2");
+    const int n_layer3 = nc_wgth.get_dimension_size("nlayer3");
+    const int n_out_sw = nc_wgth.get_dimension_size("nout_sw");
+    const int n_out_lw = nc_wgth.get_dimension_size("nout_lw");
+    const int n_gases  = nc_wgth.get_dimension_size("ngases");
+    const int n_in     = 3;
+    const int n_gpt = this->get_ngpt();
+    if (n_gpt == n_out_lw)
+    {
+        const int n_out_pk = n_out_lw * 3;
+        const int n_in_pk  = n_in + 2;
+        Netcdf_group tlwnc = nc_wgth.get_group("TLW");
+        this->tlw_network = Network(idxlower, idxupper, tlwnc,
+                                    n_layers, n_layer1, n_layer2, n_layer3,
+                                    n_out_lw, n_in);
+
+        Netcdf_group plknc = nc_wgth.get_group("Planck");
+        this->plk_network = Network(idxlower, idxupper, plknc,
+                                    n_layers, n_layer1, n_layer2, n_layer3,
+                                    n_out_pk, n_in_pk);
+    }
+    else if (n_gpt == n_out_sw)
+    {
+        Netcdf_group tswnc = nc_wgth.get_group("TSW");
+        this->tsw_network= Network(idxlower, idxupper, tswnc,
+                                   n_layers, n_layer1, n_layer2, n_layer3,
+                                   n_out_sw, n_in);
+
+        Netcdf_group ssanc = nc_wgth.get_group("SSA");
+        this->ssa_network = Network(idxlower, idxupper, ssanc,
+                                    n_layers, n_layer1, n_layer2, n_layer3,
+                                    n_out_sw, n_in);
+    }
+    else
+    {
+        std::cout<<"Problem: neither shortwave nor longwave"<<std::endl;
+    }
+    this->n_layers = n_layers;
+    this->n_layer1 = n_layer1;
+    this->n_layer2 = n_layer2;
+    this->n_layer3 = n_layer3;
+    this->n_gases  = n_gases;
 }
 
 template<typename TF>
@@ -260,8 +320,8 @@ void Gas_optics_nn<TF>::lay2sfc_factor(
 //Currently only implemented for atmospheric profilfes ordered bottom-first
 template<typename TF>
 void Gas_optics_nn<TF>::compute_tau_ssa_nn(
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& SSA,
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TSW,
+        Network& SSA,
+        Network& TSW,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -270,7 +330,7 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         const bool lower_atm, const bool upper_atm) const
 {
-    constexpr int nlay_in = NGAS + 3; //minimum input: h2o,T,P
+    constexpr int nlay_in = this->n_gases + 3; //minimum input: h2o,T,P
     double* tau = optical_props->get_tau().ptr();
     double* ssa = optical_props->get_ssa().ptr();
     
@@ -307,7 +367,7 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
                 input[idx] = val;
             }
         
-        if constexpr (NGAS == 1)
+        if (this->n_gases == 1)
         {
             startidx += ncol * idx_tropo;
             for (int i=0; i<idx_tropo; ++i)
@@ -339,8 +399,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
 
 
 
-        TSW.inference(input.data(), output_tau.data(), 1,1,1); //lower atmosphere, exp(output), normalize input
-        SSA.inference(input.data(), output_ssa.data(), 1,0,0); //lower atmosphere, output, input already normalized);
+        TSW.inference(input.data(), output_tau.data(), 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
+        SSA.inference(input.data(), output_ssa.data(), 1,0,0, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, output, input already normalized);
    
         copy_arrays_ssa(output_ssa.data(), ssa, ncol,   0, idx_tropo, ngpt, nlay);
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, 0, idx_tropo, ngpt, nlay);
@@ -362,7 +422,7 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
                 input[idx] = val;
             }
 
-        if constexpr (NGAS == 1)
+        if (this->n_gases == 1)
         {
             startidx += ncol*(nlay-idx_tropo);
             for (int i=idx_tropo; i<nlay; ++i)
@@ -392,8 +452,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
                 input[idx] = val;
             }
 
-        TSW.inference(input.data(), output_tau.data(), 0,1,1); //upper atmosphere, exp(output), normalize input
-        SSA.inference(input.data(), output_ssa.data(), 0,0,0); //upper atmosphere, output, input already normalized
+        TSW.inference(input.data(), output_tau.data(), 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
+        SSA.inference(input.data(), output_ssa.data(), 0,0,0, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, output, input already normalized
         
         copy_arrays_ssa(output_ssa.data(), ssa, ncol, idx_tropo, nlay, ngpt, nlay);
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, idx_tropo, nlay, ngpt, nlay);
@@ -404,8 +464,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
 //Currently only implemented for atmospheric profilfes ordered bottom-first
 template<typename TF>
 void Gas_optics_nn<TF>::compute_tau_sources_nn(
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TLW,
-        Network<NLAYER, NLAY1, NLAY2, NLAY3>& PLK,
+        Network& TLW,
+        Network& PLK,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -416,7 +476,7 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         const bool lower_atm, const bool upper_atm) const
 {
-    constexpr int nlay_in = NGAS + 3; //minimum input: h2o,T,P
+    constexpr int nlay_in = this->n_gases + 3; //minimum input: h2o,T,P
 
     double* tau = optical_props->get_tau().ptr();
     double* src_layer = sources.get_lay_source().ptr();
@@ -460,7 +520,7 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx] = val;
             }
 
-        if constexpr (NGAS == 1)
+        if (this->n_gases == 1)
         {
             startidx += ncol * idx_tropo;
             for (int i=0; i<idx_tropo; ++i)
@@ -505,10 +565,9 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx1] = val1;
                 input_plk[idx2] = val2;
             }
-        std::cout<<"BF3"<<std::endl;
 
-        TLW.inference(input_tau.data(), output_tau.data(), 1,1,1); //lower atmosphere, exp(output), normalize input
-        PLK.inference(input_plk.data(), output_plk.data(), 1,1,1); //lower atmosphere, exp(output), normalize input
+        TLW.inference(input_tau.data(), output_tau.data(), 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
+        PLK.inference(input_plk.data(), output_plk.data(), 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
 
         copy_arrays_tau(output_tau.data(),dp,tau,ncol,0,idx_tropo,ngpt,nlay);
         copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,0,idx_tropo,ngpt,nlay);
@@ -533,7 +592,7 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx] = val;
             }
 
-        if constexpr (NGAS == 1)
+        if (n_gases == 1)
         {
             startidx += ncol*(nlay-idx_tropo);
             for (int i=idx_tropo; i<nlay; ++i)
@@ -580,8 +639,8 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx2] = val2;
             }
 
-        TLW.inference(input_tau.data(), output_tau.data(), 0,1,1); //upper atmosphere, exp(output), normalize input
-        PLK.inference(input_plk.data(), output_plk.data(), 0,1,1); //upper atmosphere, exp(output), normalize input
+        TLW.inference(input_tau.data(), output_tau.data(), 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
+        PLK.inference(input_plk.data(), output_plk.data(), 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
  
         copy_arrays_tau(output_tau.data(),dp,tau,ncol,idx_tropo,nlay,ngpt,nlay);
         copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,idx_tropo,nlay,ngpt,nlay);

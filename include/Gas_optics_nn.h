@@ -42,10 +42,13 @@ class Gas_optics_nn : public Optical_props<TF>
                 const TF mg_default,
                 const TF sb_default);
 
+
+        void initialize_networks(
+                const std::string& wgth_file,
+                const std::string& input_file);
+
         // Longwave variant.
         void gas_optics(
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& TLW,
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& PLK,
                 const Array<TF,2>& play,
                 const Array<TF,2>& plev,
                 const Array<TF,2>& tlay,
@@ -53,22 +56,16 @@ class Gas_optics_nn : public Optical_props<TF>
                 const Gas_concs<TF>& gas_desc,
                 std::unique_ptr<Optical_props_arry<TF>>& optical_props,
                 Source_func_lw<TF>& sources,
-                const Array<TF,2>& tlev,
-                const int idx_tropo,
-                const bool lower_atm, const bool upper_atm) const;
+                const Array<TF,2>& tlev) const;
 
         // Shortwave variant.
         void gas_optics(
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& SSA,
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& TSW,
                 const Array<TF,2>& play,
                 const Array<TF,2>& plev,
                 const Array<TF,2>& tlay,
                 const Gas_concs<TF>& gas_desc,
                 std::unique_ptr<Optical_props_arry<TF>>& optical_props,
-                Array<TF,2>& toa_src,
-                const int idx_tropo,
-                const bool lower_atm, const bool upper_atm) const;
+                Array<TF,2>& toa_src) const;
 
     private:
         const TF press_ref_trop = 9948.431564193395; //network is trained on this, so might as well hardcode it
@@ -80,8 +77,8 @@ class Gas_optics_nn : public Optical_props<TF>
             const TF md_index, const TF sb_index);
 
         void compute_tau_ssa_nn(
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& SSA,
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& TSW,
+                Network& ssa_network,
+                Network& tsw_network,
                 const int ncol, const int nlay, const int ngpt,
                 const int nband, const int idx_tropo,
                 const double* restrict const play,
@@ -92,8 +89,8 @@ class Gas_optics_nn : public Optical_props<TF>
                 const bool lower_atm, const bool upper_atm) const;
 
         void compute_tau_sources_nn(
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& TLW,
-                Network<NLAYER, NLAY1, NLAY2, NLAY3>& PLK,
+                Network& tlw_network,
+                Network& plk_network,
                 const int ncol, const int nlay, const int ngpt,
                 const int nband, const int idx_tropo,
                 const double* restrict const play, 
@@ -117,5 +114,19 @@ class Gas_optics_nn : public Optical_props<TF>
         Array<TF,1> solar_source_facular;
         Array<TF,1> solar_source_sunspot;
         Array<TF,1> solar_source;
+
+        Network tsw_network;
+        Network ssa_network;
+        Network tlw_network;
+        Network plk_network;
+        int n_layers;
+        int n_layer1;
+        int n_layer2;
+        int n_layer3;
+        int n_gases;
+        int idx_tropo;
+        bool lower_atm;
+        bool upper_atm;
+
 };
 #endif
