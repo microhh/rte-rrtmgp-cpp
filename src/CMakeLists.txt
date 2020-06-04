@@ -1,5 +1,6 @@
 FILE(GLOB sourcefiles "../src/*.cpp")
 include_directories("../include" SYSTEM ${INCLUDE_DIRS})
+include_directories("../include_test" SYSTEM ${INCLUDE_DIRS})
 
 if(USECUDA)
   cuda_add_library(rte_rrtmgp STATIC ${sourcefiles})

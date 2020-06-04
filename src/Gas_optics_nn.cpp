@@ -3,7 +3,7 @@
 #include <boost/algorithm/string.hpp>
 #include "Gas_concs.h"
 #include "Netcdf_interface.h"
-#include "Gas_opticsNN.h"
+#include "Gas_optics_nn.h"
 #include "Array.h"
 #include "Optical_props.h"
 #include "Source_functions.h"
@@ -13,25 +13,16 @@
 
 #define restrict __restrict__
 
-double get_wall_time2()
-{
-    struct timeval time;
-    if (gettimeofday(&time,NULL))
-    {
-        //  Handle error
-        return 0;
-    }
-    return (double)time.tv_sec + (double)time.tv_usec * .000001;
-}
-
 namespace
 {
     double starttime,endtime;
-    double starttimeX,endtimeX;
-    inline float mylog(float x)
+
+    inline float logarithm(float x)
     {
-        x = sqrt(x);x = sqrt(x);
-        x = sqrt(x);x = sqrt(x);
+        x = sqrt(x);
+        x = sqrt(x);
+        x = sqrt(x);
+        x = sqrt(x);
         x = (x-1.0f) * 16.0f;
         return x;
     }
@@ -40,40 +31,38 @@ namespace
                  const float* restrict const data_in,
                  const float* restrict const data_dp,
                  double* restrict const data_out,
-                 const int N1,  const int N2a, 
-                 const int N2b, const int N3,
-                 const int nlay)
+                 const int n_col, const int n_bot,
+                 const int n_top, const int n_gpt,
+                 const int n_lay)
     {
-        const float* dp_temp = &data_dp[N1*N2a];
-        const int Nup = N2b-N2a;
-        for (int i = 0; i < N3; ++i)
+        const float* dp_temp = &data_dp[n_col*n_bot];
+        const int n_sub = n_top-n_bot;
+        for (int i=0; i<n_gpt; ++i)
         {
-            const int outidx = i*nlay*N1+N2a*N1;
-            const float* in_temp = &data_in[i*Nup*N1];
+            const int outidx = i*n_lay*n_col + n_bot*n_col;
+            const float* in_temp = &data_in[i*n_sub*n_col];
             double* out_temp = &data_out[outidx];
             #pragma ivdep            
-            for (int j = 0; j < N1*Nup; ++j)
-            {
-                out_temp[j] = in_temp[j] * dp_temp[j]; 
-            }             
+            for (int j=0; j<n_col*n_sub; ++j)
+                out_temp[j] = in_temp[j] * dp_temp[j];
         }
     }
 
     void copy_arrays_ssa(
                  const float* restrict const data_in,
                  double* restrict const data_out,
-                 const int N1,  const int N2a, 
-                 const int N2b, const int N3,
+                 const int n_col, const int n_bot,
+                 const int n_top, const int n_gpt,
                  const int nlay)
     {
-        const int Nup = N2b-N2a;
-        for (int i = 0; i < N3; ++i)
+        const int n_sub = n_top-n_bot;
+        for (int i=0; i<n_gpt; ++i)
         {
-            const int outidx = i*nlay*N1+N2a*N1;
-            const float* in_temp = &data_in[i*Nup*N1];
+            const int outidx = i*nlay*n_col+n_bot*n_col;
+            const float* in_temp = &data_in[i*n_sub*n_col];
             double* out_temp = &data_out[outidx];
             #pragma ivdep            
-            for (int j = 0; j < N1*Nup; ++j)
+            for (int j=0; j<n_col*n_sub; ++j)
             {
                 out_temp[j] = in_temp[j]; 
             }             
@@ -85,22 +74,22 @@ namespace
                  double* restrict const data_out1,
                  double* restrict const data_out2,
                  double* restrict const data_out3,
-                 const int N1,  const int N2a, 
-                 const int N2b, const int N3,
+                 const int n_col, const int n_bot,
+                 const int n_top, const int n_gpt,
                  const int nlay)
     {
-        const int Nup = N2b-N2a;
-        for (int i = 0; i < N3; ++i)
+        const int n_sub = n_top-n_bot;
+        for (int i=0; i<n_gpt; ++i)
         {
-            const int outidx = i*nlay*N1+N2a*N1;
-            const float* in_temp1 = &data_in[i*Nup*N1];
-            const float* in_temp2 = &data_in[(i+N3)*Nup*N1];
-            const float* in_temp3 = &data_in[(i+N3+N3)*Nup*N1];
+            const int outidx = i*nlay*n_col+n_bot*n_col;
+            const float* in_temp1 = &data_in[i*n_sub*n_col];
+            const float* in_temp2 = &data_in[(i+n_gpt)*n_sub*n_col];
+            const float* in_temp3 = &data_in[(i+n_gpt+n_gpt)*n_sub*n_col];
             double* out_temp1= &data_out1[outidx];
             double* out_temp2= &data_out2[outidx];
             double* out_temp3= &data_out3[outidx];
             #pragma ivdep           
-            for (int j = 0; j < N1*Nup; ++j)
+            for (int j=0; j<n_col*n_sub; ++j)
             {
                 out_temp1[j] = in_temp1[j];
                 out_temp2[j] = in_temp2[j];
@@ -112,10 +101,8 @@ namespace
 
 }
        
-//     // Constructor of longwave variant.
-//template<typename TF>
-template<typename TF,int Nlayer,int N_gas,int N_lay1,int N_lay2,int N_lay3>
-Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::Gas_opticsNN(
+template<typename TF>
+Gas_optics_nn<TF>::Gas_optics_nn(
         const Array<std::string,1>& gas_names,
         const Array<int,2>& band2gpt,
         const Array<TF,2>& band_lims_wavenum):
@@ -126,28 +113,35 @@ Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::Gas_opticsNN(
 }
 
 // Constructor of the shortwave variant.
-template<typename TF,int Nlayer,int N_gas,int N_lay1,int N_lay2,int N_lay3>
-Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::Gas_opticsNN(
+template<typename TF>
+Gas_optics_nn<TF>::Gas_optics_nn(
         const Array<std::string,1>& gas_names,
         const Array<int,2>& band2gpt,
         const Array<TF,2>& band_lims_wavenum,
-        const Array<TF,1>& solar_src,
-        const bool do_taussa):
-            Optical_props<TF>(band_lims_wavenum, band2gpt),
-            solar_src(solar_src)
+        const Array<TF,1>& solar_source_quiet,
+        const Array<TF,1>& solar_source_facular,
+        const Array<TF,1>& solar_source_sunspot,
+        const TF tsi_default,
+        const TF mg_default,
+        const TF sb_default):
+            Optical_props<TF>(band_lims_wavenum, band2gpt)
 { 
    
     this->is_longwave = false;   
-    this->do_taussa = do_taussa;
     this->gas_names = gas_names;
+    this->solar_source_quiet = solar_source_quiet;
+    this->solar_source_facular = solar_source_facular;
+    this->solar_source_sunspot = solar_source_sunspot;
+    this->solar_source.set_dims(solar_source_quiet.get_dims());
+
+    set_solar_variability(mg_default, sb_default);
 }
 
 // Gas optics solver longwave variant.
-//template<typename TF>
-template<typename TF,int Nlayer,int N_gas,int N_lay1,int N_lay2,int N_lay3>
-void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::gas_optics(
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& TLW,
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& PLK,
+template<typename TF>
+void Gas_optics_nn<TF>::gas_optics(
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TLW,
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& PLK,
         const Array<TF,2>& play,
         const Array<TF,2>& plev,
         const Array<TF,2>& tlay,
@@ -164,7 +158,7 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::gas_optics(
     const int ngpt = this->get_ngpt();
     const int nband = this->get_nband();
 
-    compute_tau_sources_NN(TLW, PLK,
+    compute_tau_sources_nn(TLW, PLK,
             ncol, nlay, ngpt, nband, idx_tropo, 
             play.ptr(), plev.ptr(), 
             tlay.ptr(), tlev.ptr(),
@@ -178,10 +172,10 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::gas_optics(
 
 // Gas optics solver shortwave variant.
 //template<typename TF>
-template<typename TF,int Nlayer,int N_gas,int N_lay1,int N_lay2,int N_lay3>
-void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::gas_optics(
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& SSA, 
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& TSW, 
+template<typename TF>
+void Gas_optics_nn<TF>::gas_optics(
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& SSA,
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TSW,
         const Array<TF,2>& play,
         const Array<TF,2>& plev,
         const Array<TF,2>& tlay,
@@ -195,8 +189,8 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::gas_optics(
     const int nlay = play.dim(2);
     const int ngpt = this->get_ngpt();
     const int nband = this->get_nband();
-    compute_tau_ssa_NN(
-            SSA,TSW,
+    compute_tau_ssa_nn(
+            SSA, TSW,
             ncol, nlay, ngpt, nband, idx_tropo, 
             play.ptr(), plev.ptr(), tlay.ptr(), 
             gas_desc, optical_props,
@@ -205,11 +199,26 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::gas_optics(
     // External source function is constant.
     for (int igpt=1; igpt<=ngpt; ++igpt)
         for (int icol=1; icol<=ncol; ++icol)
-            toa_src({icol, igpt}) = this->solar_src({igpt});
+            toa_src({icol, igpt}) = this->solar_source({igpt});
 }
 
-template<typename TF,int Nlayer,int N_gas,int N_lay1,int N_lay2,int N_lay3>
-void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::lay2sfc_factor(
+template<typename TF>
+void Gas_optics_nn<TF>::set_solar_variability(
+        const TF mg_index, const TF sb_index)
+{
+    constexpr TF a_offset = TF(0.1495954);
+    constexpr TF b_offset = TF(0.00066696);
+
+    for (int igpt=1; igpt<=this->solar_source_quiet.dim(1); ++igpt)
+    {
+        this->solar_source({igpt}) = this->solar_source_quiet({igpt})
+                                     + (mg_index - a_offset) * this->solar_source_facular({igpt})
+                                     + (sb_index - b_offset) * this->solar_source_sunspot({igpt});
+    }
+}
+
+template<typename TF>
+void Gas_optics_nn<TF>::lay2sfc_factor(
         const Array<TF,2>& tlay,
         const Array<TF,1>& tsfc,
         Source_func_lw<TF>& sources,
@@ -218,27 +227,26 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::lay2sfc_factor(
         const int& nband) const
 {
     Array<TF,1> sfc_factor({nband});
-    Array<TF,3>& src_layer = sources.get_lay_source();
-    Array<TF,2>& src_sfc   = sources.get_sfc_source();
+    Array<TF,3>& src_layer   = sources.get_lay_source();
+    Array<TF,2>& src_sfc     = sources.get_sfc_source();
     for (int icol=1; icol<=ncol; ++icol)
     {
-        const float tempfrac = tsfc({icol})/tlay({icol,1});
-        sfc_factor({1}) = pow((0.013175791260819966*tsfc({icol})-1) / (0.013175791260819966*tlay({icol,1})-1),1.1209724347746475);
-        sfc_factor({2}) = pow((0.009277821591516187*tsfc({icol})-1) / (0.009277821591516187*tlay({icol,1})-1),1.4149505728750649);
-        sfc_factor({3}) = pow((0.008122106458073356*tsfc({icol})-1) / (0.008122106458073356*tlay({icol,1})-1),1.7153859296550862);
-        sfc_factor({4}) = pow((0.00782981955085045*tsfc({icol})-1) / (0.00782981955085045*tlay({icol,1})-1),1.9129486781120648);
-        sfc_factor({5}) = pow((0.007692895029987358*tsfc({icol})-1) / (0.007692895029987358*tlay({icol,1})-1),2.121924616912191);
-        sfc_factor({6}) = pow((0.0075653865084563034*tsfc({icol})-1) / (0.0075653865084563034*tlay({icol,1})-1),2.4434431185689567);
-        sfc_factor({7}) = pow((0.007452294537183882*tsfc({icol})-1) / (0.007452294537183882*tlay({icol,1})-1),2.7504289450500714);
-        sfc_factor({8}) = pow((0.007410501754526651*tsfc({icol})-1) / (0.007410501754526651*tlay({icol,1})-1),2.9950297268205865);
-        sfc_factor({9}) = pow((0.007411910171957498*tsfc({icol})-1) / (0.007411910171957498*tlay({icol,1})-1),3.3798218227597565);
-        sfc_factor({10}) = pow((0.00734013947630943*tsfc({icol})-1) / (0.00734013947630943*tlay({icol,1})-1),3.760811429547177);
-        sfc_factor({11}) = pow((0.007407571025611854*tsfc({icol})-1) / (0.007407571025611854*tlay({icol,1})-1),4.267112286396149);
-        sfc_factor({12}) = pow((0.007354257182046865*tsfc({icol})-1) / (0.007354257182046865*tlay({icol,1})-1),5.037348344205931);
-        sfc_factor({13}) = pow((0.007305975346731165*tsfc({icol})-1) / (0.007305975346731165*tlay({icol,1})-1),5.629568565488524);
-        sfc_factor({14}) = pow((0.00729461700505611*tsfc({icol})-1) / (0.00729461700505611*tlay({icol,1})-1),6.032163655628699);
-        sfc_factor({15}) = pow((0.007326655290388281*tsfc({icol})-1) / (0.007326655290388281*tlay({icol,1})-1),6.566161469007115);
-        sfc_factor({16}) = pow((0.00741295286921425*tsfc({icol})-1) / (0.00741295286921425*tlay({icol,1})-1),7.579678774748928);
+        sfc_factor({1})  = pow((0.0131757912608200*tsfc({icol})-1) / (0.01317579126081997*tlay({icol,1})-1), 1.1209724347746475);
+        sfc_factor({2})  = pow((0.0092778215915162*tsfc({icol})-1) / (0.00927782159151618*tlay({icol,1})-1), 1.4149505728750649);
+        sfc_factor({3})  = pow((0.0081221064580734*tsfc({icol})-1) / (0.00812210645807336*tlay({icol,1})-1), 1.7153859296550862);
+        sfc_factor({4})  = pow((0.0078298195508505*tsfc({icol})-1) / (0.00782981955085045*tlay({icol,1})-1), 1.9129486781120648);
+        sfc_factor({5})  = pow((0.0076928950299874*tsfc({icol})-1) / (0.00769289502998736*tlay({icol,1})-1), 2.121924616912191);
+        sfc_factor({6})  = pow((0.0075653865084563*tsfc({icol})-1) / (0.00756538650845630*tlay({icol,1})-1), 2.4434431185689567);
+        sfc_factor({7})  = pow((0.0074522945371839*tsfc({icol})-1) / (0.00745229453718388*tlay({icol,1})-1), 2.7504289450500714);
+        sfc_factor({8})  = pow((0.0074105017545267*tsfc({icol})-1) / (0.00741050175452665*tlay({icol,1})-1), 2.9950297268205865);
+        sfc_factor({9})  = pow((0.0074119101719575*tsfc({icol})-1) / (0.00741191017195750*tlay({icol,1})-1), 3.3798218227597565);
+        sfc_factor({10}) = pow((0.0073401394763094*tsfc({icol})-1) / (0.00734013947630943*tlay({icol,1})-1), 3.760811429547177);
+        sfc_factor({11}) = pow((0.0074075710256119*tsfc({icol})-1) / (0.00740757102561185*tlay({icol,1})-1), 4.267112286396149);
+        sfc_factor({12}) = pow((0.0073542571820469*tsfc({icol})-1) / (0.00735425718204687*tlay({icol,1})-1), 5.037348344205931);
+        sfc_factor({13}) = pow((0.0073059753467312*tsfc({icol})-1) / (0.00730597534673117*tlay({icol,1})-1), 5.629568565488524);
+        sfc_factor({14}) = pow((0.0072946170050561*tsfc({icol})-1) / (0.00729461700505611*tlay({icol,1})-1), 6.032163655628699);
+        sfc_factor({15}) = pow((0.0073266552903883*tsfc({icol})-1) / (0.00732665529038828*tlay({icol,1})-1), 6.566161469007115);
+        sfc_factor({16}) = pow((0.0074129528692143*tsfc({icol})-1) / (0.00741295286921425*tlay({icol,1})-1), 7.579678774748928);
         for (int iband=1; iband<=nband; ++iband)
             for (int igpt=1; igpt<=16; ++igpt)
             {
@@ -250,10 +258,10 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::lay2sfc_factor(
  
 //Neural Network optical property function for shortwave
 //Currently only implemented for atmospheric profilfes ordered bottom-first
-template<typename TF,int Nlayer,int N_gas,int N_lay1,int N_lay2,int N_lay3>
-void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::compute_tau_ssa_NN(
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& SSA, 
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& TSW,
+template<typename TF>
+void Gas_optics_nn<TF>::compute_tau_ssa_nn(
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& SSA,
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TSW,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -262,141 +270,142 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::compute_tau_ssa_NN(
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         const bool lower_atm, const bool upper_atm) const
 {
-    constexpr int N_layI = N_gas + 3; //minimum input: h2o,T,P
+    constexpr int nlay_in = NGAS + 3; //minimum input: h2o,T,P
     double* tau = optical_props->get_tau().ptr();
     double* ssa = optical_props->get_ssa().ptr();
     
-    float nul = 0.;
-    float een = 1.;
     int startidx = 0;
 
-    float dp[ncol * nlay];
+    float dp[ncol*nlay];
     for (int ilay=0; ilay<nlay; ++ilay)
         for (int icol=0; icol<ncol; ++icol)
         {
-            const int dpidx = icol + ilay * ncol;
+            const int dpidx = icol+ilay*ncol;
             dp[dpidx] = abs(plev[dpidx]-plev[dpidx+ncol]);
         }
 
     //get gas concentrations
     const double* h2o = gas_desc.get_vmr(this->gas_names({1})).ptr();
     const double* o3  = gas_desc.get_vmr(this->gas_names({3})).ptr();
-    
-    
-    if (lower_atm) //// Lower atmosphere:
+
+    std::vector<float> input;
+    std::vector<float> output_tau;
+    std::vector<float> output_ssa;
+
+    if (lower_atm) // Lower atmosphere:
     {
         //fill input array  
-        float input_lower[ncol*idx_tropo*N_layI];
-        float output_lower_tau[ncol*idx_tropo*ngpt];
-        float output_lower_ssa[ncol*idx_tropo*ngpt];
+        input.resize(ncol*idx_tropo*nlay_in);
+        output_tau.resize(ncol*idx_tropo*ngpt);
+        output_ssa.resize(ncol*idx_tropo*ngpt);
 
-        for (int i = 0; i < idx_tropo; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=0; i<idx_tropo; ++i)
+            for (int j=0; j<ncol; ++j)
             {
-                const float val = mylog(h2o[j+i*ncol]);
+                const float val = logarithm(h2o[j+i*ncol]);
                 const int idx = j+i*ncol;
-                input_lower[idx] = val;
+                input[idx] = val;
             }
         
-        if constexpr (N_gas == 1)
+        if constexpr (NGAS == 1)
         {
             startidx += ncol * idx_tropo;
-            for (int i = 0; i < idx_tropo; ++i)
-                for (int j = 0; j < ncol; ++j)
+            for (int i=0; i<idx_tropo; ++i)
+                for (int j=0; j<ncol; ++j)
                 {
-                    const float val = mylog(o3[j+i*ncol]);
+                    const float val = logarithm(o3[j+i*ncol]);
                     const int idx   = startidx + j+i*ncol;
-                    input_lower[idx] = val;
+                    input[idx] = val;
                 }
         }
         
         startidx += ncol * idx_tropo;
-        for (int i = 0; i < idx_tropo; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=0; i<idx_tropo; ++i)
+            for (int j=0; j<ncol; ++j)
             {
-                const float val = mylog(play[j+i*ncol]);
+                const float val = logarithm(play[j+i*ncol]);
                 const int idx   = startidx + j+i*ncol;
-                input_lower[idx] = val;
+                input[idx] = val;
             }
 
         startidx += ncol * idx_tropo;
-        for (int i = 0; i < idx_tropo; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=0; i<idx_tropo; ++i)
+            for (int j=0; j<ncol; ++j)
             {
                 const float val = tlay[j+i*ncol];
                 const int idx   = startidx + j+i*ncol;
-                input_lower[idx] = val;
+                input[idx] = val;
             }
 
 
 
-        TSW.Inference(input_lower, output_lower_tau, 1,1,1); //lower atmosphere, exp(output), normalize input
-        SSA.Inference(input_lower, output_lower_ssa, 1,0,0); //lower atmosphere, output, input already normalized);
+        TSW.inference(input.data(), output_tau.data(), 1,1,1); //lower atmosphere, exp(output), normalize input
+        SSA.inference(input.data(), output_ssa.data(), 1,0,0); //lower atmosphere, output, input already normalized);
    
-        copy_arrays_ssa(output_lower_ssa,ssa,ncol,   0,idx_tropo,ngpt,nlay);    
-        copy_arrays_tau(output_lower_tau,dp,tau,ncol,0,idx_tropo,ngpt,nlay); 
+        copy_arrays_ssa(output_ssa.data(), ssa, ncol,   0, idx_tropo, ngpt, nlay);
+        copy_arrays_tau(output_tau.data(), dp, tau, ncol, 0, idx_tropo, ngpt, nlay);
     }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++     
     if (upper_atm) //// Upper atmosphere:
     {
         //fill input array
-        float input_upper     [ncol*(nlay-idx_tropo)*N_layI];
-        float output_upper_tau[ncol*(nlay-idx_tropo)*ngpt];
-        float output_upper_ssa[ncol*(nlay-idx_tropo)*ngpt];
+        input.resize(ncol*(nlay-idx_tropo)*nlay_in);
+        output_tau.resize(ncol*(nlay-idx_tropo)*ngpt);
+        output_ssa.resize(ncol*(nlay-idx_tropo)*ngpt);
 
         startidx = 0;
-        for (int i = idx_tropo; i < nlay; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=idx_tropo; i<nlay; ++i)
+            for (int j=0; j<ncol; ++j)
             {
-                const float val = mylog(h2o[j+i*ncol]);
+                const float val = logarithm(h2o[j+i*ncol]);
                 const int idx = j+(i-idx_tropo)*ncol;
-                input_upper[idx] = val;
+                input[idx] = val;
             }
 
-        if constexpr (N_gas == 1)
+        if constexpr (NGAS == 1)
         {
             startidx += ncol*(nlay-idx_tropo);
-            for (int i = idx_tropo; i < nlay; ++i)
-                for (int j = 0; j < ncol; ++j)
+            for (int i=idx_tropo; i<nlay; ++i)
+                for (int j=0; j<ncol; ++j)
                 {
-                    const float val = mylog(o3[j+i*ncol]);
+                    const float val = logarithm(o3[j+i*ncol]);
                     const int idx   = startidx + j+(i-idx_tropo)*ncol;
-                    input_upper[idx] = val;
+                    input[idx] = val;
                 }
         } 
         
         startidx += ncol*(nlay-idx_tropo);
-        for (int i = idx_tropo; i < nlay; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=idx_tropo; i<nlay; ++i)
+            for (int j=0; j<ncol; ++j)
             {
-                const float val = mylog(play[j+i*ncol]);
+                const float val = logarithm(play[j+i*ncol]);
                 const int idx   = startidx + j+(i-idx_tropo)*ncol;
-                input_upper[idx] = val;
+                input[idx] = val;
             }
 
         startidx += ncol*(nlay-idx_tropo);
-        for (int i = idx_tropo; i < nlay; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=idx_tropo; i<nlay; ++i)
+            for (int j=0; j<ncol; ++j)
             {
                 const float val = tlay[j+i*ncol];
                 const int idx   = startidx + j+(i-idx_tropo)*ncol;
-                input_upper[idx] = val;
+                input[idx] = val;
             }
 
-        TSW.Inference(input_upper, output_upper_tau, 0,1,1); //upper atmosphere, exp(output), normalize input
-        SSA.Inference(input_upper, output_upper_ssa, 0,0,0); //upper atmosphere, output, input already normalized 
+        TSW.inference(input.data(), output_tau.data(), 0,1,1); //upper atmosphere, exp(output), normalize input
+        SSA.inference(input.data(), output_ssa.data(), 0,0,0); //upper atmosphere, output, input already normalized
         
-        copy_arrays_ssa(output_upper_ssa,ssa,ncol,idx_tropo,   nlay,ngpt,nlay);
-        copy_arrays_tau(output_upper_tau,dp,tau,ncol,idx_tropo,nlay,ngpt,nlay);
+        copy_arrays_ssa(output_ssa.data(), ssa, ncol, idx_tropo, nlay, ngpt, nlay);
+        copy_arrays_tau(output_tau.data(), dp, tau, ncol, idx_tropo, nlay, ngpt, nlay);
     }
 }
 
 //Neural Network optical property function for longwave
 //Currently only implemented for atmospheric profilfes ordered bottom-first
-template<typename TF,int Nlayer,int N_gas,int N_lay1,int N_lay2,int N_lay3>
-void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::compute_tau_sources_NN(
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& TLW,
-        Network<Nlayer,N_lay1,N_lay2,N_lay3>& PLK,
+template<typename TF>
+void Gas_optics_nn<TF>::compute_tau_sources_nn(
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& TLW,
+        Network<NLAYER, NLAY1, NLAY2, NLAY3>& PLK,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -407,19 +416,17 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::compute_tau_sources_NN(
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         const bool lower_atm, const bool upper_atm) const
 {
-    constexpr int N_layI = N_gas + 3; //minimum input: h2o,T,P
-    
+    constexpr int nlay_in = NGAS + 3; //minimum input: h2o,T,P
+
     double* tau = optical_props->get_tau().ptr();
     double* src_layer = sources.get_lay_source().ptr();
     double* src_lvinc = sources.get_lev_source_inc().ptr();
     double* src_lvdec = sources.get_lev_source_dec().ptr();
 
-    float nul = 0.;
-    float een = 1.;
     int startidx = 0;
     int startidx2 =0;
 
-    float dp[ncol * nlay];
+    float dp[ncol*nlay];
     for (int ilay=0; ilay<nlay; ++ilay)
         for (int icol=0; icol<ncol; ++icol)
         {
@@ -430,153 +437,160 @@ void Gas_opticsNN<TF,Nlayer,N_gas,N_lay1,N_lay2,N_lay3>::compute_tau_sources_NN(
     //get gas concentrations
     const double* h2o = gas_desc.get_vmr(this->gas_names({1})).ptr();
     const double* o3  = gas_desc.get_vmr(this->gas_names({3})).ptr();
+    std::cout<<lower_atm<<"  "<<upper_atm<<"  "<<ngpt<<std::endl;
+    std::vector<float> input_tau;
+    std::vector<float> input_plk;
+    std::vector<float> output_tau;
+    std::vector<float> output_plk;
 
     if (lower_atm) //// Lower atmosphere:
     {
         //fill input array  
-        float input_lower_tau[ncol*idx_tropo*N_layI];
-        float input_lower_plk[ncol*idx_tropo*(N_layI+2)];
-        float output_lower_tau[ncol*idx_tropo*ngpt];
-        float output_lower_plk[ncol*idx_tropo*ngpt*3];
+        input_tau.resize(ncol*idx_tropo*nlay_in);
+        input_plk.resize(ncol*idx_tropo*(nlay_in+2));
+        output_tau.resize(ncol*idx_tropo*ngpt);
+        output_plk.resize(ncol*idx_tropo*ngpt*3);
 
-        for (int i = 0; i < idx_tropo; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=0; i<idx_tropo; ++i)
+            for (int j=0; j<ncol; ++j)
             { 
-                const float val = mylog(h2o[j+i*ncol]);
+                const float val = logarithm(h2o[j+i*ncol]);
                 const int idx   = j+i*ncol;
-                input_lower_tau[idx] = val;
-                input_lower_plk[idx] = val;
+                input_tau[idx] = val;
+                input_plk[idx] = val;
             }
-        
-        if constexpr (N_gas == 1)
+
+        if constexpr (NGAS == 1)
         {
             startidx += ncol * idx_tropo;
-            for (int i = 0; i < idx_tropo; ++i)
-                for (int j = 0; j < ncol; ++j)
+            for (int i=0; i<idx_tropo; ++i)
+                for (int j=0; j<ncol; ++j)
                 {
-                    const float val = mylog(o3[j+i*ncol]);
+                    const float val = logarithm(o3[j+i*ncol]);
                     const int idx   = startidx + j+i*ncol;
-                    input_lower_tau[idx] = val;
-                    input_lower_plk[idx] = val;
+                    input_tau[idx] = val;
+                    input_plk[idx] = val;
                 }
         }
 
         startidx += ncol * idx_tropo;
-        for (int i = 0; i < idx_tropo; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=0; i<idx_tropo; ++i)
+            for (int j=0; j<ncol; ++j)
             {
-                const float val = mylog(play[j+i*ncol]);
+                const float val = logarithm(play[j+i*ncol]);
                 const int idx   = startidx + j+i*ncol;
-                input_lower_tau[idx] = val;
-                input_lower_plk[idx] = val;
+                input_tau[idx] = val;
+                input_plk[idx] = val;
             }
 
         startidx += ncol * idx_tropo;
-        for (int i = 0; i < idx_tropo; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=0; i<idx_tropo; ++i)
+            for (int j=0; j<ncol; ++j)
             {
                 const float val = tlay[j+i*ncol];
                 const int idx   = startidx + j+i*ncol;
-                input_lower_tau[idx] = val;
-                input_lower_plk[idx] = val;
+                input_tau[idx] = val;
+                input_plk[idx] = val;
             }
 
         startidx += ncol * idx_tropo;
         startidx2 = startidx + ncol * idx_tropo;
-        for (int i = 0; i < idx_tropo; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=0; i<idx_tropo; ++i)
+            for (int j=0; j<ncol; ++j)
             {
                 const float val1 = tlev[j+(i+1)*ncol];
                 const float val2 = tlev[j+i*ncol];
                 const int idx1 = startidx + j+i*ncol;
                 const int idx2 = startidx2 + j+i*ncol;
-                input_lower_plk[idx1] = val1;
-                input_lower_plk[idx2] = val2;
+                input_plk[idx1] = val1;
+                input_plk[idx2] = val2;
             }
+        std::cout<<"BF3"<<std::endl;
 
-        TLW.Inference(input_lower_tau, output_lower_tau, 1,1,1); //lower atmosphere, exp(output), normalize input
-        PLK.Inference(input_lower_plk, output_lower_plk, 1,1,1); //lower atmosphere, exp(output), normalize input
+        TLW.inference(input_tau.data(), output_tau.data(), 1,1,1); //lower atmosphere, exp(output), normalize input
+        PLK.inference(input_plk.data(), output_plk.data(), 1,1,1); //lower atmosphere, exp(output), normalize input
 
-        copy_arrays_tau(output_lower_tau,dp,tau,ncol,0,idx_tropo,ngpt,nlay);
-        copy_arrays_plk(output_lower_plk,src_layer,src_lvdec,src_lvinc,ncol,0,idx_tropo,ngpt,nlay); 
+        copy_arrays_tau(output_tau.data(),dp,tau,ncol,0,idx_tropo,ngpt,nlay);
+        copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,0,idx_tropo,ngpt,nlay);
         //We swap lvdec and lvinc with respect to neural network training data, which was generated with a top-bottom ordering
     }
 
     if (upper_atm) //// Upper atmosphere:
     {
         //fill input array
-        float input_upper_tau [ncol*(nlay-idx_tropo)*N_layI];
-        float input_upper_plk [ncol*(nlay-idx_tropo)*(N_layI+2)];
-        float output_upper_tau[ncol*(nlay-idx_tropo)*ngpt];
-        float output_upper_plk[ncol*(nlay-idx_tropo)*ngpt*3];   
+        input_tau .resize(ncol*(nlay-idx_tropo)*nlay_in);
+        input_plk .resize(ncol*(nlay-idx_tropo)*(nlay_in+2));
+        output_tau.resize(ncol*(nlay-idx_tropo)*ngpt);
+        output_plk.resize(ncol*(nlay-idx_tropo)*ngpt*3);
 
         startidx = 0;
         for (int i = idx_tropo; i < nlay; ++i)
             for (int j = 0; j < ncol; ++j)
             {
-                const float val = mylog(h2o[j+i*ncol]);
+                const float val = logarithm(h2o[j+i*ncol]);
                 const int idx   = j+(i-idx_tropo)*ncol;
-                input_upper_tau[idx] = val;
-                input_upper_plk[idx] = val;
+                input_tau[idx] = val;
+                input_plk[idx] = val;
             }
 
-        if constexpr (N_gas == 1)
+        if constexpr (NGAS == 1)
         {
             startidx += ncol*(nlay-idx_tropo);
-            for (int i = idx_tropo; i < nlay; ++i)
-                for (int j = 0; j < ncol; ++j)
+            for (int i=idx_tropo; i<nlay; ++i)
+                for (int j=0; j<ncol; ++j)
                 {
-                    const float val = mylog(o3[j+i*ncol]);
+                    const float val = logarithm(o3[j+i*ncol]);
                     const int idx   = startidx + j+(i-idx_tropo)*ncol;
-                    input_upper_tau[idx] = val;
-                    input_upper_plk[idx] = val;
+                    input_tau[idx] = val;
+                    input_plk[idx] = val;
                 }
         }
 
         startidx += ncol*(nlay-idx_tropo);
-        for (int i = idx_tropo; i < nlay; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=idx_tropo; i<nlay; ++i)
+            for (int j=0; j<ncol; ++j)
             {
-                const float val = mylog(play[j+i*ncol]);
+                const float val = logarithm(play[j+i*ncol]);
                 const int idx   = startidx + j+(i-idx_tropo)*ncol;
-                input_upper_tau[idx] = val;
-                input_upper_plk[idx] = val;
+                input_tau[idx] = val;
+                input_plk[idx] = val;
             }
 
         startidx += ncol*(nlay-idx_tropo);
-        for (int i = idx_tropo; i < nlay; ++i)
-            for (int j = 0; j < ncol; ++j)
+        for (int i=idx_tropo; i<nlay; ++i)
+            for (int j=0; j<ncol; ++j)
             {
                 const float val = tlay[j+i*ncol];
                 const int idx   = startidx + j+(i-idx_tropo)*ncol;
-                input_upper_tau[idx] = val;
-                input_upper_plk[idx] = val;
+                input_tau[idx] = val;
+                input_plk[idx] = val;
             }
         
-        startidx += ncol * (nlay-idx_tropo);
-        startidx2 = startidx + ncol * (nlay-idx_tropo);
-        for (int i = idx_tropo; i < nlay; ++i)
-            for (int j = 0; j < ncol; ++j)
+        startidx += ncol*(nlay-idx_tropo);
+        startidx2 = startidx+ncol*(nlay-idx_tropo);
+
+        for (int i=idx_tropo; i<nlay; ++i)
+            for (int j=0; j<ncol; ++j)
             {
                 const float val1 = tlev[j+(i+1)*ncol];
                 const float val2 = tlev[j+i*ncol];
-                const int idx1 = startidx + j+(i-idx_tropo)*ncol;
+                const int idx1 = startidx  + j+(i-idx_tropo)*ncol;
                 const int idx2 = startidx2 + j+(i-idx_tropo)*ncol;
-                input_upper_plk[idx1] = val1;
-                input_upper_plk[idx2] = val2;
+                input_plk[idx1] = val1;
+                input_plk[idx2] = val2;
             }
 
-        TLW.Inference(input_upper_tau, output_upper_tau, 0,1,1); //upper atmosphere, exp(output), normalize input
-        PLK.Inference(input_upper_plk, output_upper_plk, 0,1,1); //upper atmosphere, exp(output), normalize input
+        TLW.inference(input_tau.data(), output_tau.data(), 0,1,1); //upper atmosphere, exp(output), normalize input
+        PLK.inference(input_plk.data(), output_plk.data(), 0,1,1); //upper atmosphere, exp(output), normalize input
  
-        copy_arrays_tau(output_upper_tau,dp,tau,ncol,idx_tropo,nlay,ngpt,nlay); 
-        copy_arrays_plk(output_upper_plk,src_layer,src_lvdec,src_lvinc,ncol,idx_tropo,nlay,ngpt,nlay); 
+        copy_arrays_tau(output_tau.data(),dp,tau,ncol,idx_tropo,nlay,ngpt,nlay);
+        copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,idx_tropo,nlay,ngpt,nlay);
         //We swap lvdec and lvinc with respect to neural network training data, which was generated with a top-bottom ordering
     }
 }
 #ifdef FLOAT_SINGLE_RRTMGP
-template class Gas_opticsNN<float,Nlayer,Ngas,Nlay1,Nlay2,Nlay3>;
+template class Gas_optics_nn<float>;
 #else
-template class Gas_opticsNN<double,Nlayer,Ngas,Nlay1,Nlay2,Nlay3>;
+template class Gas_optics_nn<double>;
 #endif
 

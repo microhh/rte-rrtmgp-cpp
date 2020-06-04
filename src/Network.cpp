@@ -1,4 +1,5 @@
 //#include <math.h>
+//#include <math.h>
 
 #include <cmath>
 #include <algorithm>
@@ -8,7 +9,8 @@
 #include <iostream>
 #include "Netcdf_interface.h"
 #include "Network.h"
-#include <mkl.h>
+//#include <mkl.h>
+#include <cblas.h>
 #include <time.h>
 #include <sys/time.h>
 #define restrict __restrict__
@@ -21,7 +23,7 @@ namespace
         for (int i=0; i<n_out; ++i)
             #pragma ivdep
             for (int j=0; j<n_batch; ++j)
-                output[j+i*n_batch] = leaky_relu(output[j+i*n_batch] + bias[i])
+                output[j+i*n_batch] = leaky_relu(output[j+i*n_batch] + bias[i]);
     }
 
     void matmul_bias_act_blas(
@@ -33,9 +35,11 @@ namespace
             float* restrict const layer_in,
             float* restrict const layer_out)
     {
+
         cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n_row, n_batch, n_col, 1.f,
                     weights, n_col, layer_in, n_batch , 0.f, layer_out, n_batch);
-    }        		
+        bias_and_activate(layer_out, bias, n_row, n_batch);
+    }
 
     inline float exponential(float x)
     {
@@ -43,7 +47,7 @@ namespace
         x *= x;
         x *= x;
         x *= x;
-        x *= x
+        x *= x;
         return x;
     }
 
@@ -87,7 +91,7 @@ namespace
             const int do_exp,
             const int do_norm)
     {  
-        if (do_inpnorm) {normalize_input(input, input_mean, input_stdev, n_batch, n_lay_in);}
+        if (do_norm) {normalize_input(input, input_mean, input_stdev, n_batch, n_lay_in);}
 
         if constexpr (NLAYER==0) //Linear regression
         {   
@@ -153,7 +157,7 @@ void Network<NLAYER, NLAY1, NLAY2, NLAY3>::inference(
         if constexpr (NLAYER>0) this->layer1.resize(NLAY1 * this->n_batch_lower);
         if constexpr (NLAYER>2) this->layer3.resize(NLAY3 * this->n_batch_lower);
         if constexpr (NLAYER>1) this->layer2.resize(NLAY2 * this->n_batch_lower);
-        feedforward<Nlayer, Nlay1, Nlay2, Nlay3>(
+        feedforward<NLAYER, NLAY1, NLAY2, NLAY3>(
             inputs,
             outputs,
             this->layer1_wgth_lower.data(),
@@ -200,7 +204,7 @@ void Network<NLAYER, NLAY1, NLAY2, NLAY3>::inference(
             this->layer1.data(),
             this->layer2.data(),
             this->layer3.data(),
-            this->_nbatch_upper,
+            this->n_batch_upper,
             this->n_lay_out,
             this->n_lay_in,
             do_exp,
@@ -228,7 +232,7 @@ Network<NLAYER, NLAY1, NLAY2, NLAY3>::Network(const int n_batch_lower,
         this->output_bias_upper = grp.get_variable<float>("bias1_upper",{n_lay_out});
         this->output_wgth_upper = grp.get_variable<float>("wgth1_upper",{n_lay_out, n_lay_in});
     }
-    else if constexpr (Nlayer == 1)
+    else if constexpr (NLAYER == 1)
     {
         this->layer1_bias_lower = grp.get_variable<float>("bias1_lower",{NLAY1});
         this->output_bias_lower = grp.get_variable<float>("bias2_lower",{n_lay_out});
@@ -239,7 +243,7 @@ Network<NLAYER, NLAY1, NLAY2, NLAY3>::Network(const int n_batch_lower,
         this->layer1_wgth_upper = grp.get_variable<float>("wgth1_upper",{NLAY1,     n_lay_in});
         this->output_wgth_upper = grp.get_variable<float>("wgth2_upper",{n_lay_out, NLAY1});
     }
-    else if constexpr (Nlayer == 2)
+    else if constexpr (NLAYER == 2)
     {
         this->layer1_bias_lower = grp.get_variable<float>("bias1_lower",{NLAY1});
         this->layer2_bias_lower = grp.get_variable<float>("bias2_lower",{NLAY2});
@@ -254,7 +258,7 @@ Network<NLAYER, NLAY1, NLAY2, NLAY3>::Network(const int n_batch_lower,
         this->layer2_wgth_upper = grp.get_variable<float>("wgth2_upper",{NLAY2,     NLAY1});
         this->output_wgth_upper = grp.get_variable<float>("wgth3_upper",{n_lay_out, NLAY2});
     }
-    else if constexpr (Nlayer == 3)
+    else if constexpr (NLAYER == 3)
     {
         this->layer1_bias_lower = grp.get_variable<float>("bias1_lower",{NLAY1});
         this->layer2_bias_lower = grp.get_variable<float>("bias2_lower",{NLAY2});

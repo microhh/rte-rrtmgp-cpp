@@ -8,42 +8,35 @@
 #include <vector>
 #include <iostream>
 
-constexpr int layer_count  = 0;  //number of layers used
-constexpr int input_gases  = 0;  //number of extra gases
-constexpr int layer1_nodes = 64; //nodes in first layer (if used)
-constexpr int layer2_nodes = 64; //nodes in second layer (if used)
-constexpr int layer3_nodes = 0;  //nodes in third layer (if used)
-
-#ifdef EXTRA_GASES_IN
-    constexpr int n_gas   = EXTRA_GASES_IN;
+#ifdef NGASES
+    constexpr int NGAS   = NGASES;
 #else
-    constexpr int n_gas   = 0; //default: on extra gases (only water vapour);
+    constexpr int NGAS   = 0; //default: on extra gases (only water vapour);
 #endif
 
-#ifdef NLAY1
-    constexpr int n_lay1  = NLAY1;
+#ifdef NLAYER1
+    constexpr int NLAY1  = NLAYER1;
 #else
-    constexpr int n_lay1  = 0; //default: 0 neurons in first layer
+    constexpr int NLAY1  = 0; //default: 0 neurons in first layer
 #endif
 
-#ifdef NLAY2
-    constexpr int n_lay2  = NLAY2;
+#ifdef NLAYER2
+    constexpr int NLAY2  = NLAYER2;
 #else
-    constexpr int n_lay2  = 0; //default: 0 neurons in second layer
+    constexpr int NLAY2  = 0; //default: 0 neurons in second layer
 #endif
 
-#ifdef NLAY3
-    constexpr int n_lay3  = NLAY3;
+#ifdef NLAYER3
+    constexpr int NLAY3  = NLAYER3;
 #else
-    constexpr int Nlay3   = 0; //default: 0 neurons in third layer
+    constexpr int NLAY3  = 0; //default: 0 neurons in third layer
 #endif
 
-#ifdef NLAYER
-    constexpr int n_layer = NLAYER;
+#ifdef NLAYERS
+    constexpr int NLAYER = NLAYERS;
 #else
-    constexpr int n_layer = 0; //default: 0 layers (linear network, i.e. linear regression)
+    constexpr int NLAYER = 0; //default: 0 layers (linear network, i.e. linear regression)
 #endif
-
 
 template <int NLAYER, int NLAY1, int NLAY2, int NLAY3>
 class Network
