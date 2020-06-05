@@ -238,7 +238,7 @@ void Gas_optics_nn<TF>::initialize_networks(
     const int n_out_sw = nc_wgth.get_dimension_size("nout_sw");
     const int n_out_lw = nc_wgth.get_dimension_size("nout_lw");
     const int n_gases  = nc_wgth.get_dimension_size("ngases");
-    const int n_in     = 3;
+    const int n_in     = n_gases+3;
     const int n_gpt = this->get_ngpt();
     if (n_gpt == n_out_lw)
     {

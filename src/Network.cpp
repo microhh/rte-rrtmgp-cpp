@@ -158,11 +158,18 @@ void Network::inference(
         const int n_layer2,
         const int n_layer3) const
 {
+    std::vector<float> hiddenlayer1(std::max(n_layer1*this->n_batch_lower, n_layer1*this->n_batch_upper));
+    std::vector<float> hiddenlayer2(std::max(n_layer2*this->n_batch_lower, n_layer2*this->n_batch_upper));
+    std::vector<float> hiddenlayer3(std::max(n_layer3*this->n_batch_lower, n_layer3*this->n_batch_upper));
+//    std::vector<float> Lhiddenlayer1(n_layer1*this->n_batch_lower);
+//    std::vector<float> Lhiddenlayer2(n_layer2*this->n_batch_lower);
+//    std::vector<float> Lhiddenlayer3(n_layer3*this->n_batch_lower);
+//    std::vector<float> Uhiddenlayer1(n_layer1*this->n_batch_upper);
+//    std::vector<float> Uhiddenlayer2(n_layer2*this->n_batch_upper);
+//    std::vector<float> Uhiddenlayer3(n_layer3*this->n_batch_upper);
     if (lower_atmos == 1)
     {
-        if (n_layers>0) this->hiddenlayer1.resize(n_layer1 * this->n_batch_lower);
-        if (n_layers>1) this->hiddenlayer2.resize(n_layer2 * this->n_batch_lower);
-        if (n_layers>2) this->hiddenlayer3.resize(n_layer3 * this->n_batch_lower);
+
         feedforward(
             inputs,
             outputs,
@@ -178,9 +185,9 @@ void Network::inference(
             this->stdev_input_lower.data(),
             this->mean_output_lower.data(),
             this->stdev_output_lower.data(),
-            this->hiddenlayer1.data(),
-            this->hiddenlayer2.data(),
-            this->hiddenlayer3.data(),
+            hiddenlayer1.data(),//this->hiddenlayer1.data(),
+            hiddenlayer2.data(),//this->hiddenlayer2.data(),
+            hiddenlayer3.data(),//this->hiddenlayer3.data(),
             this->n_batch_lower,
             this->n_layer_out,
             this->n_layer_in,
@@ -193,9 +200,12 @@ void Network::inference(
     }
     else
     {
-        if (n_layers>0) this->hiddenlayer1.resize(n_layer1 * this->n_batch_upper);
-        if (n_layers>1) this->hiddenlayer2.resize(n_layer2 * this->n_batch_upper);
-        if (n_layers>2) this->hiddenlayer3.resize(n_layer3 * this->n_batch_upper);
+//        if (n_layers>0) this->hiddenlayer1.resize(n_layer1 * this->n_batch_upper);
+//        if (n_layers>1) this->hiddenlayer2.resize(n_layer2 * this->n_batch_upper);
+//        if (n_layers>2) this->hiddenlayer3.resize(n_layer3 * this->n_batch_upper);
+//        if (n_layers>0) HL1.resize(n_layer1 * this->n_batch_upper);
+//        if (n_layers>1) HL2.resize(n_layer2 * this->n_batch_upper);
+//        if (n_layers>2) HL3.resize(n_layer3 * this->n_batch_upper);
         feedforward(
             inputs,
             outputs,
@@ -211,9 +221,9 @@ void Network::inference(
             this->stdev_input_upper.data(),
             this->mean_output_upper.data(),
             this->stdev_output_upper.data(),
-            this->hiddenlayer1.data(),
-            this->hiddenlayer2.data(),
-            this->hiddenlayer3.data(),
+            hiddenlayer1.data(),//this->hiddenlayer1.data(),
+            hiddenlayer2.data(),//this->hiddenlayer2.data(),
+            hiddenlayer3.data(),//this->hiddenlayer3.data(),
             this->n_batch_upper,
             this->n_layer_out,
             this->n_layer_in,

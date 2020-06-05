@@ -79,19 +79,19 @@ class Network
         std::vector<float> layer1_bias_lower;
         std::vector<float> layer1_wgth_upper;
         std::vector<float> layer1_bias_upper;
-        std::vector<float> hiddenlayer1;
+//        std::vector<float> hiddenlayer1;
 
         std::vector<float> layer2_wgth_lower;
         std::vector<float> layer2_bias_lower;
         std::vector<float> layer2_wgth_upper;
         std::vector<float> layer2_bias_upper;
-        std::vector<float> hiddenlayer2;
+//        std::vector<float> hiddenlayer2;
         
         std::vector<float> layer3_wgth_lower;
         std::vector<float> layer3_bias_lower;
         std::vector<float> layer3_wgth_upper;
         std::vector<float> layer3_bias_upper;
-        std::vector<float> hiddenlayer3;
+//        std::vector<float> hiddenlayer3;
 
         //means and standard deviations to (de)normalize inputs and optical properties
         std::vector<float> mean_input_lower;
