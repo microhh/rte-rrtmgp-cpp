@@ -9,6 +9,7 @@ site = 0
 nc_file_run = nc.Dataset('rld_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 nc_file_ref = nc.Dataset('reference/rld_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
+
 shape_rld = nc_file_run.variables['rld'][:].shape
 rld_run_2d = nc_file_run.variables['rld'][:, :, :].reshape( (shape_rld[0]*shape_rld[1], shape_rld[2]) ).transpose()
 rld_ref_2d = nc_file_ref.variables['rld'][:, :, :].reshape( (shape_rld[0]*shape_rld[1], shape_rld[2]) ).transpose()
@@ -29,7 +30,7 @@ plt.tight_layout()
 plt.show()
 
 
-nc_file_run = nc.Dataset('rlu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
+nc_file_run = nc.Dataset('reference/rlu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 nc_file_ref = nc.Dataset('reference/rlu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
 shape_rlu = nc_file_run.variables['rlu'][:].shape
@@ -52,7 +53,7 @@ plt.tight_layout()
 plt.show()
 
 
-nc_file_run = nc.Dataset('rsd_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
+nc_file_run = nc.Dataset('reference/rsd_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 nc_file_ref = nc.Dataset('reference/rsd_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
 shape_rsd = nc_file_run.variables['rsd'][:].shape
@@ -75,7 +76,7 @@ plt.tight_layout()
 plt.show()
 
 
-nc_file_run = nc.Dataset('rsu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
+nc_file_run = nc.Dataset('reference/rsu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 nc_file_ref = nc.Dataset('reference/rsu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
 shape_rsu = nc_file_run.variables['rsu'][:].shape
