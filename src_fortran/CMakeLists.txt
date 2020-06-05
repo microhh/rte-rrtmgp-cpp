@@ -1,3 +1,6 @@
+#
+# This file is part of a C++ interface to the Radiative Transfer for Energetics (RTE)
+#
 FILE(GLOB sourcefiles
     "../rte-rrtmgp/rte/mo_rte_kind.F90"
     "../rte-rrtmgp/rte/mo_rte_util_array.F90"

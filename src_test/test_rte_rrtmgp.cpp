@@ -1,25 +1,19 @@
 /*
- * This file is part of a C++ interface to the Radiative Transfer for Energetics (RTE)
- * and Rapid Radiative Transfer Model for GCM applications Parallel (RRTMGP).
+ * This file is a stand-alone executable developed for the
+ * testing of the C++ interface to the RTE+RRTMGP radiation code.
  *
- * The original code is found at https://github.com/RobertPincus/rte-rrtmgp.
+ * It is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- * Contacts: Robert Pincus and Eli Mlawer
- * email: rrtmgp@aer.com
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * Copyright 2015-2020,  Atmospheric and Environmental Research and
- * Regents of the University of Colorado.  All right reserved.
- *
- * This C++ interface can be downloaded from https://github.com/microhh/rte-rrtmgp-cpp
- *
- * Contact: Chiel van Heerwaarden
- * email: chiel.vanheerwaarden@wur.nl
- *
- * Copyright 2020, Wageningen University & Research.
- *
- * Use and duplication is permitted under the terms of the
- * BSD 3-clause license, see http://opensource.org/licenses/BSD-3-Clause
- *
+ * You should have received a copy of the GNU General Public License
+ * along with this software.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <chrono>
@@ -81,8 +75,8 @@ template<typename TF>
 void solve_radiation()
 {
     ////// FLOW CONTROL SWITCHES //////
-    const bool sw_output_optical = true;
-    const bool sw_output_bnd_fluxes = true;
+    const bool sw_output_optical = false;
+    const bool sw_output_bnd_fluxes = false;
 
 
     ////// READ THE ATMOSPHERIC DATA //////

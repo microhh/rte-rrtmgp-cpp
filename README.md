@@ -15,6 +15,10 @@ email: chiel.vanheerwaarden@wur.nl
 Use and duplication is permitted under the terms of the
 BSD 3-clause license, see http://opensource.org/licenses/BSD-3-Clause
 
+The source code of the testing executable in the `src_test` and
+`include_test` directory is released under the GPLv3 license,
+see https://www.gnu.org/licenses/gpl-3.0.en.html
+
 In order to check out the code including the `rte-rrtmgp` submodule, use:
 
     git clone --recurse-submodules https://github.com/microhh/rte-rrtmgp-cpp
@@ -24,16 +28,13 @@ In case you had already checked out the repository, use:
     git submodule update --init
 
 
-# Some temporary instructions
-In order to run the RCEMIP test:
-1. Place the long wave coefficients file from the original RTE+RRTMGP repository as `coefficients_lw.nc` in the directory of the executable.
-2. Place the short wave coefficients file from the original RTE+RRTMGP repository as `coefficients_sw.nc` in the directory of the executable.
+# Basic instructions
+Building the source creates an executable `test_rte_rrtmgp`.
+Two test cases are provided in directories `rfmip` and `rcemip`. In order to run those cases
+follow the instructions in the `README.md` of those respective directories.
 
-In order to run the RTE+RRTMGP unit test with long wave:
-1. Place either the long wave coefficients file from the original RTE+RRTMGP repository as `coefficients.nc` in the directory of the executable.
-2. Place the `rrtmgp-lw-inputs-outputs-clear.nc` under the name `rrtmgp-inputs-outputs.nc` in the directory of the executable.
-
-In order to run the RTE+RRTMGP unit test with short wave:
-1. Place either the short wave coefficients file from the original RTE+RRTMGP repository as `coefficients.nc` in the directory of the executable.
-2. Place the `rrtmgp-sw-inputs-outputs-clear.nc` under the name `rrtmgp-inputs-outputs.nc` in the directory of the executable.
-
+In general, in order to run a test case, make sure the following files are present in the
+directory from which `test_rte_rrtmgp` is triggered:
+1. Input file `rte_rrtmgp_input.nc` with atmospheric profiles of pressure, temperature, and gases.
+2. Long wave coefficients file from original RTE+RRTMGP repository (in `rrtmgp/data`) as `coefficients_lw.nc`
+3. Short wave coefficients file from original RTE+RRTMGP repository (in `rrtmgp/data`) as `coefficients_sw.nc`

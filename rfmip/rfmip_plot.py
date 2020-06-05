@@ -9,29 +9,6 @@ site = 0
 nc_file_run = nc.Dataset('rld_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 nc_file_ref = nc.Dataset('reference/rld_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
-"""
-plev_run = nc_file_run.variables['plev'][expt, :] / 1e3
-plev_ref = nc_file_ref.variables['plev'][expt, :] / 1e3
-
-rld_run = nc_file_run.variables['rld'][expt, site, :]
-rld_ref = nc_file_ref.variables['rld'][expt, site, :]
-
-plt.figure()
-plt.subplot(121)
-plt.plot(rld_run, plev_run, label='run')
-plt.plot(rld_ref, plev_ref, label='ref')
-plt.gca().invert_yaxis()
-plt.xlabel('flux (W m-2)')
-plt.ylabel('p (kPa)')
-plt.legend(loc=0, frameon=False)
-plt.subplot(122)
-plt.plot(rld_run - rld_ref, plev_ref)
-plt.gca().invert_yaxis()
-plt.xlabel('d flux (W m-2)')
-plt.ylabel('p (kPa)')
-plt.tight_layout()
-"""
-
 shape_rld = nc_file_run.variables['rld'][:].shape
 rld_run_2d = nc_file_run.variables['rld'][:, :, :].reshape( (shape_rld[0]*shape_rld[1], shape_rld[2]) ).transpose()
 rld_ref_2d = nc_file_ref.variables['rld'][:, :, :].reshape( (shape_rld[0]*shape_rld[1], shape_rld[2]) ).transpose()
@@ -120,3 +97,26 @@ plt.colorbar()
 plt.tight_layout()
 plt.show()
 
+
+"""
+plev_run = nc_file_run.variables['plev'][expt, :] / 1e3
+plev_ref = nc_file_ref.variables['plev'][expt, :] / 1e3
+
+rld_run = nc_file_run.variables['rld'][expt, site, :]
+rld_ref = nc_file_ref.variables['rld'][expt, site, :]
+
+plt.figure()
+plt.subplot(121)
+plt.plot(rld_run, plev_run, label='run')
+plt.plot(rld_ref, plev_ref, label='ref')
+plt.gca().invert_yaxis()
+plt.xlabel('flux (W m-2)')
+plt.ylabel('p (kPa)')
+plt.legend(loc=0, frameon=False)
+plt.subplot(122)
+plt.plot(rld_run - rld_ref, plev_ref)
+plt.gca().invert_yaxis()
+plt.xlabel('d flux (W m-2)')
+plt.ylabel('p (kPa)')
+plt.tight_layout()
+"""

@@ -2,8 +2,11 @@ import numpy as np
 import netCDF4 as nc
 
 float_type = "f8"
+n_col = 32**2
+n_bnd_lw = 16
+n_bnd_sw = 14
 
-nc_file = nc.Dataset("test_rcemip_input.nc", mode="w", datamodel="NETCDF4", clobber=True)
+nc_file = nc.Dataset("rte_rrtmgp_input.nc", mode="w", datamodel="NETCDF4", clobber=True)
 
 # Radiation profiles.
 z_top = 100.e3
@@ -67,40 +70,70 @@ g3 = 11.3515
 p_hpa = p_lay/100.
 o3 = g1 * p_hpa**g2 * np.exp(-p_hpa/g3) * 1e-6
 
-nc_group_rad = nc_file.createGroup("radiation")
+nc_file.createDimension("col", n_col)
+nc_file.createDimension("lay", p_lay.size)
+nc_file.createDimension("lev", p_lev.size)
+nc_file.createDimension("band_lw", n_bnd_lw)
+nc_file.createDimension("band_sw", n_bnd_sw)
 
-nc_group_rad.createDimension("lay", p_lay.size)
-nc_group_rad.createDimension("lev", p_lev.size)
-
-nc_z_lay = nc_group_rad.createVariable("z_lay", float_type, ("lay"))
-nc_z_lev = nc_group_rad.createVariable("z_lev", float_type, ("lev"))
+nc_z_lay = nc_file.createVariable("z_lay", float_type, ("lay"))
+nc_z_lev = nc_file.createVariable("z_lev", float_type, ("lev"))
 nc_z_lay[:] = z [:]
 nc_z_lev[:] = zh[:]
 
-nc_p_lay = nc_group_rad.createVariable("p_lay", float_type, ("lay"))
-nc_p_lev = nc_group_rad.createVariable("p_lev", float_type, ("lev"))
-nc_p_lay[:] = p_lay[:]
-nc_p_lev[:] = p_lev[:]
+nc_p_lay = nc_file.createVariable("p_lay", float_type, ("lay", "col"))
+nc_p_lev = nc_file.createVariable("p_lev", float_type, ("lev", "col"))
+nc_p_lay[:,:] = np.tile(p_lay[:,None], (1, n_col))
+nc_p_lev[:,:] = np.tile(p_lev[:,None], (1, n_col))
 
-nc_T_lay = nc_group_rad.createVariable("t_lay", float_type, ("lay"))
-nc_T_lev = nc_group_rad.createVariable("t_lev", float_type, ("lev"))
-nc_T_lay[:] = T_lay[:]
-nc_T_lev[:] = T_lev[:]
+nc_T_lay = nc_file.createVariable("t_lay", float_type, ("lay", "col"))
+nc_T_lev = nc_file.createVariable("t_lev", float_type, ("lev", "col"))
+nc_T_lay[:,:] = np.tile(T_lay[:,None], (1, n_col))
+nc_T_lev[:,:] = np.tile(T_lev[:,None], (1, n_col))
 
-nc_CO2 = nc_group_rad.createVariable("co2", float_type, ("lay"))
-nc_CH4 = nc_group_rad.createVariable("ch4", float_type, ("lay"))
-nc_N2O = nc_group_rad.createVariable("n2o", float_type, ("lay"))
-nc_O3  = nc_group_rad.createVariable("o3" , float_type, ("lay"))
-nc_H2O = nc_group_rad.createVariable("h2o", float_type, ("lay"))
-nc_N2  = nc_group_rad.createVariable("n2" , float_type, ("lay"))
-nc_O2  = nc_group_rad.createVariable("o2" , float_type, ("lay"))
+nc_CO2 = nc_file.createVariable("vmr_co2", float_type)
+nc_CH4 = nc_file.createVariable("vmr_ch4", float_type)
+nc_N2O = nc_file.createVariable("vmr_n2o", float_type)
+nc_O3  = nc_file.createVariable("vmr_o3" , float_type, ("lay", "col"))
+nc_H2O = nc_file.createVariable("vmr_h2o", float_type, ("lay", "col"))
+nc_N2  = nc_file.createVariable("vmr_n2" , float_type)
+nc_O2  = nc_file.createVariable("vmr_o2" , float_type)
 
 nc_CO2[:] = co2
 nc_CH4[:] = ch4
 nc_N2O[:] = n2o
-nc_O3 [:] = o3 [:]
-nc_H2O[:] = h2o[:]
+nc_O3 [:,:] = np.tile(o3 [:,None], (1, n_col))
+nc_H2O[:,:] = np.tile(h2o[:,None], (1, n_col))
 nc_N2 [:] = n2
 nc_O2 [:] = o2
+
+# Longwave boundary conditions.
+nc_emis_sfc = nc_file.createVariable("emis_sfc" , float_type, ("col", "band_lw"))
+nc_t_sfc = nc_file.createVariable("t_sfc" , float_type, ("col"))
+
+emis_sfc = 1.
+t_sfc = 300.
+
+nc_emis_sfc[:,:] = emis_sfc
+nc_t_sfc[:] = t_sfc
+
+# Shortwave boundary conditions.
+solar_zenith_angle = np.deg2rad(42.05);
+mu0 = np.cos(solar_zenith_angle)
+
+sfc_alb_dir = np.ones((n_col, n_bnd_sw))*0.07
+sfc_alb_dif = np.ones((n_col, n_bnd_sw))*0.07
+
+total_solar_irradiance = 551.58
+
+nc_mu0 = nc_file.createVariable("mu0", float_type, ("col"))
+nc_sfc_alb_dir = nc_file.createVariable("sfc_alb_dir", float_type, ("col", "band_sw"))
+nc_sfc_alb_dif = nc_file.createVariable("sfc_alb_dif", float_type, ("col", "band_sw"))
+nc_tsi = nc_file.createVariable("tsi", float_type, ("col"))
+
+nc_mu0[:] = mu0
+nc_sfc_alb_dir[:,:] = sfc_alb_dir[:,:]
+nc_sfc_alb_dif[:,:] = sfc_alb_dif[:,:]
+nc_tsi[:] = total_solar_irradiance
 
 nc_file.close()
