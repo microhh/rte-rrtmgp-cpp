@@ -106,7 +106,7 @@ Gas_optics_nn<TF>::Gas_optics_nn(
         const Array<std::string,1>& gas_names,
         const Array<int,2>& band2gpt,
         const Array<TF,2>& band_lims_wavenum):
-            Optical_props<TF>(band_lims_wavenum, band2gpt)
+            Gas_optics<TF>(band_lims_wavenum, band2gpt)
 {
     this->is_longwave = true;
     this->gas_names = gas_names;
@@ -124,7 +124,7 @@ Gas_optics_nn<TF>::Gas_optics_nn(
         const TF tsi_default,
         const TF mg_default,
         const TF sb_default):
-            Optical_props<TF>(band_lims_wavenum, band2gpt)
+            Gas_optics<TF>(band_lims_wavenum, band2gpt)
 { 
    
     this->is_longwave = false;   
@@ -147,6 +147,7 @@ void Gas_optics_nn<TF>::gas_optics(
         const Gas_concs<TF>& gas_desc,
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         Source_func_lw<TF>& sources,
+        const Array<TF,2>& col_dry,
         const Array<TF,2>& tlev) const
 {
     const int ncol = play.dim(1);
@@ -176,7 +177,8 @@ void Gas_optics_nn<TF>::gas_optics(
         const Array<TF,2>& tlay,
         const Gas_concs<TF>& gas_desc,
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
-        Array<TF,2>& toa_src) const
+        Array<TF,2>& toa_src,
+        const Array<TF,2>& col_dry) const
 {   
     const int ncol = play.dim(1);
     const int nlay = play.dim(2);
