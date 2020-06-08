@@ -105,11 +105,15 @@ template<typename TF>
 Gas_optics_nn<TF>::Gas_optics_nn(
         const Array<std::string,1>& gas_names,
         const Array<int,2>& band2gpt,
-        const Array<TF,2>& band_lims_wavenum):
+        const Array<TF,2>& band_lims_wavenum,
+        const std::string& file_name_weights,
+        Netcdf_file& input_nc):
             Gas_optics<TF>(band_lims_wavenum, band2gpt)
 {
     this->is_longwave = true;
     this->gas_names = gas_names;
+
+    initialize_networks(file_name_weights, input_nc);
 }
 
 // Constructor of the shortwave variant.
@@ -123,11 +127,12 @@ Gas_optics_nn<TF>::Gas_optics_nn(
         const Array<TF,1>& solar_source_sunspot,
         const TF tsi_default,
         const TF mg_default,
-        const TF sb_default):
+        const TF sb_default,
+        const std::string& file_name_weights,
+        Netcdf_file& input_nc):
             Gas_optics<TF>(band_lims_wavenum, band2gpt)
-{ 
-   
-    this->is_longwave = false;   
+{
+    this->is_longwave = false;
     this->gas_names = gas_names;
     this->solar_source_quiet = solar_source_quiet;
     this->solar_source_facular = solar_source_facular;
@@ -135,6 +140,7 @@ Gas_optics_nn<TF>::Gas_optics_nn(
     this->solar_source.set_dims(solar_source_quiet.get_dims());
 
     set_solar_variability(mg_default, sb_default);
+    initialize_networks(file_name_weights, input_nc);
 }
 
 // Gas optics solver longwave variant.
@@ -163,9 +169,11 @@ void Gas_optics_nn<TF>::gas_optics(
             gas_desc, sources, 
             optical_props,
             this->lower_atm, this->upper_atm);
+    std::cout<<"x4"<<std::endl;
 
     //fill surface sources  
-    lay2sfc_factor(tlay,tsfc,sources,ncol,nlay,nband);   
+    lay2sfc_factor(tlay,tsfc,sources,ncol,nlay,nband);
+    std::cout<<"x5"<<std::endl;
 }
 
 // Gas optics solver shortwave variant.
@@ -215,14 +223,12 @@ void Gas_optics_nn<TF>::set_solar_variability(
 template<typename TF>
 void Gas_optics_nn<TF>::initialize_networks(
         const std::string& wgth_file,
-        const std::string& input_file)
+        Netcdf_file& input_nc)
 {
-    Netcdf_file nc_file(input_file, Netcdf_mode::Read);
-    Netcdf_group nc_input = nc_file.get_group("radiation1");
-    const int n_lay = nc_input.get_dimension_size("lay");
-    const int n_col = nc_input.get_dimension_size("col");
-    Array<TF,2> p_lay(nc_input.get_variable<TF>("p_lay", {n_lay, n_col}), {n_col, n_lay});
-    idx_tropo = 0;
+    const int n_lay = input_nc.get_dimension_size("lay");
+    const int n_col = input_nc.get_dimension_size("col");
+    Array<TF,2> p_lay(input_nc.get_variable<TF>("p_lay", {n_lay, n_col}), {n_col, n_lay});
+    int idx_tropo = 0;
     for (int i=1; i<=n_lay; i++)
         if (p_lay({1,i}) > 9948.431564193395)
             idx_tropo += 1;
@@ -259,7 +265,7 @@ void Gas_optics_nn<TF>::initialize_networks(
     else if (n_gpt == n_out_sw)
     {
         Netcdf_group tswnc = nc_wgth.get_group("TSW");
-        this->tsw_network= Network(idxlower, idxupper, tswnc,
+        this->tsw_network = Network(idxlower, idxupper, tswnc,
                                    n_layers, n_layer1, n_layer2, n_layer3,
                                    n_out_sw, n_in);
 
@@ -499,12 +505,11 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
     //get gas concentrations
     const double* h2o = gas_desc.get_vmr(this->gas_names({1})).ptr();
     const double* o3  = gas_desc.get_vmr(this->gas_names({3})).ptr();
-    std::cout<<lower_atm<<"  "<<upper_atm<<"  "<<ngpt<<std::endl;
     std::vector<float> input_tau;
     std::vector<float> input_plk;
     std::vector<float> output_tau;
     std::vector<float> output_plk;
-
+    std::cout<<"x1"<<std::endl;
     if (lower_atm) //// Lower atmosphere:
     {
         //fill input array  
@@ -575,7 +580,7 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
         copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,0,idx_tropo,ngpt,nlay);
         //We swap lvdec and lvinc with respect to neural network training data, which was generated with a top-bottom ordering
     }
-
+    std::cout<<"x2"<<std::endl;
     if (upper_atm) //// Upper atmosphere:
     {
         //fill input array
@@ -647,6 +652,7 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
         copy_arrays_tau(output_tau.data(),dp,tau,ncol,idx_tropo,nlay,ngpt,nlay);
         copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,idx_tropo,nlay,ngpt,nlay);
         //We swap lvdec and lvinc with respect to neural network training data, which was generated with a top-bottom ordering
+        std::cout<<"x3"<<std::endl;
     }
 }
 #ifdef FLOAT_SINGLE_RRTMGP

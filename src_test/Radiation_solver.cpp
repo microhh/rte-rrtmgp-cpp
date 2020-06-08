@@ -67,7 +67,59 @@ namespace
     }
 
     template<typename TF>
-    Gas_optics_rrtmgp<TF> load_and_init_gas_optics(
+    Gas_optics_nn<TF> load_and_init_gas_optics_nn(
+            const Gas_concs<TF>& gas_concs,
+            const std::string& coef_file,
+            const std::string& file_name_weights,
+            Netcdf_file& input_nc)
+    {
+        // READ THE COEFFICIENTS FOR THE OPTICAL SOLVER.
+        Netcdf_file coef_nc(coef_file, Netcdf_mode::Read);
+        int n_absorbers = coef_nc.get_dimension_size("absorber");
+        constexpr int n_char = 32; //coef_nc.get_dimension_size("string_len");
+        int n_bnds = coef_nc.get_dimension_size("bnd");
+        int n_gpts = coef_nc.get_dimension_size("gpt");
+        Array<std::string,1> gas_names(
+                get_variable_string("gas_names", {n_absorbers}, coef_nc, n_char, true), {n_absorbers});
+        Array<TF,2> band_lims(coef_nc.get_variable<TF>("bnd_limits_wavenumber", {n_bnds, 2}), {2, n_bnds});
+        Array<int,2> band2gpt(coef_nc.get_variable<int>("bnd_limits_gpt", {n_bnds, 2}), {2, n_bnds});
+        if (coef_nc.variable_exists("totplnk"))
+        {
+            return Gas_optics_nn<TF>(
+                    gas_names,
+                    band2gpt,
+                    band_lims,
+                    file_name_weights,
+                    input_nc);
+        }
+        else
+        {
+            Array<TF, 1> solar_src_quiet(
+                    coef_nc.get_variable<TF>("solar_source_quiet", {n_gpts}), {n_gpts});
+            Array<TF, 1> solar_src_facular(
+                    coef_nc.get_variable<TF>("solar_source_facular", {n_gpts}), {n_gpts});
+            Array<TF, 1> solar_src_sunspot(
+                    coef_nc.get_variable<TF>("solar_source_sunspot", {n_gpts}), {n_gpts});
+            TF tsi = coef_nc.get_variable<TF>("tsi_default");
+            TF mg_index = coef_nc.get_variable<TF>("mg_default");
+            TF sb_index = coef_nc.get_variable<TF>("sb_default");
+            return Gas_optics_nn<TF>(
+                    gas_names,
+                    band2gpt,
+                    band_lims,
+                    solar_src_quiet,
+                    solar_src_facular,
+                    solar_src_sunspot,
+                    tsi,
+                    mg_index,
+                    sb_index,
+                    file_name_weights,
+                    input_nc);
+        }
+    }
+
+    template<typename TF>
+    Gas_optics_rrtmgp<TF> load_and_init_gas_optics_rrtmgp(
             const Gas_concs<TF>& gas_concs,
             const std::string& coef_file)
     {
@@ -339,14 +391,26 @@ template<typename TF>
 Radiation_solver_longwave<TF>::Radiation_solver_longwave(
         const Gas_concs<TF>& gas_concs,
         const std::string& file_name_gas,
-        const std::string& file_name_cloud)
+        const std::string& file_name_cloud,
+        const std::string& file_name_weights,
+        Netcdf_file& input_nc,
+        const bool sw_cloud_optics,
+        const bool sw_nn_gas_optics)
 {
     // Construct the gas optics classes for the solver.
-    this->kdist = std::make_unique<Gas_optics_rrtmgp<TF>>(
-            load_and_init_gas_optics<TF>(gas_concs, file_name_gas));
+    if (sw_nn_gas_optics)
+    {
+        this->kdist = std::make_unique<Gas_optics_nn<TF>>(
+                load_and_init_gas_optics_nn<TF>(gas_concs, file_name_gas, file_name_weights, input_nc));
+       // this->kdist->initialize_networks(file_name_weights, input_nc);
+    }
+    else
+        this->kdist = std::make_unique<Gas_optics_rrtmgp<TF>>(
+                load_and_init_gas_optics_rrtmgp<TF>(gas_concs, file_name_gas));
 
-    this->cloud_optics = std::make_unique<Cloud_optics<TF>>(
-            load_and_init_cloud_optics<TF>(file_name_cloud));
+    if (sw_cloud_optics)
+        this->cloud_optics = std::make_unique<Cloud_optics<TF>>(
+                load_and_init_cloud_optics<TF>(file_name_cloud));
 }
 
 template<typename TF>
@@ -561,13 +625,22 @@ template<typename TF>
 Radiation_solver_shortwave<TF>::Radiation_solver_shortwave(
         const Gas_concs<TF>& gas_concs,
         const std::string& file_name_gas,
-        const std::string& file_name_cloud)
+        const std::string& file_name_cloud,
+        const std::string& file_name_weights,
+        Netcdf_file& input_nc,
+        const bool sw_cloud_optics,
+        const bool sw_nn_gas_optics)
 {
     // Construct the gas optics classes for the solver.
-    this->kdist = std::make_unique<Gas_optics_rrtmgp<TF>>(
-            load_and_init_gas_optics<TF>(gas_concs, file_name_gas));
+    if (sw_nn_gas_optics)
+        this->kdist = std::make_unique<Gas_optics_nn<TF>>(
+                load_and_init_gas_optics_nn<TF>(gas_concs, file_name_gas, file_name_weights, input_nc));
+    else
+        this->kdist = std::make_unique<Gas_optics_rrtmgp<TF>>(
+                load_and_init_gas_optics_rrtmgp<TF>(gas_concs, file_name_gas));
 
-    this->cloud_optics = std::make_unique<Cloud_optics<TF>>(
+    if (sw_cloud_optics)
+        this->cloud_optics = std::make_unique<Cloud_optics<TF>>(
             load_and_init_cloud_optics<TF>(file_name_cloud));
 }
 

@@ -3,7 +3,7 @@
 
 #include <string>
 #include "Array.h"
-
+#include "Netcdf_interface.h"
 #include <Network.h>
 #include "Gas_optics.h"
 
@@ -22,7 +22,9 @@ class Gas_optics_nn : public Gas_optics<TF>
         Gas_optics_nn(
                 const Array<std::string,1>& gas_names,
                 const Array<int,2>& band2gpt,
-                const Array<TF,2>& band_lims_wavenum);
+                const Array<TF,2>& band_lims_wavenum,
+                const std::string& file_name_weights,
+                Netcdf_file& input_nc);
 
         // Constructor for shortwave variant.
         Gas_optics_nn(
@@ -34,11 +36,9 @@ class Gas_optics_nn : public Gas_optics<TF>
                 const Array<TF,1>& solar_src_sunspot,
                 const TF tsi_default,
                 const TF mg_default,
-                const TF sb_default);
-
-        void initialize_networks(
-                const std::string& wgth_file,
-                const std::string& input_file);
+                const TF sb_default,
+                const std::string& file_name_weights,
+                Netcdf_file& input_nc);
 
         // Longwave variant.
         void gas_optics(
@@ -80,6 +80,10 @@ class Gas_optics_nn : public Gas_optics<TF>
 
         void set_solar_variability(
             const TF md_index, const TF sb_index);
+
+        void initialize_networks(
+            const std::string& wgth_file,
+            Netcdf_file& input_nc);
 
         void compute_tau_ssa_nn(
                 const Network& ssa_network,

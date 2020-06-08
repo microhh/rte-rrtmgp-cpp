@@ -23,7 +23,9 @@
 #include "Array.h"
 #include "Gas_concs.h"
 #include "Gas_optics_rrtmgp.h"
+#include "Gas_optics_nn.h"
 #include "Cloud_optics.h"
+#include "Netcdf_interface.h"
 
 template<typename TF>
 class Radiation_solver_longwave
@@ -32,7 +34,11 @@ class Radiation_solver_longwave
         Radiation_solver_longwave(
                 const Gas_concs<TF>& gas_concs,
                 const std::string& file_name_gas,
-                const std::string& file_name_cloud);
+                const std::string& file_name_cloud,
+                const std::string& file_name_weights,
+                Netcdf_file& input_nc,
+                const bool sw_cloud_optics,
+                const bool sw_nn_gas_optics);
 
         void solve(
                 const bool sw_cloud_optics,
@@ -60,7 +66,7 @@ class Radiation_solver_longwave
         { return this->kdist->get_band_lims_wavenumber(); }
 
     private:
-        std::unique_ptr<Gas_optics_rrtmgp<TF>> kdist;
+        std::unique_ptr<Gas_optics<TF>> kdist;
         std::unique_ptr<Cloud_optics<TF>> cloud_optics;
 };
 
@@ -71,7 +77,11 @@ class Radiation_solver_shortwave
         Radiation_solver_shortwave(
                 const Gas_concs<TF>& gas_concs,
                 const std::string& file_name_gas,
-                const std::string& file_name_cloud);
+                const std::string& file_name_cloud,
+                const std::string& file_name_weights,
+                Netcdf_file& input_nc,
+                const bool sw_cloud_optics,
+                const bool sw_nn_gas_optics);
 
         void solve(
                 const bool sw_cloud_optics,

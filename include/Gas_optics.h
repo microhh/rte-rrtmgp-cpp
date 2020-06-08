@@ -29,6 +29,7 @@
 
 #include "Array.h"
 #include "Optical_props.h"
+#include "Netcdf_interface.h"
 
 // Forward declarations.
 template<typename TF> class Gas_concs;

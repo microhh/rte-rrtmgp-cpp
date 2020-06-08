@@ -75,8 +75,8 @@ template<typename TF>
 void solve_radiation()
 {
     ////// FLOW CONTROL SWITCHES //////
-    const bool sw_cloud_optics = true;
-
+    const bool sw_cloud_optics = false;
+    const bool sw_nn_gas_optics = true;
     const bool sw_output_optical = false;
     const bool sw_output_bnd_fluxes = false;
 
@@ -151,8 +151,8 @@ void solve_radiation()
 
     ////// INITIALIZE THE SOLVER AND INIT K-DISTRIBUTION //////
     Status::print_message("Initializing the solvers.");
-    Radiation_solver_longwave<TF> rad_lw(gas_concs, "coefficients_lw.nc", "cloud_coefficients_lw.nc");
-    Radiation_solver_shortwave<TF> rad_sw(gas_concs, "coefficients_sw.nc", "cloud_coefficients_sw.nc");
+    Radiation_solver_longwave<TF> rad_lw(gas_concs, "coefficients_lw.nc", "cloud_coefficients_lw.nc", "weights.nc", input_nc, sw_cloud_optics, sw_nn_gas_optics);
+    Radiation_solver_shortwave<TF> rad_sw(gas_concs, "coefficients_sw.nc", "cloud_coefficients_sw.nc", "weights.nc", input_nc, sw_cloud_optics, sw_nn_gas_optics);
 
 
     ////// READ THE SURFACE DATA //////
