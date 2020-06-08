@@ -150,6 +150,7 @@ namespace
 void Network::inference(
         float* inputs,
         float* outputs,
+        const int n_batch,
         const int lower_atmos,
         const int do_exp,
         const int do_norm,
@@ -158,9 +159,9 @@ void Network::inference(
         const int n_layer2,
         const int n_layer3) const
 {
-    std::vector<float> hiddenlayer1(std::max(n_layer1*this->n_batch_lower, n_layer1*this->n_batch_upper));
-    std::vector<float> hiddenlayer2(std::max(n_layer2*this->n_batch_lower, n_layer2*this->n_batch_upper));
-    std::vector<float> hiddenlayer3(std::max(n_layer3*this->n_batch_lower, n_layer3*this->n_batch_upper));
+    std::vector<float> hiddenlayer1(n_layer1*n_batch);
+    std::vector<float> hiddenlayer2(n_layer2*n_batch);
+    std::vector<float> hiddenlayer3(n_layer3*n_batch);
     if (lower_atmos == 1)
     {
 
@@ -182,7 +183,7 @@ void Network::inference(
             hiddenlayer1.data(),
             hiddenlayer2.data(),
             hiddenlayer3.data(),
-            this->n_batch_lower,
+            n_batch,
             this->n_layer_out,
             this->n_layer_in,
             do_exp,
@@ -212,7 +213,7 @@ void Network::inference(
             hiddenlayer1.data(),
             hiddenlayer2.data(),
             hiddenlayer3.data(),
-            this->n_batch_upper,
+            n_batch,
             this->n_layer_out,
             this->n_layer_in,
             do_exp,
@@ -227,9 +228,7 @@ void Network::inference(
 
 Network::Network(){}
 
-Network::Network(const int n_batch_lower,
-                 const int n_batch_upper,
-                 Netcdf_group& grp,
+Network::Network(Netcdf_group& grp,
                  const int n_layers,
                  const int n_layer1,
                  const int n_layer2,
@@ -237,8 +236,6 @@ Network::Network(const int n_batch_lower,
                  const int n_layer_out,
                  const int n_layer_in)
 {
-    this->n_batch_lower = n_batch_lower;
-    this->n_batch_upper = n_batch_upper;
     this->n_layer_out   = n_layer_out;
     this->n_layer_in    = n_layer_in;
 

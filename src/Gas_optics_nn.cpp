@@ -169,11 +169,9 @@ void Gas_optics_nn<TF>::gas_optics(
             gas_desc, sources, 
             optical_props,
             this->lower_atm, this->upper_atm);
-    std::cout<<"x4"<<std::endl;
 
     //fill surface sources  
     lay2sfc_factor(tlay,tsfc,sources,ncol,nlay,nband);
-    std::cout<<"x5"<<std::endl;
 }
 
 // Gas optics solver shortwave variant.
@@ -232,10 +230,8 @@ void Gas_optics_nn<TF>::initialize_networks(
     for (int i=1; i<=n_lay; i++)
         if (p_lay({1,i}) > 9948.431564193395)
             idx_tropo += 1;
-    const int idxlower = idx_tropo * n_col;
-    const int idxupper = (n_lay-idx_tropo) * n_col;
-    this->lower_atm = (idxlower>0);
-    this->upper_atm = (idxupper>0);
+    this->lower_atm = (idx_tropo>0);
+    this->upper_atm = (idx_tropo<n_lay);
     this->idx_tropo = idx_tropo;
 
     Netcdf_file nc_wgth(wgth_file, Netcdf_mode::Read);
@@ -253,24 +249,24 @@ void Gas_optics_nn<TF>::initialize_networks(
         const int n_out_pk = n_out_lw * 3;
         const int n_in_pk  = n_in + 2;
         Netcdf_group tlwnc = nc_wgth.get_group("TLW");
-        this->tlw_network = Network(idxlower, idxupper, tlwnc,
+        this->tlw_network = Network(tlwnc,
                                     n_layers, n_layer1, n_layer2, n_layer3,
                                     n_out_lw, n_in);
 
         Netcdf_group plknc = nc_wgth.get_group("Planck");
-        this->plk_network = Network(idxlower, idxupper, plknc,
+        this->plk_network = Network(plknc,
                                     n_layers, n_layer1, n_layer2, n_layer3,
                                     n_out_pk, n_in_pk);
     }
     else if (n_gpt == n_out_sw)
     {
         Netcdf_group tswnc = nc_wgth.get_group("TSW");
-        this->tsw_network = Network(idxlower, idxupper, tswnc,
+        this->tsw_network = Network(tswnc,
                                    n_layers, n_layer1, n_layer2, n_layer3,
                                    n_out_sw, n_in);
 
         Netcdf_group ssanc = nc_wgth.get_group("SSA");
-        this->ssa_network = Network(idxlower, idxupper, ssanc,
+        this->ssa_network = Network(ssanc,
                                     n_layers, n_layer1, n_layer2, n_layer3,
                                     n_out_sw, n_in);
     }
@@ -362,10 +358,11 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
 
     if (lower_atm) // Lower atmosphere:
     {
-        //fill input array  
-        input.resize(ncol*idx_tropo*nlay_in);
-        output_tau.resize(ncol*idx_tropo*ngpt);
-        output_ssa.resize(ncol*idx_tropo*ngpt);
+        //fill input array
+        const int nbatch = ncol*idx_tropo;
+        input.resize(nbatch*nlay_in);
+        output_tau.resize(nbatch*ngpt);
+        output_ssa.resize(nbatch*ngpt);
 
         for (int i=0; i<idx_tropo; ++i)
             for (int j=0; j<ncol; ++j)
@@ -407,8 +404,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
 
 
 
-        TSW.inference(input.data(), output_tau.data(), 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
-        SSA.inference(input.data(), output_ssa.data(), 1,0,0, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, output, input already normalized);
+        TSW.inference(input.data(), output_tau.data(), nbatch, 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
+        SSA.inference(input.data(), output_ssa.data(), nbatch, 1,0,0, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, output, input already normalized);
    
         copy_arrays_ssa(output_ssa.data(), ssa, ncol,   0, idx_tropo, ngpt, nlay);
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, 0, idx_tropo, ngpt, nlay);
@@ -417,9 +414,10 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
     if (upper_atm) //// Upper atmosphere:
     {
         //fill input array
-        input.resize(ncol*(nlay-idx_tropo)*nlay_in);
-        output_tau.resize(ncol*(nlay-idx_tropo)*ngpt);
-        output_ssa.resize(ncol*(nlay-idx_tropo)*ngpt);
+        const int nbatch = ncol*(nlay-idx_tropo);
+        input.resize(nbatch*nlay_in);
+        output_tau.resize(nbatch*ngpt);
+        output_ssa.resize(nbatch*ngpt);
 
         startidx = 0;
         for (int i=idx_tropo; i<nlay; ++i)
@@ -460,8 +458,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
                 input[idx] = val;
             }
 
-        TSW.inference(input.data(), output_tau.data(), 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
-        SSA.inference(input.data(), output_ssa.data(), 0,0,0, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, output, input already normalized
+        TSW.inference(input.data(), output_tau.data(), nbatch, 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
+        SSA.inference(input.data(), output_ssa.data(), nbatch, 0,0,0, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, output, input already normalized
         
         copy_arrays_ssa(output_ssa.data(), ssa, ncol, idx_tropo, nlay, ngpt, nlay);
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, idx_tropo, nlay, ngpt, nlay);
@@ -509,14 +507,15 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
     std::vector<float> input_plk;
     std::vector<float> output_tau;
     std::vector<float> output_plk;
-    std::cout<<"x1"<<std::endl;
+
     if (lower_atm) //// Lower atmosphere:
     {
-        //fill input array  
-        input_tau.resize(ncol*idx_tropo*nlay_in);
-        input_plk.resize(ncol*idx_tropo*(nlay_in+2));
-        output_tau.resize(ncol*idx_tropo*ngpt);
-        output_plk.resize(ncol*idx_tropo*ngpt*3);
+        //fill input array
+        const int nbatch = ncol*idx_tropo;
+        input_tau.resize(nbatch*nlay_in);
+        input_plk.resize(nbatch*(nlay_in+2));
+        output_tau.resize(nbatch*ngpt);
+        output_plk.resize(nbatch*ngpt*3);
 
         for (int i=0; i<idx_tropo; ++i)
             for (int j=0; j<ncol; ++j)
@@ -573,21 +572,22 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx2] = val2;
             }
 
-        TLW.inference(input_tau.data(), output_tau.data(), 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
-        PLK.inference(input_plk.data(), output_plk.data(), 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
+        TLW.inference(input_tau.data(), output_tau.data(), nbatch, 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
+        PLK.inference(input_plk.data(), output_plk.data(), nbatch, 1,1,1, n_layers, n_layer1, n_layer2, n_layer3); //lower atmosphere, exp(output), normalize input
 
         copy_arrays_tau(output_tau.data(),dp,tau,ncol,0,idx_tropo,ngpt,nlay);
         copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,0,idx_tropo,ngpt,nlay);
         //We swap lvdec and lvinc with respect to neural network training data, which was generated with a top-bottom ordering
     }
-    std::cout<<"x2"<<std::endl;
+
     if (upper_atm) //// Upper atmosphere:
     {
         //fill input array
-        input_tau .resize(ncol*(nlay-idx_tropo)*nlay_in);
-        input_plk .resize(ncol*(nlay-idx_tropo)*(nlay_in+2));
-        output_tau.resize(ncol*(nlay-idx_tropo)*ngpt);
-        output_plk.resize(ncol*(nlay-idx_tropo)*ngpt*3);
+        const int nbatch = ncol*(nlay-idx_tropo);
+        input_tau .resize(nbatch*nlay_in);
+        input_plk .resize(nbatch*(nlay_in+2));
+        output_tau.resize(nbatch*ngpt);
+        output_plk.resize(nbatch*ngpt*3);
 
         startidx = 0;
         for (int i = idx_tropo; i < nlay; ++i)
@@ -646,13 +646,12 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx2] = val2;
             }
 
-        TLW.inference(input_tau.data(), output_tau.data(), 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
-        PLK.inference(input_plk.data(), output_plk.data(), 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
+        TLW.inference(input_tau.data(), output_tau.data(), nbatch, 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
+        PLK.inference(input_plk.data(), output_plk.data(), nbatch, 0,1,1, n_layers, n_layer1, n_layer2, n_layer3); //upper atmosphere, exp(output), normalize input
  
         copy_arrays_tau(output_tau.data(),dp,tau,ncol,idx_tropo,nlay,ngpt,nlay);
         copy_arrays_plk(output_plk.data(),src_layer,src_lvdec,src_lvinc,ncol,idx_tropo,nlay,ngpt,nlay);
         //We swap lvdec and lvinc with respect to neural network training data, which was generated with a top-bottom ordering
-        std::cout<<"x3"<<std::endl;
     }
 }
 #ifdef FLOAT_SINGLE_RRTMGP

@@ -44,6 +44,7 @@ class Network
         void inference(
             float* inputs,
             float* outputs,
+            const int n_batch,
             const int lower_atmos,
             const int do_exp,
             const int do_norm,
@@ -53,9 +54,7 @@ class Network
             const int n_layer3) const;
 
         Network ();
-        Network(const int n_batch_lower,
-                const int n_batch_upper,
-                Netcdf_group& grp,
+        Network(Netcdf_group& grp,
                 const int n_layers,
                 const int n_layer1,
                 const int n_layer2,
@@ -79,19 +78,16 @@ class Network
         std::vector<float> layer1_bias_lower;
         std::vector<float> layer1_wgth_upper;
         std::vector<float> layer1_bias_upper;
-//        std::vector<float> hiddenlayer1;
 
         std::vector<float> layer2_wgth_lower;
         std::vector<float> layer2_bias_lower;
         std::vector<float> layer2_wgth_upper;
         std::vector<float> layer2_bias_upper;
-//        std::vector<float> hiddenlayer2;
-        
+
         std::vector<float> layer3_wgth_lower;
         std::vector<float> layer3_bias_lower;
         std::vector<float> layer3_wgth_upper;
         std::vector<float> layer3_bias_upper;
-//        std::vector<float> hiddenlayer3;
 
         //means and standard deviations to (de)normalize inputs and optical properties
         std::vector<float> mean_input_lower;
