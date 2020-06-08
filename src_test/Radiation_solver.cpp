@@ -287,19 +287,71 @@ namespace
         }
         // End reading of k-distribution.
     }
+
+    template<typename TF>
+    Cloud_optics<TF> load_and_init_cloud_optics(
+            const std::string& coef_file)
+    {
+        // READ THE COEFFICIENTS FOR THE OPTICAL SOLVER.
+        Netcdf_file coef_nc(coef_file, Netcdf_mode::Read);
+
+        // Read look-up table coefficient dimensions
+        int n_band     = coef_nc.get_dimension_size("nband");
+        int n_rghice   = coef_nc.get_dimension_size("nrghice");
+        int n_size_liq = coef_nc.get_dimension_size("nsize_liq");
+        int n_size_ice = coef_nc.get_dimension_size("nsize_ice");
+
+        Array<TF,2> band_lims_wvn(coef_nc.get_variable<TF>("bnd_limits_wavenumber", {n_band, 2}), {2, n_band});
+
+        // Read look-up table constants.
+        TF radliq_lwr = coef_nc.get_variable<TF>("radliq_lwr");
+        TF radliq_upr = coef_nc.get_variable<TF>("radliq_upr");
+        TF radliq_fac = coef_nc.get_variable<TF>("radliq_fac");
+
+        TF radice_lwr = coef_nc.get_variable<TF>("radice_lwr");
+        TF radice_upr = coef_nc.get_variable<TF>("radice_upr");
+        TF radice_fac = coef_nc.get_variable<TF>("radice_fac");
+
+        Array<TF,2> lut_extliq(
+                coef_nc.get_variable<TF>("lut_extliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+        Array<TF,2> lut_ssaliq(
+                coef_nc.get_variable<TF>("lut_ssaliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+        Array<TF,2> lut_asyliq(
+                coef_nc.get_variable<TF>("lut_asyliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+
+        Array<TF,3> lut_extice(
+                coef_nc.get_variable<TF>("lut_extice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+        Array<TF,3> lut_ssaice(
+                coef_nc.get_variable<TF>("lut_ssaice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+        Array<TF,3> lut_asyice(
+                coef_nc.get_variable<TF>("lut_asyice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+
+        return Cloud_optics<TF>(
+                band_lims_wvn,
+                radliq_lwr, radliq_upr, radliq_fac,
+                radice_lwr, radice_upr, radice_fac,
+                lut_extliq, lut_ssaliq, lut_asyliq,
+                lut_extice, lut_ssaice, lut_asyice);
+    }
 }
 
 template<typename TF>
 Radiation_solver_longwave<TF>::Radiation_solver_longwave(
-        const Gas_concs<TF>& gas_concs, const std::string& file_name)
+        const Gas_concs<TF>& gas_concs,
+        const std::string& file_name_gas,
+        const std::string& file_name_cloud)
 {
     // Construct the gas optics classes for the solver.
     this->kdist = std::make_unique<Gas_optics_rrtmgp<TF>>(
-            load_and_init_gas_optics(gas_concs, file_name));
+            load_and_init_gas_optics<TF>(gas_concs, file_name_gas));
+
+    this->cloud_optics = std::make_unique<Cloud_optics<TF>>(
+            load_and_init_cloud_optics<TF>(file_name_cloud));
 }
 
 template<typename TF>
 void Radiation_solver_longwave<TF>::solve(
+        const bool sw_cloud_optics,
         const bool sw_output_optical,
         const bool sw_output_bnd_fluxes,
         const Gas_concs<TF>& gas_concs,
@@ -307,6 +359,8 @@ void Radiation_solver_longwave<TF>::solve(
         const Array<TF,2>& t_lay, const Array<TF,2>& t_lev,
         const Array<TF,2>& col_dry,
         const Array<TF,1>& t_sfc, const Array<TF,2>& emis_sfc,
+        const Array<TF,2>& lwp, const Array<TF,2>& iwp,
+        const Array<TF,2>& rel, const Array<TF,2>& rei,
         Array<TF,3>& tau, Array<TF,3>& lay_source,
         Array<TF,3>& lev_source_inc, Array<TF,3>& lev_source_dec, Array<TF,2>& sfc_source,
         Array<TF,2>& lw_flux_up, Array<TF,2>& lw_flux_dn, Array<TF,2>& lw_flux_net,
@@ -342,10 +396,21 @@ void Radiation_solver_longwave<TF>::solve(
         sources_residual = std::make_unique<Source_func_lw<TF>>(n_col_block_residual, n_lay, *kdist);
     }
 
+    std::unique_ptr<Optical_props_1scl<TF>> cloud_optical_props_subset;
+    std::unique_ptr<Optical_props_1scl<TF>> cloud_optical_props_residual;
+
+    if (sw_cloud_optics)
+    {
+        cloud_optical_props_subset = std::make_unique<Optical_props_1scl<TF>>(n_col_block, n_lay, *cloud_optics);
+        if (n_col_block_residual > 0)
+            cloud_optical_props_residual = std::make_unique<Optical_props_1scl<TF>>(n_col_block_residual, n_lay, *cloud_optics);
+    }
+
     // Lambda function for solving optical properties subset.
     auto call_kernels = [&](
             const int col_s_in, const int col_e_in,
             std::unique_ptr<Optical_props_arry<TF>>& optical_props_subset_in,
+            std::unique_ptr<Optical_props_1scl<TF>>& cloud_optical_props_subset_in,
             Source_func_lw<TF>& sources_subset_in,
             const Array<TF,2>& emis_sfc_subset_in,
             Fluxes_broadband<TF>& fluxes,
@@ -372,6 +437,23 @@ void Radiation_solver_longwave<TF>::solve(
                 sources_subset_in,
                 col_dry_subset,
                 t_lev.subset({{ {col_s_in, col_e_in}, {1, n_lev} }}) );
+
+        if (sw_cloud_optics)
+        {
+            cloud_optics->cloud_optics(
+                    lwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    iwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    rel.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    rei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    *cloud_optical_props_subset_in);
+
+            // cloud->delta_scale();
+
+            // Add the cloud optical props to the gas optical properties.
+            add_to(
+                    dynamic_cast<Optical_props_1scl<double>&>(*optical_props_subset_in),
+                    dynamic_cast<Optical_props_1scl<double>&>(*cloud_optical_props_subset_in));
+        }
 
         // Store the optical properties, if desired.
         if (sw_output_optical)
@@ -446,6 +528,7 @@ void Radiation_solver_longwave<TF>::solve(
         call_kernels(
                 col_s, col_e,
                 optical_props_subset,
+                cloud_optical_props_subset,
                 *sources_subset,
                 emis_sfc_subset,
                 *fluxes_subset,
@@ -466,6 +549,7 @@ void Radiation_solver_longwave<TF>::solve(
         call_kernels(
                 col_s, col_e,
                 optical_props_residual,
+                cloud_optical_props_residual,
                 *sources_residual,
                 emis_sfc_residual,
                 *fluxes_residual,
@@ -475,15 +559,21 @@ void Radiation_solver_longwave<TF>::solve(
 
 template<typename TF>
 Radiation_solver_shortwave<TF>::Radiation_solver_shortwave(
-        const Gas_concs<TF>& gas_concs, const std::string& file_name)
+        const Gas_concs<TF>& gas_concs,
+        const std::string& file_name_gas,
+        const std::string& file_name_cloud)
 {
     // Construct the gas optics classes for the solver.
     this->kdist = std::make_unique<Gas_optics_rrtmgp<TF>>(
-            load_and_init_gas_optics(gas_concs, file_name));
+            load_and_init_gas_optics<TF>(gas_concs, file_name_gas));
+
+    this->cloud_optics = std::make_unique<Cloud_optics<TF>>(
+            load_and_init_cloud_optics<TF>(file_name_cloud));
 }
 
 template<typename TF>
 void Radiation_solver_shortwave<TF>::solve(
+        const bool sw_cloud_optics,
         const bool sw_output_optical,
         const bool sw_output_bnd_fluxes,
         const Gas_concs<TF>& gas_concs,
@@ -492,6 +582,8 @@ void Radiation_solver_shortwave<TF>::solve(
         const Array<TF,2>& col_dry,
         const Array<TF,2>& sfc_alb_dir, const Array<TF,2>& sfc_alb_dif,
         const Array<TF,1>& tsi_scaling, const Array<TF,1>& mu0,
+        const Array<TF,2>& lwp, const Array<TF,2>& iwp,
+        const Array<TF,2>& rel, const Array<TF,2>& rei,
         Array<TF,3>& tau, Array<TF,3>& ssa, Array<TF,3>& g,
         Array<TF,2>& toa_src,
         Array<TF,2>& sw_flux_up, Array<TF,2>& sw_flux_dn,
@@ -517,14 +609,24 @@ void Radiation_solver_shortwave<TF>::solve(
     std::unique_ptr<Optical_props_arry<TF>> optical_props_residual;
 
     optical_props_subset = std::make_unique<Optical_props_2str<TF>>(n_col_block, n_lay, *kdist);
-
     if (n_col_block_residual > 0)
         optical_props_residual = std::make_unique<Optical_props_2str<TF>>(n_col_block_residual, n_lay, *kdist);
+
+    std::unique_ptr<Optical_props_2str<TF>> cloud_optical_props_subset;
+    std::unique_ptr<Optical_props_2str<TF>> cloud_optical_props_residual;
+
+    if (sw_cloud_optics)
+    {
+        cloud_optical_props_subset = std::make_unique<Optical_props_2str<TF>>(n_col_block, n_lay, *cloud_optics);
+        if (n_col_block_residual > 0)
+            cloud_optical_props_residual = std::make_unique<Optical_props_2str<TF>>(n_col_block_residual, n_lay, *cloud_optics);
+    }
 
     // Lambda function for solving optical properties subset.
     auto call_kernels = [&](
             const int col_s_in, const int col_e_in,
             std::unique_ptr<Optical_props_arry<TF>>& optical_props_subset_in,
+            std::unique_ptr<Optical_props_2str<TF>>& cloud_optical_props_subset_in,
             Fluxes_broadband<TF>& fluxes,
             Fluxes_broadband<TF>& bnd_fluxes)
     {
@@ -555,6 +657,26 @@ void Radiation_solver_shortwave<TF>::solve(
         for (int igpt=1; igpt<=n_gpt; ++igpt)
             for (int icol=1; icol<=n_col_in; ++icol)
                 toa_src_subset({icol, igpt}) *= tsi_scaling_subset({icol});
+
+        if (sw_cloud_optics)
+        {
+            Array<int,2> cld_mask_liq({n_col_in, n_lay});
+            Array<int,2> cld_mask_ice({n_col_in, n_lay});
+
+            cloud_optics->cloud_optics(
+                    lwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    iwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    rel.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    rei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    *cloud_optical_props_subset_in);
+
+            cloud_optical_props_subset_in->delta_scale();
+
+            // Add the cloud optical props to the gas optical properties.
+            add_to(
+                    dynamic_cast<Optical_props_2str<double>&>(*optical_props_subset_in),
+                    dynamic_cast<Optical_props_2str<double>&>(*cloud_optical_props_subset_in));
+        }
 
         // Store the optical properties, if desired.
         if (sw_output_optical)
@@ -630,6 +752,7 @@ void Radiation_solver_shortwave<TF>::solve(
         call_kernels(
                 col_s, col_e,
                 optical_props_subset,
+                cloud_optical_props_subset,
                 *fluxes_subset,
                 *bnd_fluxes_subset);
     }
@@ -647,6 +770,7 @@ void Radiation_solver_shortwave<TF>::solve(
         call_kernels(
                 col_s, col_e,
                 optical_props_residual,
+                cloud_optical_props_residual,
                 *fluxes_residual,
                 *bnd_fluxes_residual);
     }

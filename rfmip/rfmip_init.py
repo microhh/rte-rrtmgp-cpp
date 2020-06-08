@@ -95,6 +95,18 @@ for expt in range(expts):
     nc_hfc134a[:] = nc_file_rfmip.variables['hfc134a_GM'][expt] * float(nc_file_rfmip.variables['hfc134a_GM'].units)
     nc_cf4    [:] = nc_file_rfmip.variables['cf4_GM'][expt] * float(nc_file_rfmip.variables['cf4_GM'].units)
     # nc_no2    [:] = nc_file_rfmip.variables['no2_GM'][expt] * float(nc_file_rfmip.variables['no2a_GM'].units)
-    
+
+    # CvH: To be removed if settings can be set.
+    nc_lwp = nc_file.createVariable('lwp', float_type, ('lay', 'col'))
+    nc_iwp = nc_file.createVariable('iwp', float_type, ('lay', 'col'))
+    nc_rel = nc_file.createVariable('rei', float_type, ('lay', 'col'))
+    nc_rei = nc_file.createVariable('rel', float_type, ('lay', 'col'))
+
+    nc_lwp[:,:] = 0.
+    nc_iwp[:,:] = 0.
+    nc_rel[:,:] = 0.
+    nc_rei[:,:] = 0.
+    # CvH end.
+
     nc_file_rfmip.close()
     nc_file.close()

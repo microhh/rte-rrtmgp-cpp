@@ -23,14 +23,19 @@
 #include "Array.h"
 #include "Gas_concs.h"
 #include "Gas_optics_rrtmgp.h"
+#include "Cloud_optics.h"
 
 template<typename TF>
 class Radiation_solver_longwave
 {
     public:
-        Radiation_solver_longwave(const Gas_concs<TF>& gas_concs, const std::string& file_name);
+        Radiation_solver_longwave(
+                const Gas_concs<TF>& gas_concs,
+                const std::string& file_name_gas,
+                const std::string& file_name_cloud);
 
         void solve(
+                const bool sw_cloud_optics,
                 const bool sw_output_optical,
                 const bool sw_output_bnd_fluxes,
                 const Gas_concs<TF>& gas_concs,
@@ -38,6 +43,8 @@ class Radiation_solver_longwave
                 const Array<TF,2>& t_lay, const Array<TF,2>& t_lev,
                 const Array<TF,2>& col_dry,
                 const Array<TF,1>& t_sfc, const Array<TF,2>& emis_sfc,
+                const Array<TF,2>& lwp, const Array<TF,2>& iwp,
+                const Array<TF,2>& rel, const Array<TF,2>& rei,
                 Array<TF,3>& tau, Array<TF,3>& lay_source,
                 Array<TF,3>& lev_source_inc, Array<TF,3>& lev_source_dec, Array<TF,2>& sfc_source,
                 Array<TF,2>& lw_flux_up, Array<TF,2>& lw_flux_dn, Array<TF,2>& lw_flux_net,
@@ -54,15 +61,20 @@ class Radiation_solver_longwave
 
     private:
         std::unique_ptr<Gas_optics_rrtmgp<TF>> kdist;
+        std::unique_ptr<Cloud_optics<TF>> cloud_optics;
 };
 
 template<typename TF>
 class Radiation_solver_shortwave
 {
     public:
-        Radiation_solver_shortwave(const Gas_concs<TF>& gas_concs, const std::string& file_name);
+        Radiation_solver_shortwave(
+                const Gas_concs<TF>& gas_concs,
+                const std::string& file_name_gas,
+                const std::string& file_name_cloud);
 
         void solve(
+                const bool sw_cloud_optics,
                 const bool sw_output_optical,
                 const bool sw_output_bnd_fluxes,
                 const Gas_concs<TF>& gas_concs,
@@ -71,6 +83,8 @@ class Radiation_solver_shortwave
                 const Array<TF,2>& col_dry,
                 const Array<TF,2>& sfc_alb_dir, const Array<TF,2>& sfc_alb_dif,
                 const Array<TF,1>& tsi_scaling, const Array<TF,1>& mu0,
+                const Array<TF,2>& lwp, const Array<TF,2>& iwp,
+                const Array<TF,2>& rel, const Array<TF,2>& rei,
                 Array<TF,3>& tau, Array<TF,3>& ssa, Array<TF,3>& g,
                 Array<TF,2>& toa_src,
                 Array<TF,2>& sw_flux_up, Array<TF,2>& sw_flux_dn,
@@ -91,5 +105,6 @@ class Radiation_solver_shortwave
 
     private:
         std::unique_ptr<Gas_optics<TF>> kdist;
+        std::unique_ptr<Cloud_optics<TF>> cloud_optics;
 };
 #endif

@@ -4,9 +4,10 @@ files into this directory as `coefficients_lw.nc` and `coefficients_sw.nc`.
 
 Follow the steps:
 
-`python stage_files.py`          (downloading the reference data)
-`python rfmip_init.py`           (preparing the model input data)
-`python rfmip_run.py`            (run the 1800 cases)
-`python compare-to_reference.py` (compare output to reference file)
-`python rfmip_plot.py`           (plot the cases in a colormesh per flux)
+1. `./make_links.sh`                (link the executable, coefficients, and Python scripts)
+2. `python stage_files.py`          (downloading the reference data)
+3. `python rfmip_init.py`           (preparing the model input data)
+4. `python rfmip_run.py`            (run the 1800 cases)
+5. `python compare-to_reference.py` (compare output to reference file)
+6. `python rfmip_plot.py`           (plot the cases in a colormesh per flux)
 

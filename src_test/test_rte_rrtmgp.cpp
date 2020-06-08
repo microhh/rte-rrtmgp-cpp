@@ -75,6 +75,8 @@ template<typename TF>
 void solve_radiation()
 {
     ////// FLOW CONTROL SWITCHES //////
+    const bool sw_cloud_optics = true;
+
     const bool sw_output_optical = false;
     const bool sw_output_bnd_fluxes = false;
 
@@ -126,11 +128,31 @@ void solve_radiation()
     read_and_set_vmr("cf4"    , n_col, n_lay, input_nc, gas_concs);
     read_and_set_vmr("no2"    , n_col, n_lay, input_nc, gas_concs);
 
+    Array<TF,2> lwp;
+    Array<TF,2> iwp;
+    Array<TF,2> rel;
+    Array<TF,2> rei;
+
+    if (sw_cloud_optics)
+    {
+        lwp.set_dims({n_col, n_lay});
+        lwp = std::move(input_nc.get_variable<TF>("lwp", {n_lay, n_col}));
+
+        iwp.set_dims({n_col, n_lay});
+        iwp = std::move(input_nc.get_variable<TF>("iwp", {n_lay, n_col}));
+
+        rel.set_dims({n_col, n_lay});
+        rel = std::move(input_nc.get_variable<TF>("rel", {n_lay, n_col}));
+
+        rei.set_dims({n_col, n_lay});
+        rei = std::move(input_nc.get_variable<TF>("rei", {n_lay, n_col}));
+    }
+
 
     ////// INITIALIZE THE SOLVER AND INIT K-DISTRIBUTION //////
     Status::print_message("Initializing the solvers.");
-    Radiation_solver_longwave<TF> rad_lw(gas_concs, "coefficients_lw.nc");
-    Radiation_solver_shortwave<TF> rad_sw(gas_concs, "coefficients_sw.nc");
+    Radiation_solver_longwave<TF> rad_lw(gas_concs, "coefficients_lw.nc", "cloud_coefficients_lw.nc");
+    Radiation_solver_shortwave<TF> rad_sw(gas_concs, "coefficients_sw.nc", "cloud_coefficients_sw.nc");
 
 
     ////// READ THE SURFACE DATA //////
@@ -228,6 +250,7 @@ void solve_radiation()
     auto time_start = std::chrono::high_resolution_clock::now();
 
     rad_lw.solve(
+            sw_cloud_optics,
             sw_output_optical,
             sw_output_bnd_fluxes,
             gas_concs,
@@ -235,6 +258,8 @@ void solve_radiation()
             t_lay, t_lev,
             col_dry,
             t_sfc, emis_sfc,
+            lwp, iwp,
+            rel, rei,
             lw_tau, lay_source, lev_source_inc, lev_source_dec, sfc_source,
             lw_flux_up, lw_flux_dn, lw_flux_net,
             lw_bnd_flux_up, lw_bnd_flux_dn, lw_bnd_flux_net);
@@ -250,6 +275,7 @@ void solve_radiation()
     time_start = std::chrono::high_resolution_clock::now();
 
     rad_sw.solve(
+            sw_cloud_optics,
             sw_output_optical,
             sw_output_bnd_fluxes,
             gas_concs,
@@ -258,6 +284,8 @@ void solve_radiation()
             col_dry,
             sfc_alb_dir, sfc_alb_dif,
             tsi_scaling, mu0,
+            lwp, iwp,
+            rel, rei,
             sw_tau, ssa, g,
             toa_source,
             sw_flux_up, sw_flux_dn,
