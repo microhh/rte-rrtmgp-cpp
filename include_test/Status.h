@@ -48,13 +48,11 @@ namespace Status
 
     inline void print_error(const std::ostringstream& ss)
     {
-        std::cout << "ERROR: " << ss.str();
         std::cerr << "ERROR: " << ss.str();
     }
 
     inline void print_error(const std::string& s)
     {
-        std::cout << "ERROR: " << s << std::endl;
         std::cerr << "ERROR: " << s << std::endl;
     }
 }
