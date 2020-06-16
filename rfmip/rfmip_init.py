@@ -3,7 +3,7 @@ import netCDF4 as nc
 
 # Settings
 float_type = 'f8'
-
+inv = -1 #inv=1: top-to-bottom ordering (default), inv=-1: bottom-to-top
 expts = 18
 band_lw = 16
 band_sw = 14
@@ -25,15 +25,13 @@ for expt in range(expts):
     nc_temp_layer = nc_file.createVariable('t_lay', float_type, ('lay', 'col'))
     nc_temp_level = nc_file.createVariable('t_lev', float_type, ('lev', 'col'))
     
-    nc_pres_layer[:,:] = nc_file_rfmip.variables['pres_layer'][:,:].transpose()
-    nc_pres_level[:,:] = nc_file_rfmip.variables['pres_level'][:,:].transpose()
-
+    nc_pres_layer[:,:] = nc_file_rfmip.variables['pres_layer'][:,::inv].transpose()
+    nc_pres_level[:,:] = nc_file_rfmip.variables['pres_level'][:,::inv].transpose()
     # Make sure the top edge does not exceed the minimum tolerable pressure
     # of the coefficient files.
     nc_pres_level[:,:] = np.maximum(nc_pres_level[:,:], np.nextafter(1.005183574463, 1e8))
-
-    nc_temp_layer[:,:] = (nc_file_rfmip.variables['temp_layer'][expt,:,:]).transpose()
-    nc_temp_level[:,:] = (nc_file_rfmip.variables['temp_level'][expt,:,:]).transpose()
+    nc_temp_layer[:,:] = (nc_file_rfmip.variables['temp_layer'][expt,:,::inv]).transpose()
+    nc_temp_level[:,:] = (nc_file_rfmip.variables['temp_level'][expt,:,::inv]).transpose()
     
     nc_surface_emissivity = nc_file.createVariable('emis_sfc', float_type, ('col', 'band_lw'))
     nc_surface_temperature = nc_file.createVariable('t_sfc', float_type, 'col')
@@ -74,8 +72,8 @@ for expt in range(expts):
     # nc_no2     = nc_file.createVariable('vmr_no2'    , float_type)
 
     # Profiles
-    nc_h2o[:,:] = nc_file_rfmip.variables['water_vapor'][expt,:,:].transpose() * float(nc_file_rfmip.variables['water_vapor'].units)
-    nc_o3 [:,:] = nc_file_rfmip.variables['ozone'][expt,:,:].transpose() * float(nc_file_rfmip.variables['ozone'].units)
+    nc_h2o[:,:] = nc_file_rfmip.variables['water_vapor'][expt,:,::inv].transpose() * float(nc_file_rfmip.variables['water_vapor'].units)
+    nc_o3 [:,:] = nc_file_rfmip.variables['ozone'][expt,:,::inv].transpose() * float(nc_file_rfmip.variables['ozone'].units)
     
     # Constants
     nc_co2    [:] = nc_file_rfmip.variables['carbon_dioxide_GM'][expt] * float(nc_file_rfmip.variables['carbon_dioxide_GM'].units)
@@ -102,10 +100,10 @@ for expt in range(expts):
     nc_rel = nc_file.createVariable('rei', float_type, ('lay', 'col'))
     nc_rei = nc_file.createVariable('rel', float_type, ('lay', 'col'))
 
-    nc_lwp[:,:] = 0.
-    nc_iwp[:,:] = 0.
-    nc_rel[:,:] = 0.
-    nc_rei[:,:] = 0.
+    nc_lwp[:,::inv] = 0.
+    nc_iwp[:,::inv] = 0.
+    nc_rel[:,::inv] = 0.
+    nc_rei[:,::inv] = 0.
     # CvH end.
 
     nc_file_rfmip.close()
