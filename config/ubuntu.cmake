@@ -12,7 +12,7 @@ endif()
 set(USER_CXX_FLAGS "-std=c++14 -DBOOL_TYPE=\"signed char\"")
 set(USER_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
 set(USER_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wno-unknown-pragmas")
-set(USER_FC_FLAGS "-std=f2003 -fdefault-real-8 -fdefault-double-8 -fPIC -ffixed-line-length-none -fno-range-check -DUSE_CBOOL")
+set(USER_FC_FLAGS "-std=f2003 -fdefault-real-8 -fdefault-double-8 -fPIC -ffixed-line-length-none -fno-range-check")
 set(USER_FC_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
 set(USER_FC_FLAGS_DEBUG "-O0 -g -Wall -Wno-unknown-pragmas")
 
@@ -25,3 +25,4 @@ set(LIBS ${NETCDF_LIB_C} ${HDF5_LIB_2} ${HDF5_LIB_1} m z curl)
 set(INCLUDE_DIRS ${FFTW_INCLUDE_DIR} ${NETCDF_INCLUDE_DIR})
 
 add_definitions(-DRESTRICTKEYWORD=__restrict__)
+add_definitions(-DUSE_CBOOL)

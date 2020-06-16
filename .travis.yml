@@ -1,0 +1,40 @@
+dist: bionic
+
+branches:
+  only:
+    - master
+
+language: cpp
+
+compiler:
+  - gcc
+  - clang
+
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -y gfortran libnetcdf-dev cmake libboost-dev python3-pip python3-setuptools nco
+  - pip3 install --user numpy netcdf4 dask[array] xarray
+
+before_script:
+  - mkdir build
+  - cd build
+  - cmake -DSYST=ubuntu ..
+  - make
+  - cd ..
+
+script:
+  - cd rfmip
+  - ./make_links.sh
+  - python3 stage_files.py
+  - python3 rfmip_init.py
+  - python3 rfmip_run.py
+  - python3 compare-to-reference.py --fail=7.e-4
+  - cd ..
+  - cd allsky
+  - ./make_links.sh
+  - python3 allsky_init.py
+  - python3 allsky_run.py
+  - python3 compare-to-reference.py
+
+#notifications:
+#  slack: microhh:hA8nIix9Z34cn6uG8xnz8Uiu

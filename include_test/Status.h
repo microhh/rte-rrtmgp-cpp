@@ -1,5 +1,5 @@
 /*
- * This file is imported from MicroHH (https://github.com/microhh/microhh)
+ * This file is imported from MicroHH (https://github.com/earth-system-radiation/earth-system-radiation)
  * and is adapted for the testing of the C++ interface to the
  * RTE+RRTMGP radiation code.
  *

@@ -1,13 +1,16 @@
 # C++ interface of RTE+RRTMGP
+
+[![Build Status](https://travis-ci.org/earth-system-radiation/rte-rrtmgp-cpp.svg?branch=master)](https://travis-ci.org/earth-system-radiation/rte-rrtmgp-cpp)
+
 This is a C++ interface to the Radiative Transfer for Energetics (RTE)
 and Rapid Radiative Transfer Model for GCM applications Parallel (RRTMGP).
 
-The original code is found at https://github.com/RobertPincus/rte-rrtmgp.
+The original code is found at https://github.com/earth-system-radiation/rte-rrtmgp.
 
 Contacts: Robert Pincus and Eli Mlawer
 email: rrtmgp@aer.com
 
-This C++ interface can be downloaded from https://github.com/microhh/rte-rrtmgp-cpp
+This C++ interface can be downloaded from https://github.com/earth-system-radiation/rte-rrtmgp-cpp
 
 Contact: Chiel van Heerwaarden
 email: chiel.vanheerwaarden@wur.nl
@@ -21,7 +24,7 @@ see https://www.gnu.org/licenses/gpl-3.0.en.html
 
 In order to check out the code including the `rte-rrtmgp` submodule, use:
 
-    git clone --recurse-submodules https://github.com/microhh/rte-rrtmgp-cpp
+    git clone --recurse-submodules https://github.com/earth-system-radiation/rte-rrtmgp-cpp
 
 In case you had already checked out the repository, use:
 
@@ -30,8 +33,8 @@ In case you had already checked out the repository, use:
 
 # Basic instructions
 Building the source creates an executable `test_rte_rrtmgp`.
-Two test cases are provided in directories `rfmip` and `rcemip`. In order to run those cases
-follow the instructions in the `README.md` of those respective directories.
+Three test cases are provided in directories `rfmip`, `allsky`, and `rcemip`.
+In order to run those cases follow the instructions in the `README.md` of those respective directories.
 
 In general, in order to run a test case, make sure the following files are present in the
 directory from which `test_rte_rrtmgp` is triggered:

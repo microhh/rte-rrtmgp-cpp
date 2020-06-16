@@ -2,7 +2,7 @@
  * This file is part of a C++ interface to the Radiative Transfer for Energetics (RTE)
  * and Rapid Radiative Transfer Model for GCM applications Parallel (RRTMGP).
  *
- * The original code is found at https://github.com/RobertPincus/rte-rrtmgp.
+ * The original code is found at https://github.com/earth-system-radiation/rte-rrtmgp.
  *
  * Contacts: Robert Pincus and Eli Mlawer
  * email: rrtmgp@aer.com
@@ -10,7 +10,7 @@
  * Copyright 2015-2020,  Atmospheric and Environmental Research and
  * Regents of the University of Colorado.  All right reserved.
  *
- * This C++ interface can be downloaded from https://github.com/microhh/rte-rrtmgp-cpp
+ * This C++ interface can be downloaded from https://github.com/earth-system-radiation/rte-rrtmgp-cpp
  *
  * Contact: Chiel van Heerwaarden
  * email: chiel.vanheerwaarden@wur.nl
@@ -75,7 +75,7 @@ namespace
         int nm = minor_gases_atm.dim(1);
         int tot_g = 0;
 
-        Array<int,1> gas_is_present({nm});
+        Array<BOOL_TYPE,1> gas_is_present({nm});
 
         for (int i=1; i<=nm; ++i)
         {
@@ -191,7 +191,7 @@ namespace
             const Array<std::string,1>& gas_names_red,
             const Array<int,3>& key_species,
             Array<int,3>& key_species_red,
-            Array<int,1>& key_species_present_init)
+            Array<BOOL_TYPE,1>& key_species_present_init)
     {
         const int np = key_species.dim(1);
         const int na = key_species.dim(2);
@@ -222,7 +222,7 @@ namespace
 
     void check_key_species_present_init(
             const Array<std::string,1>& gas_names,
-            const Array<int,1>& key_species_present_init
+            const Array<BOOL_TYPE,1>& key_species_present_init
             )
     {
         for (int i=1; i<=key_species_present_init.dim(1); ++i)
@@ -690,8 +690,8 @@ void Gas_optics_rrtmgp<TF>::init_abs_coeffs(
 
     // Create flavor list.
     // Reduce (remap) key_species list; checks that all key gases are present in incoming
-    Array<int, 3> key_species_red;
-    Array<int, 1> key_species_present_init; // CvH bool or int?
+    Array<int,3> key_species_red;
+    Array<BOOL_TYPE,1> key_species_present_init;
 
     create_key_species_reduce(
             gas_names, this->gas_names, key_species, key_species_red, key_species_present_init);
@@ -1308,7 +1308,7 @@ TF Gas_optics_rrtmgp<TF>::get_tsi() const
     const int n_gpt = this->get_ngpt();
 
     TF tsi = 0.;
-    for (int igpt=1; igpt<n_gpt; ++igpt)
+    for (int igpt=1; igpt<=n_gpt; ++igpt)
         tsi += this->solar_source({igpt});
 
     return tsi;

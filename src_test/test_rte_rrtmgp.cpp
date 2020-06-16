@@ -142,14 +142,18 @@ void print_command_line_options(
 template<typename TF>
 void solve_radiation(int argc, char** argv)
 {
+    Status::print_message("###### Starting RTE+RRTMGP solver ######");
+
+    ////// FLOW CONTROL SWITCHES //////
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_options {
-        {"shortwave"        , { true,  "Enable shortwave radiation."         }},
-        {"longwave"         , { true,  "Enable longwave radiation."          }},
-        {"nn-gas-optics"    , { false, "Use neural network solver for gas optics"}},
-        {"cloud-optics"     , { false, "Enable cloud optics."                }},
-        {"output-optical"   , { false, "Enable output of optical properties."}},
-        {"output-bnd-fluxes", { false, "Enable output of band fluxes."       }} };
+        {"shortwave"        , { true,  "Enable computation of shortwave radiation."}},
+        {"longwave"         , { true,  "Enable computation of longwave radiation." }},
+        {"nn-gas-optics"    , { false, "Use neural network solver for gas optics"  }},
+        {"fluxes"           , { true,  "Enable computation of fluxes."             }},
+        {"cloud-optics"     , { false, "Enable cloud optics."                      }},
+        {"output-optical"   , { false, "Enable output of optical properties."      }},
+        {"output-bnd-fluxes", { false, "Enable output of band fluxes."             }} };
 
     if (parse_command_line_options(command_line_options, argc, argv))
         return;
@@ -157,6 +161,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave         = command_line_options.at("shortwave"        ).first;
     const bool switch_longwave          = command_line_options.at("longwave"         ).first;
     const bool switch_nn_gas_optics     = command_line_options.at("nn-gas-optics"    ).first;
+    const bool switch_fluxes            = command_line_options.at("fluxes"           ).first;
     const bool switch_cloud_optics      = command_line_options.at("cloud-optics"     ).first;
     const bool switch_output_optical    = command_line_options.at("output-optical"   ).first;
     const bool switch_output_bnd_fluxes = command_line_options.at("output-bnd-fluxes").first;
@@ -280,9 +285,16 @@ void solve_radiation(int argc, char** argv)
             sfc_source    .set_dims({n_col, n_gpt_lw});
         }
 
-        Array<TF,2> lw_flux_up ({n_col, n_lev});
-        Array<TF,2> lw_flux_dn ({n_col, n_lev});
-        Array<TF,2> lw_flux_net({n_col, n_lev});
+        Array<TF,2> lw_flux_up;
+        Array<TF,2> lw_flux_dn;
+        Array<TF,2> lw_flux_net;
+
+        if (switch_fluxes)
+        {
+            lw_flux_up .set_dims({n_col, n_lev});
+            lw_flux_dn .set_dims({n_col, n_lev});
+            lw_flux_net.set_dims({n_col, n_lev});
+        }
 
         Array<TF,3> lw_bnd_flux_up;
         Array<TF,3> lw_bnd_flux_dn;
@@ -302,6 +314,7 @@ void solve_radiation(int argc, char** argv)
         auto time_start = std::chrono::high_resolution_clock::now();
 
         rad_lw.solve(
+                switch_fluxes,
                 switch_cloud_optics,
                 switch_output_optical,
                 switch_output_bnd_fluxes,
@@ -352,23 +365,26 @@ void solve_radiation(int argc, char** argv)
             nc_sfc_source.insert(sfc_source.v(), {0, 0});
         }
 
-        auto nc_lw_flux_up  = output_nc.add_variable<TF>("lw_flux_up" , {"lev", "col"});
-        auto nc_lw_flux_dn  = output_nc.add_variable<TF>("lw_flux_dn" , {"lev", "col"});
-        auto nc_lw_flux_net = output_nc.add_variable<TF>("lw_flux_net", {"lev", "col"});
-
-        nc_lw_flux_up .insert(lw_flux_up .v(), {0, 0});
-        nc_lw_flux_dn .insert(lw_flux_dn .v(), {0, 0});
-        nc_lw_flux_net.insert(lw_flux_net.v(), {0, 0});
-
-        if (switch_output_bnd_fluxes)
+        if (switch_fluxes)
         {
-            auto nc_lw_bnd_flux_up  = output_nc.add_variable<TF>("lw_bnd_flux_up" , {"band_lw", "lev", "col"});
-            auto nc_lw_bnd_flux_dn  = output_nc.add_variable<TF>("lw_bnd_flux_dn" , {"band_lw", "lev", "col"});
-            auto nc_lw_bnd_flux_net = output_nc.add_variable<TF>("lw_bnd_flux_net", {"band_lw", "lev", "col"});
+            auto nc_lw_flux_up  = output_nc.add_variable<TF>("lw_flux_up" , {"lev", "col"});
+            auto nc_lw_flux_dn  = output_nc.add_variable<TF>("lw_flux_dn" , {"lev", "col"});
+            auto nc_lw_flux_net = output_nc.add_variable<TF>("lw_flux_net", {"lev", "col"});
 
-            nc_lw_bnd_flux_up .insert(lw_bnd_flux_up .v(), {0, 0, 0});
-            nc_lw_bnd_flux_dn .insert(lw_bnd_flux_dn .v(), {0, 0, 0});
-            nc_lw_bnd_flux_net.insert(lw_bnd_flux_net.v(), {0, 0, 0});
+            nc_lw_flux_up .insert(lw_flux_up .v(), {0, 0});
+            nc_lw_flux_dn .insert(lw_flux_dn .v(), {0, 0});
+            nc_lw_flux_net.insert(lw_flux_net.v(), {0, 0});
+
+            if (switch_output_bnd_fluxes)
+            {
+                auto nc_lw_bnd_flux_up  = output_nc.add_variable<TF>("lw_bnd_flux_up" , {"band_lw", "lev", "col"});
+                auto nc_lw_bnd_flux_dn  = output_nc.add_variable<TF>("lw_bnd_flux_dn" , {"band_lw", "lev", "col"});
+                auto nc_lw_bnd_flux_net = output_nc.add_variable<TF>("lw_bnd_flux_net", {"band_lw", "lev", "col"});
+
+                nc_lw_bnd_flux_up .insert(lw_bnd_flux_up .v(), {0, 0, 0});
+                nc_lw_bnd_flux_dn .insert(lw_bnd_flux_dn .v(), {0, 0, 0});
+                nc_lw_bnd_flux_net.insert(lw_bnd_flux_net.v(), {0, 0, 0});
+            }
         }
     }
 
@@ -387,7 +403,7 @@ void solve_radiation(int argc, char** argv)
 
         Array<TF,1> mu0(input_nc.get_variable<TF>("mu0", {n_col}), {n_col});
         Array<TF,2> sfc_alb_dir(input_nc.get_variable<TF>("sfc_alb_dir", {n_col, n_bnd_sw}), {n_bnd_sw, n_col});
-        Array<TF,2> sfc_alb_dif(input_nc.get_variable<TF>("sfc_alb_dir", {n_col, n_bnd_sw}), {n_bnd_sw, n_col});
+        Array<TF,2> sfc_alb_dif(input_nc.get_variable<TF>("sfc_alb_dif", {n_col, n_bnd_sw}), {n_bnd_sw, n_col});
 
         Array<TF,1> tsi_scaling({n_col});
         if (input_nc.variable_exists("tsi"))
@@ -398,8 +414,10 @@ void solve_radiation(int argc, char** argv)
                 tsi_scaling({icol}) = tsi({icol}) / tsi_ref;
         }
         else
+        {
             for (int icol=1; icol<=n_col; ++icol)
                 tsi_scaling({icol}) = TF(1.);
+        }
 
         // Create output arrays.
         Array<TF,3> sw_tau;
@@ -415,10 +433,18 @@ void solve_radiation(int argc, char** argv)
             toa_source.set_dims({n_col, n_gpt_sw});
         }
 
-        Array<TF,2> sw_flux_up    ({n_col, n_lev});
-        Array<TF,2> sw_flux_dn    ({n_col, n_lev});
-        Array<TF,2> sw_flux_dn_dir({n_col, n_lev});
-        Array<TF,2> sw_flux_net   ({n_col, n_lev});
+        Array<TF,2> sw_flux_up;
+        Array<TF,2> sw_flux_dn;
+        Array<TF,2> sw_flux_dn_dir;
+        Array<TF,2> sw_flux_net;
+
+        if (switch_fluxes)
+        {
+            sw_flux_up    .set_dims({n_col, n_lev});
+            sw_flux_dn    .set_dims({n_col, n_lev});
+            sw_flux_dn_dir.set_dims({n_col, n_lev});
+            sw_flux_net   .set_dims({n_col, n_lev});
+        }
 
         Array<TF,3> sw_bnd_flux_up;
         Array<TF,3> sw_bnd_flux_dn;
@@ -440,6 +466,7 @@ void solve_radiation(int argc, char** argv)
         auto time_start = std::chrono::high_resolution_clock::now();
 
         rad_sw.solve(
+                switch_fluxes,
                 switch_cloud_optics,
                 switch_output_optical,
                 switch_output_bnd_fluxes,
@@ -490,31 +517,34 @@ void solve_radiation(int argc, char** argv)
             nc_toa_source.insert(toa_source.v(), {0, 0});
         }
 
-        auto nc_sw_flux_up     = output_nc.add_variable<TF>("sw_flux_up"    , {"lev", "col"});
-        auto nc_sw_flux_dn     = output_nc.add_variable<TF>("sw_flux_dn"    , {"lev", "col"});
-        auto nc_sw_flux_dn_dir = output_nc.add_variable<TF>("sw_flux_dn_dir", {"lev", "col"});
-        auto nc_sw_flux_net    = output_nc.add_variable<TF>("sw_flux_net"   , {"lev", "col"});
-
-        nc_sw_flux_up    .insert(sw_flux_up    .v(), {0, 0});
-        nc_sw_flux_dn    .insert(sw_flux_dn    .v(), {0, 0});
-        nc_sw_flux_dn_dir.insert(sw_flux_dn_dir.v(), {0, 0});
-        nc_sw_flux_net   .insert(sw_flux_net   .v(), {0, 0});
-
-        if (switch_output_bnd_fluxes)
+        if (switch_fluxes)
         {
-            auto nc_sw_bnd_flux_up     = output_nc.add_variable<TF>("sw_bnd_flux_up"    , {"band_sw", "lev", "col"});
-            auto nc_sw_bnd_flux_dn     = output_nc.add_variable<TF>("sw_bnd_flux_dn"    , {"band_sw", "lev", "col"});
-            auto nc_sw_bnd_flux_dn_dir = output_nc.add_variable<TF>("sw_bnd_flux_dn_dir", {"band_sw", "lev", "col"});
-            auto nc_sw_bnd_flux_net    = output_nc.add_variable<TF>("sw_bnd_flux_net"   , {"band_sw", "lev", "col"});
+            auto nc_sw_flux_up     = output_nc.add_variable<TF>("sw_flux_up"    , {"lev", "col"});
+            auto nc_sw_flux_dn     = output_nc.add_variable<TF>("sw_flux_dn"    , {"lev", "col"});
+            auto nc_sw_flux_dn_dir = output_nc.add_variable<TF>("sw_flux_dn_dir", {"lev", "col"});
+            auto nc_sw_flux_net    = output_nc.add_variable<TF>("sw_flux_net"   , {"lev", "col"});
 
-            nc_sw_bnd_flux_up    .insert(sw_bnd_flux_up    .v(), {0, 0, 0});
-            nc_sw_bnd_flux_dn    .insert(sw_bnd_flux_dn    .v(), {0, 0, 0});
-            nc_sw_bnd_flux_dn_dir.insert(sw_bnd_flux_dn_dir.v(), {0, 0, 0});
-            nc_sw_bnd_flux_net   .insert(sw_bnd_flux_net   .v(), {0, 0, 0});
+            nc_sw_flux_up    .insert(sw_flux_up    .v(), {0, 0});
+            nc_sw_flux_dn    .insert(sw_flux_dn    .v(), {0, 0});
+            nc_sw_flux_dn_dir.insert(sw_flux_dn_dir.v(), {0, 0});
+            nc_sw_flux_net   .insert(sw_flux_net   .v(), {0, 0});
+
+            if (switch_output_bnd_fluxes)
+            {
+                auto nc_sw_bnd_flux_up     = output_nc.add_variable<TF>("sw_bnd_flux_up"    , {"band_sw", "lev", "col"});
+                auto nc_sw_bnd_flux_dn     = output_nc.add_variable<TF>("sw_bnd_flux_dn"    , {"band_sw", "lev", "col"});
+                auto nc_sw_bnd_flux_dn_dir = output_nc.add_variable<TF>("sw_bnd_flux_dn_dir", {"band_sw", "lev", "col"});
+                auto nc_sw_bnd_flux_net    = output_nc.add_variable<TF>("sw_bnd_flux_net"   , {"band_sw", "lev", "col"});
+
+                nc_sw_bnd_flux_up    .insert(sw_bnd_flux_up    .v(), {0, 0, 0});
+                nc_sw_bnd_flux_dn    .insert(sw_bnd_flux_dn    .v(), {0, 0, 0});
+                nc_sw_bnd_flux_dn_dir.insert(sw_bnd_flux_dn_dir.v(), {0, 0, 0});
+                nc_sw_bnd_flux_net   .insert(sw_bnd_flux_net   .v(), {0, 0, 0});
+            }
         }
     }
 
-    Status::print_message("Finished.");
+    Status::print_message("###### Finished RTE+RRTMGP solver ######");
 }
 
 

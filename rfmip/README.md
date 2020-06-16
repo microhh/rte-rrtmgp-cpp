@@ -8,6 +8,6 @@ Follow the steps:
 2. `python stage_files.py`          (downloading the reference data)
 3. `python rfmip_init.py`           (preparing the model input data)
 4. `python rfmip_run.py`            (run the 1800 cases)
-5. `python compare-to_reference.py` (compare output to reference file)
+5. `python compare-to-reference.py` (compare output to reference file)
 6. `python rfmip_plot.py`           (plot the cases in a colormesh per flux)
 

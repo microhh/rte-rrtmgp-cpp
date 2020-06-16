@@ -1,5 +1,5 @@
 /*
- * This file is imported from MicroHH (https://github.com/microhh/microhh)
+ * This file is imported from MicroHH (https://github.com/earth-system-radiation/earth-system-radiation)
  * and is adapted for the testing of the C++ interface to the
  * RTE+RRTMGP radiation code.
  *
@@ -577,14 +577,23 @@ template<typename TF>
 inline TF Netcdf_handle::get_variable(
         const std::string& name) const
 {
-    std::string message = "Retrieving from NetCDF (single value): " + name;
-    Status::print_message(message);
+    // std::string message = "Retrieving from NetCDF (single value): " + name;
+    // Status::print_message(message);
 
     int nc_check_code = 0;
     int var_id;
 
-    nc_check_code = nc_inq_varid(ncid, name.c_str(), &var_id);
-    nc_check(nc_check_code);
+    try
+    {
+        nc_check_code = nc_inq_varid(ncid, name.c_str(), &var_id);
+        nc_check(nc_check_code);
+    }
+    catch (std::runtime_error& e)
+    {
+        std::string error = "Netcdf variable: " + name + " not found";
+        Status::print_error(error);
+        throw;
+    }
 
     TF value = 0;
     std::vector<TF> values(1);
@@ -602,8 +611,8 @@ inline std::vector<TF> Netcdf_handle::get_variable(
         const std::string& name,
         const std::vector<int>& i_count) const
 {
-    std::string message = "Retrieving from NetCDF (full array): " + name;
-    Status::print_message(message);
+    // std::string message = "Retrieving from NetCDF (full array): " + name;
+    // Status::print_message(message);
 
     const std::vector<size_t> i_start_size_t(i_count.size());
     const std::vector<size_t> i_count_size_t(i_count.begin(), i_count.end());
@@ -611,8 +620,17 @@ inline std::vector<TF> Netcdf_handle::get_variable(
     int nc_check_code = 0;
     int var_id;
 
-    nc_check_code = nc_inq_varid(ncid, name.c_str(), &var_id);
-    nc_check(nc_check_code);
+    try
+    {
+        nc_check_code = nc_inq_varid(ncid, name.c_str(), &var_id);
+        nc_check(nc_check_code);
+    }
+    catch (std::runtime_error& e)
+    {
+        std::string error = "Netcdf variable: " + name + " not found";
+        Status::print_error(error);
+        throw;
+    }
 
     int total_count = std::accumulate(i_count.begin(), i_count.end(), 1, std::multiplies<>());
     // CvH check needs to be added if total count matches multiplication of all dimensions.
@@ -631,8 +649,8 @@ inline void Netcdf_handle::get_variable(
         const std::vector<int>& i_start,
         const std::vector<int>& i_count) const
 {
-    std::string message = "Retrieving from NetCDF: " + name;
-    Status::print_message(message);
+    // std::string message = "Retrieving from NetCDF: " + name;
+    // Status::print_message(message);
 
     const std::vector<size_t> i_start_size_t (i_start.begin(), i_start.end());
     const std::vector<size_t> i_count_size_t (i_count.begin(), i_count.end());
@@ -648,7 +666,7 @@ inline void Netcdf_handle::get_variable(
     }
     catch (std::runtime_error& e)
     {
-        std::string warning = "Netcdf variable " + name + " not found, filling with zeros";
+        std::string warning = "Netcdf variable: " + name + " not found, filling with zeros";
         Status::print_warning(warning);
         zero_fill = true;
     }
