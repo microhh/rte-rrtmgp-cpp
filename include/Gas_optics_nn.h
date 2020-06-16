@@ -51,16 +51,6 @@ class Gas_optics_nn : public Gas_optics<TF>
                 Source_func_lw<TF>& sources,
                 const Array<TF,2>& col_dry,
                 const Array<TF,2>& tlev) const;
-        bool source_is_internal() const {return 0;}
-        bool source_is_external() const {return 0;}
-
-        TF get_press_ref_min() const {return TF(0.);}
-        TF get_press_ref_max() const {return TF(0.);}
-
-        TF get_temp_min() const {return TF(0.);}
-        TF get_temp_max() const {return TF(0.);}
-
-        TF get_tsi() const {return TF(0.);};
 
         // Shortwave variant.
         void gas_optics(
@@ -72,8 +62,19 @@ class Gas_optics_nn : public Gas_optics<TF>
                 Array<TF,2>& toa_src,
                 const Array<TF,2>& col_dry) const;
 
+        bool source_is_internal() const {return 0;}
+        bool source_is_external() const {return 0;}
+
+        TF get_press_ref_min() const {return TF(0.);}
+        TF get_press_ref_max() const {return TF(0.);}
+
+        TF get_temp_min() const {return TF(0.);}
+        TF get_temp_max() const {return TF(0.);}
+
+        TF get_tsi() const;
+
     private:
-        const TF press_ref_trop = 9948.431564193395; //network is trained on this, so might as well hardcode it
+        const TF press_ref_trop = 9948.431564193395; //network is trained on this boundary, so it is hardcoded
         bool is_longwave;   
         bool do_taussa;
         Array<std::string,1> gas_names;
@@ -133,10 +134,10 @@ class Gas_optics_nn : public Gas_optics<TF>
         int n_layer1;
         int n_layer2;
         int n_layer3;
-        int n_gases;
+        int n_o3;
+
         int idx_tropo;
         bool lower_atm;
         bool upper_atm;
-
 };
 #endif

@@ -8,36 +8,6 @@
 #include <vector>
 #include <iostream>
 
-//#ifdef NGASES
-//    constexpr int NGAS   = NGASES;
-//#else
-//    constexpr int NGAS   = 0; //default: on extra gases (only water vapour);
-//#endif
-//
-//#ifdef NLAYER1
-//    constexpr int NLAY1  = NLAYER1;
-//#else
-//    constexpr int NLAY1  = 0; //default: 0 neurons in first layer
-//#endif
-//
-//#ifdef NLAYER2
-//    constexpr int NLAY2  = NLAYER2;
-//#else
-//    constexpr int NLAY2  = 0; //default: 0 neurons in second layer
-//#endif
-//
-//#ifdef NLAYER3
-//    constexpr int NLAY3  = NLAYER3;
-//#else
-//    constexpr int NLAY3  = 0; //default: 0 neurons in third layer
-//#endif
-//
-//#ifdef NLAYERS
-//    constexpr int NLAYER = NLAYERS;
-//#else
-//    constexpr int NLAYER = 0; //default: 0 layers (linear network, i.e. linear regression)
-//#endif
-
 class Network
 {
     public:

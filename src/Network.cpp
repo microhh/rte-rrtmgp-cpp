@@ -35,7 +35,6 @@ namespace
             float* restrict const layer_in,
             float* restrict const layer_out)
     {
-
         cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n_row, n_batch, n_col, 1.f,
                     weights, n_col, layer_in, n_batch , 0.f, layer_out, n_batch);
         bias_and_activate(layer_out, bias, n_row, n_batch);
@@ -241,65 +240,65 @@ Network::Network(Netcdf_group& grp,
 
     if (n_layers == 0)
     {
-        this->output_bias_lower = grp.get_variable<float>("bias1_lower",{n_layer_out});
-        this->output_wgth_lower = grp.get_variable<float>("wgth1_lower",{n_layer_out, n_layer_in});
-        this->output_bias_upper = grp.get_variable<float>("bias1_upper",{n_layer_out});
-        this->output_wgth_upper = grp.get_variable<float>("wgth1_upper",{n_layer_out, n_layer_in});
+        this->output_bias_lower = grp.get_variable<float>("bias1_lower", {n_layer_out});
+        this->output_wgth_lower = grp.get_variable<float>("wgth1_lower", {n_layer_out, n_layer_in});
+        this->output_bias_upper = grp.get_variable<float>("bias1_upper", {n_layer_out});
+        this->output_wgth_upper = grp.get_variable<float>("wgth1_upper", {n_layer_out, n_layer_in});
     }
     else if (n_layers == 1)
     {
-        this->layer1_bias_lower = grp.get_variable<float>("bias1_lower",{n_layer1});
-        this->output_bias_lower = grp.get_variable<float>("bias2_lower",{n_layer_out});
-        this->layer1_wgth_lower = grp.get_variable<float>("wgth1_lower",{n_layer1,    n_layer_in});
-        this->output_wgth_lower = grp.get_variable<float>("wgth2_lower",{n_layer_out, n_layer1});
-        this->layer1_bias_upper = grp.get_variable<float>("bias1_upper",{n_layer1});
-        this->output_bias_upper = grp.get_variable<float>("bias2_upper",{n_layer_out});
-        this->layer1_wgth_upper = grp.get_variable<float>("wgth1_upper",{n_layer1,    n_layer_in});
-        this->output_wgth_upper = grp.get_variable<float>("wgth2_upper",{n_layer_out, n_layer1});
+        this->layer1_bias_lower = grp.get_variable<float>("bias1_lower", {n_layer1});
+        this->output_bias_lower = grp.get_variable<float>("bias2_lower", {n_layer_out});
+        this->layer1_wgth_lower = grp.get_variable<float>("wgth1_lower", {n_layer1,    n_layer_in});
+        this->output_wgth_lower = grp.get_variable<float>("wgth2_lower", {n_layer_out, n_layer1});
+        this->layer1_bias_upper = grp.get_variable<float>("bias1_upper", {n_layer1});
+        this->output_bias_upper = grp.get_variable<float>("bias2_upper", {n_layer_out});
+        this->layer1_wgth_upper = grp.get_variable<float>("wgth1_upper", {n_layer1,    n_layer_in});
+        this->output_wgth_upper = grp.get_variable<float>("wgth2_upper", {n_layer_out, n_layer1});
     }
     else if (n_layers == 2)
     {
-        this->layer1_bias_lower = grp.get_variable<float>("bias1_lower",{n_layer1});
-        this->layer2_bias_lower = grp.get_variable<float>("bias2_lower",{n_layer2});
-        this->output_bias_lower = grp.get_variable<float>("bias3_lower",{n_layer_out});
-        this->layer1_wgth_lower = grp.get_variable<float>("wgth1_lower",{n_layer1,    n_layer_in});
-        this->layer2_wgth_lower = grp.get_variable<float>("wgth2_lower",{n_layer2,    n_layer1});
-        this->output_wgth_lower = grp.get_variable<float>("wgth3_lower",{n_layer_out, n_layer2});
-        this->layer1_bias_upper = grp.get_variable<float>("bias1_upper",{n_layer1});
-        this->layer2_bias_upper = grp.get_variable<float>("bias2_upper",{n_layer2});
-        this->output_bias_upper = grp.get_variable<float>("bias3_upper",{n_layer_out});
-        this->layer1_wgth_upper = grp.get_variable<float>("wgth1_upper",{n_layer1,    n_layer_in});
-        this->layer2_wgth_upper = grp.get_variable<float>("wgth2_upper",{n_layer2,    n_layer1});
-        this->output_wgth_upper = grp.get_variable<float>("wgth3_upper",{n_layer_out, n_layer2});
+        this->layer1_bias_lower = grp.get_variable<float>("bias1_lower", {n_layer1});
+        this->layer2_bias_lower = grp.get_variable<float>("bias2_lower", {n_layer2});
+        this->output_bias_lower = grp.get_variable<float>("bias3_lower", {n_layer_out});
+        this->layer1_wgth_lower = grp.get_variable<float>("wgth1_lower", {n_layer1,    n_layer_in});
+        this->layer2_wgth_lower = grp.get_variable<float>("wgth2_lower", {n_layer2,    n_layer1});
+        this->output_wgth_lower = grp.get_variable<float>("wgth3_lower", {n_layer_out, n_layer2});
+        this->layer1_bias_upper = grp.get_variable<float>("bias1_upper", {n_layer1});
+        this->layer2_bias_upper = grp.get_variable<float>("bias2_upper", {n_layer2});
+        this->output_bias_upper = grp.get_variable<float>("bias3_upper", {n_layer_out});
+        this->layer1_wgth_upper = grp.get_variable<float>("wgth1_upper", {n_layer1,    n_layer_in});
+        this->layer2_wgth_upper = grp.get_variable<float>("wgth2_upper", {n_layer2,    n_layer1});
+        this->output_wgth_upper = grp.get_variable<float>("wgth3_upper", {n_layer_out, n_layer2});
     }
     else if (n_layers == 3)
     {
-        this->layer1_bias_lower = grp.get_variable<float>("bias1_lower",{n_layer1});
-        this->layer2_bias_lower = grp.get_variable<float>("bias2_lower",{n_layer2});
-        this->layer3_bias_lower = grp.get_variable<float>("bias3_lower",{n_layer3});
-        this->output_bias_lower = grp.get_variable<float>("bias4_lower",{n_layer_out});
-        this->layer1_wgth_lower = grp.get_variable<float>("wgth1_lower",{n_layer1,    n_layer_in});
-        this->layer2_wgth_lower = grp.get_variable<float>("wgth2_lower",{n_layer2,    n_layer1});
-        this->layer3_wgth_lower = grp.get_variable<float>("wgth3_lower",{n_layer3,    n_layer2});
-        this->output_wgth_lower = grp.get_variable<float>("wgth4_lower",{n_layer_out, n_layer3});
-        this->layer1_bias_upper = grp.get_variable<float>("bias1_upper",{n_layer1});
-        this->layer2_bias_upper = grp.get_variable<float>("bias2_upper",{n_layer2});
-        this->layer3_bias_upper = grp.get_variable<float>("bias3_upper",{n_layer3});
-        this->output_bias_upper = grp.get_variable<float>("bias4_upper",{n_layer_out});
-        this->layer1_wgth_upper = grp.get_variable<float>("wgth1_upper",{n_layer1,    n_layer_in});
-        this->layer2_wgth_upper = grp.get_variable<float>("wgth2_upper",{n_layer2,    n_layer1});
-        this->layer3_wgth_upper = grp.get_variable<float>("wgth3_upper",{n_layer3,    n_layer2});
-        this->output_wgth_upper = grp.get_variable<float>("wgth4_upper",{n_layer_out, n_layer3});
+        this->layer1_bias_lower = grp.get_variable<float>("bias1_lower", {n_layer1});
+        this->layer2_bias_lower = grp.get_variable<float>("bias2_lower", {n_layer2});
+        this->layer3_bias_lower = grp.get_variable<float>("bias3_lower", {n_layer3});
+        this->output_bias_lower = grp.get_variable<float>("bias4_lower", {n_layer_out});
+        this->layer1_wgth_lower = grp.get_variable<float>("wgth1_lower", {n_layer1,    n_layer_in});
+        this->layer2_wgth_lower = grp.get_variable<float>("wgth2_lower", {n_layer2,    n_layer1});
+        this->layer3_wgth_lower = grp.get_variable<float>("wgth3_lower", {n_layer3,    n_layer2});
+        this->output_wgth_lower = grp.get_variable<float>("wgth4_lower", {n_layer_out, n_layer3});
+        this->layer1_bias_upper = grp.get_variable<float>("bias1_upper", {n_layer1});
+        this->layer2_bias_upper = grp.get_variable<float>("bias2_upper", {n_layer2});
+        this->layer3_bias_upper = grp.get_variable<float>("bias3_upper", {n_layer3});
+        this->output_bias_upper = grp.get_variable<float>("bias4_upper", {n_layer_out});
+        this->layer1_wgth_upper = grp.get_variable<float>("wgth1_upper", {n_layer1,    n_layer_in});
+        this->layer2_wgth_upper = grp.get_variable<float>("wgth2_upper", {n_layer2,    n_layer1});
+        this->layer3_wgth_upper = grp.get_variable<float>("wgth3_upper", {n_layer3,    n_layer2});
+        this->output_wgth_upper = grp.get_variable<float>("wgth4_upper", {n_layer_out, n_layer3});
     }
 
-    this->mean_input_lower   = grp.get_variable<float>("Fmean_lower",{n_layer_in});
-    this->stdev_input_lower  = grp.get_variable<float>("Fstdv_lower",{n_layer_in});
-    this->mean_output_lower  = grp.get_variable<float>("Lmean_lower",{n_layer_out});
-    this->stdev_output_lower = grp.get_variable<float>("Lstdv_lower",{n_layer_out});
+    this->mean_input_lower   = grp.get_variable<float>("Fmean_lower", {n_layer_in});
+    this->stdev_input_lower  = grp.get_variable<float>("Fstdv_lower", {n_layer_in});
+    this->mean_output_lower  = grp.get_variable<float>("Lmean_lower", {n_layer_out});
+    this->stdev_output_lower = grp.get_variable<float>("Lstdv_lower", {n_layer_out});
     
-    this->mean_input_upper   = grp.get_variable<float>("Fmean_upper",{n_layer_in});
-    this->stdev_input_upper  = grp.get_variable<float>("Fstdv_upper",{n_layer_in});
-    this->mean_output_upper  = grp.get_variable<float>("Lmean_upper",{n_layer_out});
-    this->stdev_output_upper = grp.get_variable<float>("Lstdv_upper",{n_layer_out});
+    this->mean_input_upper   = grp.get_variable<float>("Fmean_upper", {n_layer_in});
+    this->stdev_input_upper  = grp.get_variable<float>("Fstdv_upper", {n_layer_in});
+    this->mean_output_upper  = grp.get_variable<float>("Lmean_upper", {n_layer_out});
+    this->stdev_output_upper = grp.get_variable<float>("Lstdv_upper", {n_layer_out});
 }
 
