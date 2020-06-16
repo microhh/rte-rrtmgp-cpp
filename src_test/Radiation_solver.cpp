@@ -402,15 +402,18 @@ Radiation_solver_longwave<TF>::Radiation_solver_longwave(
     {
         this->kdist = std::make_unique<Gas_optics_nn<TF>>(
                 load_and_init_gas_optics_nn<TF>(gas_concs, file_name_gas, file_name_weights, input_nc));
-       // this->kdist->initialize_networks(file_name_weights, input_nc);
     }
     else
+    {
         this->kdist = std::make_unique<Gas_optics_rrtmgp<TF>>(
                 load_and_init_gas_optics_rrtmgp<TF>(gas_concs, file_name_gas));
+    }
 
     if (sw_cloud_optics)
+    {
         this->cloud_optics = std::make_unique<Cloud_optics<TF>>(
                 load_and_init_cloud_optics<TF>(file_name_cloud));
+    }
 }
 
 template<typename TF>

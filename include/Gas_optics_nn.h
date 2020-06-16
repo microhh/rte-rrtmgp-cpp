@@ -116,9 +116,9 @@ class Gas_optics_nn : public Gas_optics<TF>
                 const Array<TF,2>& tlay,
                 const Array<TF,1>& tsfc,
                 Source_func_lw<TF>& sources,
-                const int& ncol,
-                const int& nlay,
-                const int& nband) const;
+                const int ncol,
+                const int nlay,
+                const int nband) const;
 
         Array<TF,1> solar_source_quiet;
         Array<TF,1> solar_source_facular;

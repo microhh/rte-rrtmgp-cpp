@@ -147,13 +147,13 @@ void solve_radiation(int argc, char** argv)
     ////// FLOW CONTROL SWITCHES //////
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_options {
-        {"shortwave"        , { true,  "Enable computation of shortwave radiation."}},
-        {"longwave"         , { true,  "Enable computation of longwave radiation." }},
-        {"nn-gas-optics"    , { false, "Use neural network solver for gas optics"  }},
-        {"fluxes"           , { true,  "Enable computation of fluxes."             }},
-        {"cloud-optics"     , { false, "Enable cloud optics."                      }},
-        {"output-optical"   , { false, "Enable output of optical properties."      }},
-        {"output-bnd-fluxes", { false, "Enable output of band fluxes."             }} };
+        {"shortwave"        , { true,  "Enable computation of shortwave radiation." }},
+        {"longwave"         , { true,  "Enable computation of longwave radiation."  }},
+        {"nn-gas-optics"    , { false, "Enable neural network solver for gas optics"}},
+        {"fluxes"           , { true,  "Enable computation of fluxes."              }},
+        {"cloud-optics"     , { false, "Enable cloud optics."                       }},
+        {"output-optical"   , { false, "Enable output of optical properties."       }},
+        {"output-bnd-fluxes", { false, "Enable output of band fluxes."              }} };
 
     if (parse_command_line_options(command_line_options, argc, argv))
         return;
@@ -260,7 +260,9 @@ void solve_radiation(int argc, char** argv)
     {
         // Initialize the solver.
         Status::print_message("Initializing the longwave solver.");
-        Radiation_solver_longwave<TF> rad_lw(gas_concs, "coefficients_lw.nc", "cloud_coefficients_lw.nc","weights.nc", input_nc, switch_cloud_optics, switch_nn_gas_optics);
+        Radiation_solver_longwave<TF> rad_lw(
+                gas_concs, "coefficients_lw.nc", "cloud_coefficients_lw.nc", "weights.nc",
+                input_nc, switch_cloud_optics, switch_nn_gas_optics);
 
         // Read the boundary conditions.
         const int n_bnd_lw = rad_lw.get_n_bnd();
@@ -395,7 +397,9 @@ void solve_radiation(int argc, char** argv)
         // Initialize the solver.
         Status::print_message("Initializing the shortwave solver.");
 
-        Radiation_solver_shortwave<TF> rad_sw(gas_concs, "coefficients_sw.nc", "cloud_coefficients_sw.nc", "weights.nc", input_nc, switch_cloud_optics, switch_nn_gas_optics);
+        Radiation_solver_shortwave<TF> rad_sw(
+                gas_concs, "coefficients_sw.nc", "cloud_coefficients_sw.nc", "weights.nc",
+                input_nc, switch_cloud_optics, switch_nn_gas_optics);
 
         // Read the boundary conditions.
         const int n_bnd_sw = rad_sw.get_n_bnd();
