@@ -87,8 +87,8 @@ class Gas_optics_nn : public Gas_optics<TF>
             Netcdf_file& input_nc);
 
         void compute_tau_ssa_nn(
-                const Network& ssa_network,
-                const Network& tsw_network,
+                const Network& nw_ssa,
+                const Network& nw_tsw,
                 const int ncol, const int nlay, const int ngpt,
                 const int nband, const int idx_tropo,
                 const double* restrict const play,
@@ -99,8 +99,8 @@ class Gas_optics_nn : public Gas_optics<TF>
                 const bool lower_atm, const bool upper_atm) const;
 
         void compute_tau_sources_nn(
-                const Network& tlw_network,
-                const Network& plk_network,
+                const Network& nw_tlw,
+                const Network& nw_plk,
                 const int ncol, const int nlay, const int ngpt,
                 const int nband, const int idx_tropo,
                 const double* restrict const play, 

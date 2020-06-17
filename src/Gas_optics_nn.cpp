@@ -5,6 +5,7 @@
 #include "Netcdf_interface.h"
 #include "Gas_optics_nn.h"
 #include "Array.h"
+#include "Status.h"
 #include "Optical_props.h"
 #include "Source_functions.h"
 #include "rrtmgp_kernels.h"
@@ -291,10 +292,9 @@ void Gas_optics_nn<TF>::initialize_networks(
     }
     else
     {
-        // CvH: either print warning or error using Status::
-        // CvH: In case of error, throw!
-        std::cout<<"Problem: neither shortwave nor longwave"<<std::endl;
+        throw std::runtime_error("Network output size does not match the number of shortwave or longwave g-points.");
     }
+
     this->n_layers = n_layers;
     this->n_layer1 = n_layer1;
     this->n_layer2 = n_layer2;
@@ -316,26 +316,25 @@ void Gas_optics_nn<TF>::lay2sfc_factor(
     const Array<TF,3>& src_layer = sources.get_lay_source();
     Array<TF,2>& src_sfc = sources.get_sfc_source();
 
-    // CvH: Deal with the TF type properly, this code has double to float casts.
     for (int icol=1; icol<=ncol; ++icol)
     {
         //numbers are fitting from longwave coefficients file
-        sfc_factor({1})  = pow((0.0131757912608200*tsfc({icol})-1) / (0.01317579126081997*tlay({icol,1})-1), 1.1209724347746475);
-        sfc_factor({2})  = pow((0.0092778215915162*tsfc({icol})-1) / (0.00927782159151618*tlay({icol,1})-1), 1.4149505728750649);
-        sfc_factor({3})  = pow((0.0081221064580734*tsfc({icol})-1) / (0.00812210645807336*tlay({icol,1})-1), 1.7153859296550862);
-        sfc_factor({4})  = pow((0.0078298195508505*tsfc({icol})-1) / (0.00782981955085045*tlay({icol,1})-1), 1.9129486781120648);
-        sfc_factor({5})  = pow((0.0076928950299874*tsfc({icol})-1) / (0.00769289502998736*tlay({icol,1})-1), 2.121924616912191);
-        sfc_factor({6})  = pow((0.0075653865084563*tsfc({icol})-1) / (0.00756538650845630*tlay({icol,1})-1), 2.4434431185689567);
-        sfc_factor({7})  = pow((0.0074522945371839*tsfc({icol})-1) / (0.00745229453718388*tlay({icol,1})-1), 2.7504289450500714);
-        sfc_factor({8})  = pow((0.0074105017545267*tsfc({icol})-1) / (0.00741050175452665*tlay({icol,1})-1), 2.9950297268205865);
-        sfc_factor({9})  = pow((0.0074119101719575*tsfc({icol})-1) / (0.00741191017195750*tlay({icol,1})-1), 3.3798218227597565);
-        sfc_factor({10}) = pow((0.0073401394763094*tsfc({icol})-1) / (0.00734013947630943*tlay({icol,1})-1), 3.760811429547177);
-        sfc_factor({11}) = pow((0.0074075710256119*tsfc({icol})-1) / (0.00740757102561185*tlay({icol,1})-1), 4.267112286396149);
-        sfc_factor({12}) = pow((0.0073542571820469*tsfc({icol})-1) / (0.00735425718204687*tlay({icol,1})-1), 5.037348344205931);
-        sfc_factor({13}) = pow((0.0073059753467312*tsfc({icol})-1) / (0.00730597534673117*tlay({icol,1})-1), 5.629568565488524);
-        sfc_factor({14}) = pow((0.0072946170050561*tsfc({icol})-1) / (0.00729461700505611*tlay({icol,1})-1), 6.032163655628699);
-        sfc_factor({15}) = pow((0.0073266552903883*tsfc({icol})-1) / (0.00732665529038828*tlay({icol,1})-1), 6.566161469007115);
-        sfc_factor({16}) = pow((0.0074129528692143*tsfc({icol})-1) / (0.00741295286921425*tlay({icol,1})-1), 7.579678774748928);
+        sfc_factor({1})  = pow((TF(0.0131757912608200)*tsfc({icol})-TF(1.)) / (TF(0.01317579126081997)*tlay({icol,1})-TF(1.)), TF(1.1209724347746475));
+        sfc_factor({2})  = pow((TF(0.0092778215915162)*tsfc({icol})-TF(1.)) / (TF(0.00927782159151618)*tlay({icol,1})-TF(1.)), TF(1.4149505728750649));
+        sfc_factor({3})  = pow((TF(0.0081221064580734)*tsfc({icol})-TF(1.)) / (TF(0.00812210645807336)*tlay({icol,1})-TF(1.)), TF(1.7153859296550862));
+        sfc_factor({4})  = pow((TF(0.0078298195508505)*tsfc({icol})-TF(1.)) / (TF(0.00782981955085045)*tlay({icol,1})-TF(1.)), TF(1.9129486781120648));
+        sfc_factor({5})  = pow((TF(0.0076928950299874)*tsfc({icol})-TF(1.)) / (TF(0.00769289502998736)*tlay({icol,1})-TF(1.)), TF(2.121924616912191));
+        sfc_factor({6})  = pow((TF(0.0075653865084563)*tsfc({icol})-TF(1.)) / (TF(0.00756538650845630)*tlay({icol,1})-TF(1.)), TF(2.4434431185689567));
+        sfc_factor({7})  = pow((TF(0.0074522945371839)*tsfc({icol})-TF(1.)) / (TF(0.00745229453718388)*tlay({icol,1})-TF(1.)), TF(2.7504289450500714));
+        sfc_factor({8})  = pow((TF(0.0074105017545267)*tsfc({icol})-TF(1.)) / (TF(0.00741050175452665)*tlay({icol,1})-TF(1.)), TF(2.9950297268205865));
+        sfc_factor({9})  = pow((TF(0.0074119101719575)*tsfc({icol})-TF(1.)) / (TF(0.00741191017195750)*tlay({icol,1})-TF(1.)), TF(3.3798218227597565));
+        sfc_factor({10}) = pow((TF(0.0073401394763094)*tsfc({icol})-TF(1.)) / (TF(0.00734013947630943)*tlay({icol,1})-TF(1.)), TF(3.760811429547177));
+        sfc_factor({11}) = pow((TF(0.0074075710256119)*tsfc({icol})-TF(1.)) / (TF(0.00740757102561185)*tlay({icol,1})-TF(1.)), TF(4.267112286396149));
+        sfc_factor({12}) = pow((TF(0.0073542571820469)*tsfc({icol})-TF(1.)) / (TF(0.00735425718204687)*tlay({icol,1})-TF(1.)), TF(5.037348344205931));
+        sfc_factor({13}) = pow((TF(0.0073059753467312)*tsfc({icol})-TF(1.)) / (TF(0.00730597534673117)*tlay({icol,1})-TF(1.)), TF(5.629568565488524));
+        sfc_factor({14}) = pow((TF(0.0072946170050561)*tsfc({icol})-TF(1.)) / (TF(0.00729461700505611)*tlay({icol,1})-TF(1.)), TF(6.032163655628699));
+        sfc_factor({15}) = pow((TF(0.0073266552903883)*tsfc({icol})-TF(1.)) / (TF(0.00732665529038828)*tlay({icol,1})-TF(1.)), TF(6.566161469007115));
+        sfc_factor({16}) = pow((TF(0.0074129528692143)*tsfc({icol})-TF(1.)) / (TF(0.00741295286921425)*tlay({icol,1})-TF(1.)), TF(7.579678774748928));
 
         for (int iband=1; iband<=nband; ++iband)
             for (int igpt=1; igpt<=16; ++igpt)
@@ -350,8 +349,8 @@ void Gas_optics_nn<TF>::lay2sfc_factor(
 //Currently only implemented for atmospheric profilfes ordered bottom-first
 template<typename TF>
 void Gas_optics_nn<TF>::compute_tau_ssa_nn(
-        const Network& SSA,
-        const Network& TSW,
+        const Network& nw_ssa,
+        const Network& nw_tsw,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -432,9 +431,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
                 input[idx] = val;
             }
 
-        // CvH: NO CAPITALS for variable names, ALL CAPITAL is reserved for preprocessing statements, opening capitals are classes.
-        TSW.inference(input.data(), output_tau.data(), nbatch_lower, 1,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, exp(output), normalize input
-        SSA.inference(input.data(), output_ssa.data(), nbatch_lower, 1,0,0, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, output, input already normalized);
+        nw_tsw.inference(input.data(), output_tau.data(), nbatch_lower, 1,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, exp(output), normalize input
+        nw_ssa.inference(input.data(), output_ssa.data(), nbatch_lower, 1,0,0, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, output, input already normalized);
    
         copy_arrays_ssa(output_ssa.data(), ssa, ncol, 0, idx_tropo, ngpt, nlay);
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, 0, idx_tropo, ngpt, nlay);
@@ -482,8 +480,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
                 input[idx] = val;
             }
 
-        SSA.inference(input.data(), output_ssa.data(), nbatch_upper, 0,0,0, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, output, input already normalized
-        TSW.inference(input.data(), output_tau.data(), nbatch_upper, 0,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, exp(output), normalize input
+        nw_ssa.inference(input.data(), output_ssa.data(), nbatch_upper, 0,0,0, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, output, input already normalized
+        nw_tsw.inference(input.data(), output_tau.data(), nbatch_upper, 0,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, exp(output), normalize input
 
         copy_arrays_ssa(output_ssa.data(), ssa, ncol, idx_tropo, nlay, ngpt, nlay);
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, idx_tropo, nlay, ngpt, nlay);
@@ -494,8 +492,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
 // Currently only implemented for atmospheric profiles ordered bottom-first.
 template<typename TF>
 void Gas_optics_nn<TF>::compute_tau_sources_nn(
-        const Network& TLW,
-        const Network& PLK,
+        const Network& nw_tlw,
+        const Network& nw_plk,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
         const double* restrict const play,
         const double* restrict const plev,
@@ -599,8 +597,8 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx2] = val2;
             }
 
-        TLW.inference(input_tau.data(), output_tau.data(), nbatch_lower, 1,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, exp(output), normalize input
-        PLK.inference(input_plk.data(), output_plk.data(), nbatch_lower, 1,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, exp(output), normalize input
+        nw_tlw.inference(input_tau.data(), output_tau.data(), nbatch_lower, 1,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, exp(output), normalize input
+        nw_plk.inference(input_plk.data(), output_plk.data(), nbatch_lower, 1,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //lower atmosphere, exp(output), normalize input
 
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, 0, idx_tropo, ngpt, nlay);
         copy_arrays_plk(output_plk.data(), src_layer, src_lvdec, src_lvinc,ncol, 0, idx_tropo, ngpt, nlay);
@@ -667,8 +665,8 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
                 input_plk[idx2] = val2;
             }
 
-        TLW.inference(input_tau.data(), output_tau.data(), nbatch_upper, 0,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, exp(output), normalize input
-        PLK.inference(input_plk.data(), output_plk.data(), nbatch_upper, 0,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, exp(output), normalize input
+        nw_tlw.inference(input_tau.data(), output_tau.data(), nbatch_upper, 0,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, exp(output), normalize input
+        nw_plk.inference(input_plk.data(), output_plk.data(), nbatch_upper, 0,1,1, this->n_layers, this->n_layer1, this->n_layer2, this->n_layer3); //upper atmosphere, exp(output), normalize input
  
         copy_arrays_tau(output_tau.data(), dp, tau, ncol, idx_tropo, nlay, ngpt, nlay);
         copy_arrays_plk(output_plk.data(), src_layer, src_lvdec, src_lvinc, ncol, idx_tropo, nlay, ngpt, nlay);
