@@ -941,11 +941,12 @@ namespace rrtmgp_kernel_launcher
             const Array<int,1>& idx_minor_scaling_upper,
             const Array<int,1>& kminor_start_lower,
             const Array<int,1>& kminor_start_upper,
-            Array<BOOL_TYPE,2>& tropo,
-            Array<TF,4>& col_mix, Array<TF,6>& fmajor, Array<TF,5>& fminor,
-            const Array<TF,2>& play, const Array<TF,2>& tlay, Array<TF,3>& col_gas,
-            Array<int,4>& jeta, Array<int,2>& jtemp, Array<int,2>& jpress,
-            Array<TF,3>& tau)
+            const Array<BOOL_TYPE,2>& tropo,
+            const Array<TF,4>& col_mix, const Array<TF,6>& fmajor,
+            const Array<TF,5>& fminor, const Array<TF,2>& play,
+            const Array<TF,2>& tlay, Array<TF,3>& col_gas,
+            const Array<int,4>& jeta, const Array<int,2>& jtemp,
+            const Array<int,2>& jpress, Array<TF,3>& tau)
     {
         rrtmgp_kernels::compute_tau_absorption(
             &ncol, &nlay, &nband, &ngpt,
@@ -970,10 +971,10 @@ namespace rrtmgp_kernel_launcher
             const_cast<int*>(idx_minor_scaling_upper.ptr()),
             const_cast<int*>(kminor_start_lower.ptr()),
             const_cast<int*>(kminor_start_upper.ptr()),
-            tropo.ptr(),
-            col_mix.ptr(), fmajor.ptr(), fminor.ptr(),
-            const_cast<TF*>(play.ptr()), const_cast<TF*>(tlay.ptr()), col_gas.ptr(),
-            jeta.ptr(), jtemp.ptr(), jpress.ptr(),
+            const_cast<BOOL_TYPE*>(tropo.ptr()),
+            const_cast<TF*>(col_mix.ptr()), const_cast<TF*>(fmajor.ptr()), const_cast<TF*>(fminor.ptr()),
+            const_cast<TF*>(play.ptr()), const_cast<TF*>(tlay.ptr()), const_cast<TF*>(col_gas.ptr()),
+            const_cast<int*>(jeta.ptr()), const_cast<int*>(jtemp.ptr()), const_cast<int*>(jpress.ptr()),
             tau.ptr());
     }
 
