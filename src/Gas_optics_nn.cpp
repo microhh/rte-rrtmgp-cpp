@@ -26,10 +26,11 @@ namespace
         return x;
     }
  
+    template<typename TF>
     void copy_arrays_tau(
                  const float* restrict const data_in,
                  const float* restrict const data_dp,
-                 double* restrict const data_out,
+                 TF* restrict const data_out,
                  const int n_col, const int n_bot,
                  const int n_top, const int n_gpt,
                  const int n_lay)
@@ -40,7 +41,7 @@ namespace
         {
             const int outidx = i*n_lay*n_col + n_bot*n_col;
             const float* in_temp = &data_in[i*n_sub*n_col];
-            double* out_temp = &data_out[outidx];
+            TF* out_temp = &data_out[outidx];
 
             #pragma ivdep            
             for (int j=0; j<n_col*n_sub; ++j)
@@ -48,9 +49,10 @@ namespace
         }
     }
 
+    template<typename TF>
     void copy_arrays_ssa(
                  const float* restrict const data_in,
-                 double* restrict const data_out,
+                 TF* restrict const data_out,
                  const int n_col, const int n_bot,
                  const int n_top, const int n_gpt,
                  const int nlay)
@@ -60,7 +62,7 @@ namespace
         {
             const int outidx = i*nlay*n_col+n_bot*n_col;
             const float* in_temp = &data_in[i*n_sub*n_col];
-            double* out_temp = &data_out[outidx];
+            TF* out_temp = &data_out[outidx];
             #pragma ivdep            
             for (int j=0; j<n_col*n_sub; ++j)
             {
@@ -69,11 +71,12 @@ namespace
         }
     }
 
+    template<typename TF>
     void copy_arrays_plk(
                  const float* restrict const data_in,
-                 double* restrict const data_out1,
-                 double* restrict const data_out2,
-                 double* restrict const data_out3,
+                 TF* restrict const data_out1,
+                 TF* restrict const data_out2,
+                 TF* restrict const data_out3,
                  const int n_col, const int n_bot,
                  const int n_top, const int n_gpt,
                  const int nlay)
@@ -85,9 +88,9 @@ namespace
             const float* in_temp1 = &data_in[i*n_sub*n_col];
             const float* in_temp2 = &data_in[(i+n_gpt)*n_sub*n_col];
             const float* in_temp3 = &data_in[(i+n_gpt+n_gpt)*n_sub*n_col];
-            double* out_temp1= &data_out1[outidx];
-            double* out_temp2= &data_out2[outidx];
-            double* out_temp3= &data_out3[outidx];
+            TF* out_temp1= &data_out1[outidx];
+            TF* out_temp2= &data_out2[outidx];
+            TF* out_temp3= &data_out3[outidx];
             #pragma ivdep           
             for (int j=0; j<n_col*n_sub; ++j)
             {
@@ -352,16 +355,16 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
         const Network& nw_ssa,
         const Network& nw_tsw,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
-        const double* restrict const play,
-        const double* restrict const plev,
-        const double* restrict const tlay,
+        const TF* restrict const play,
+        const TF* restrict const plev,
+        const TF* restrict const tlay,
         const Gas_concs<TF>& gas_desc,
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
         const bool lower_atm, const bool upper_atm) const
 {
     const int nlay_in = 3 + this->n_o3; //minimum input: h2o,T,P
-    double* tau = optical_props->get_tau().ptr();
-    double* ssa = optical_props->get_ssa().ptr();
+    TF* tau = optical_props->get_tau().ptr();
+    TF* ssa = optical_props->get_ssa().ptr();
     
     int startidx = 0;
 
@@ -374,8 +377,8 @@ void Gas_optics_nn<TF>::compute_tau_ssa_nn(
         }
 
     //get gas concentrations
-    const double* h2o = gas_desc.get_vmr(this->gas_names({1})).ptr();
-    const double* o3  = gas_desc.get_vmr(this->gas_names({3})).ptr();
+    const TF* h2o = gas_desc.get_vmr(this->gas_names({1})).ptr();
+    const TF* o3  = gas_desc.get_vmr(this->gas_names({3})).ptr();
 
     std::vector<float> input;
     std::vector<float> output_tau;
@@ -495,10 +498,10 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
         const Network& nw_tlw,
         const Network& nw_plk,
         const int ncol, const int nlay, const int ngpt, const int nband, const int idx_tropo,
-        const double* restrict const play,
-        const double* restrict const plev,
-        const double* restrict const tlay,
-        const double* restrict const tlev,
+        const TF* restrict const play,
+        const TF* restrict const plev,
+        const TF* restrict const tlay,
+        const TF* restrict const tlev,
         const Gas_concs<TF>& gas_desc,
         Source_func_lw<TF>& sources,
         std::unique_ptr<Optical_props_arry<TF>>& optical_props,
@@ -506,10 +509,10 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
 {
     const int nlay_in = 3 + this->n_o3; //minimum input: h2o,T,P
 
-    double* tau = optical_props->get_tau().ptr();
-    double* src_layer = sources.get_lay_source().ptr();
-    double* src_lvinc = sources.get_lev_source_inc().ptr();
-    double* src_lvdec = sources.get_lev_source_dec().ptr();
+    TF* tau = optical_props->get_tau().ptr();
+    TF* src_layer = sources.get_lay_source().ptr();
+    TF* src_lvinc = sources.get_lev_source_inc().ptr();
+    TF* src_lvdec = sources.get_lev_source_dec().ptr();
 
     int startidx = 0;
     int startidx2 =0;
@@ -523,8 +526,8 @@ void Gas_optics_nn<TF>::compute_tau_sources_nn(
         }
     
     // Get gas concentrations.
-    const double* h2o = gas_desc.get_vmr(this->gas_names({1})).ptr();
-    const double* o3  = gas_desc.get_vmr(this->gas_names({3})).ptr();
+    const TF* h2o = gas_desc.get_vmr(this->gas_names({1})).ptr();
+    const TF* o3  = gas_desc.get_vmr(this->gas_names({3})).ptr();
 
     std::vector<float> input_tau;
     std::vector<float> input_plk;
