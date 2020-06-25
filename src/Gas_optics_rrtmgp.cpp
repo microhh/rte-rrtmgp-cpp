@@ -764,8 +764,8 @@ void Gas_optics_rrtmgp<TF>::get_col_dry(
     constexpr TF m_dry = 0.028964;
     constexpr TF m_h2o = 0.018016;
 
-    Array<double,2> delta_plev({col_dry.dim(1), col_dry.dim(2)});
-    Array<double,2> m_air     ({col_dry.dim(1), col_dry.dim(2)});
+    Array<TF,2> delta_plev({col_dry.dim(1), col_dry.dim(2)});
+    Array<TF,2> m_air     ({col_dry.dim(1), col_dry.dim(2)});
 
     for (int ilay=1; ilay<=col_dry.dim(2); ++ilay)
         for (int icol=1; icol<=col_dry.dim(1); ++icol)
