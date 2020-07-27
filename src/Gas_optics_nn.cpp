@@ -43,7 +43,6 @@ namespace
             const int outidx = i*n_lay*n_col + n_bot*n_col;
             const float* in_temp = &data_in[i*n_sub*n_col];
             TF* out_temp = &data_out[outidx];
-
             #pragma ivdep            
             for (int j=0; j<n_col*n_sub; ++j)
                 out_temp[j] = in_temp[j] * dp_temp[j];
@@ -112,9 +111,7 @@ Gas_optics_nn<TF>::Gas_optics_nn(
         Netcdf_file& input_nc):
             Gas_optics<TF>(band_lims_wavenum, band2gpt)
 {
-    this->is_longwave = true;
     this->gas_names = gas_names;
-
     initialize_networks(file_name_weights, input_nc);
 }
 
@@ -134,7 +131,6 @@ Gas_optics_nn<TF>::Gas_optics_nn(
         Netcdf_file& input_nc):
             Gas_optics<TF>(band_lims_wavenum, band2gpt)
 {
-    this->is_longwave = false;
     this->gas_names = gas_names;
     this->solar_source_quiet = solar_source_quiet;
     this->solar_source_facular = solar_source_facular;
@@ -246,7 +242,7 @@ void Gas_optics_nn<TF>::initialize_networks(
     int idx_tropo = 0;
     for (int i=1; i<=n_lay; i++)
     {
-        if (p_lay({1,i}) > 9948.431564193395)
+        if (p_lay({1,i}) > this->press_ref_trop)
             idx_tropo += 1;
     }
 
@@ -269,8 +265,8 @@ void Gas_optics_nn<TF>::initialize_networks(
 
     if (n_gpt == n_out_lw)
     {
-        const int n_out_pk = n_out_lw * 3;
-        const int n_in_pk  = n_in + 2;
+        const int n_out_plk = n_out_lw * 3;
+        const int n_in_plk  = n_in + 2;
         Netcdf_group tlwnc = nc_wgth.get_group("TLW");
         this->tlw_network = Network(tlwnc,
                                     n_layers, n_layer1, n_layer2, n_layer3,
@@ -279,7 +275,7 @@ void Gas_optics_nn<TF>::initialize_networks(
         Netcdf_group plknc = nc_wgth.get_group("Planck");
         this->plk_network = Network(plknc,
                                     n_layers, n_layer1, n_layer2, n_layer3,
-                                    n_out_pk, n_in_pk);
+                                    n_out_plk, n_in_plk);
     }
     else if (n_gpt == n_out_sw)
     {
@@ -321,7 +317,7 @@ void Gas_optics_nn<TF>::lay2sfc_factor(
 
     for (int icol=1; icol<=ncol; ++icol)
     {
-        //numbers are fitting from longwave coefficients file
+        //numbers are fitted from longwave coefficients file
         sfc_factor({1})  = pow((TF(0.0131757912608200)*tsfc({icol})-TF(1.)) / (TF(0.01317579126081997)*tlay({icol,1})-TF(1.)), TF(1.1209724347746475));
         sfc_factor({2})  = pow((TF(0.0092778215915162)*tsfc({icol})-TF(1.)) / (TF(0.00927782159151618)*tlay({icol,1})-TF(1.)), TF(1.4149505728750649));
         sfc_factor({3})  = pow((TF(0.0081221064580734)*tsfc({icol})-TF(1.)) / (TF(0.00812210645807336)*tlay({icol,1})-TF(1.)), TF(1.7153859296550862));

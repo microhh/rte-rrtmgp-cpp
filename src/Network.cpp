@@ -95,7 +95,7 @@ namespace
     {  
         if (do_norm) {normalize_input(input, input_mean, input_stdev, n_batch, n_lay_in);}
 
-        if (n_layers==0) //Linear regression
+        if (n_layers==0)
         {   
             cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n_lay_out, n_batch, n_lay_in, 1.f,
                         output_wgth, n_lay_in, input, n_batch, 0.f, output, n_batch);
@@ -163,7 +163,6 @@ void Network::inference(
     std::vector<float> hiddenlayer3(n_layer3*n_batch);
     if (lower_atmos == 1)
     {
-
         feedforward(
             inputs,
             outputs,
@@ -222,7 +221,6 @@ void Network::inference(
             n_layer2,
             n_layer3);
     }
-
 }
 
 Network::Network(){}
