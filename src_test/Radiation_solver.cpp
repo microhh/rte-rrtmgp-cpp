@@ -725,6 +725,7 @@ void Radiation_solver_shortwave<TF>::solve(
         if (n_col_block_residual > 0)
             cloud_optical_props_residual = std::make_unique<Optical_props_2str<TF>>(n_col_block_residual, n_lay, *cloud_optics);
     }
+ 
     Array<TF,3> gpt_flux_up    ({n_col_block, n_lev, n_gpt});
     Array<TF,3> gpt_flux_dn    ({n_col_block, n_lev, n_gpt});
     Array<TF,3> gpt_flux_dn_dir({n_col_block, n_lev, n_gpt});
@@ -841,6 +842,7 @@ void Radiation_solver_shortwave<TF>::solve(
                 sw_flux_dn_dir ({icol+col_s_in-1, ilev}) = fluxes.get_flux_dn_dir()({icol, ilev});
                 sw_flux_net    ({icol+col_s_in-1, ilev}) = fluxes.get_flux_net   ()({icol, ilev});
             }
+
         time_end = std::chrono::high_resolution_clock::now();
         duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
 

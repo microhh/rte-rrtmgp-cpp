@@ -140,7 +140,7 @@ void print_command_line_options(
 
 
 template<typename TF>
-void solve_radiation(int argc, char** argv)
+void solve_radiation(int argc, char** argv, int iinp)
 {
     Status::print_message("###### Starting RTE+RRTMGP solver ######");
 
@@ -173,7 +173,14 @@ void solve_radiation(int argc, char** argv)
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
 
-    Netcdf_file input_nc("rte_rrtmgp_input.nc", Netcdf_mode::Read);
+    if (iinp == 0)
+    {
+        Netcdf_file input_nc("rte_rrtmgp_input.nc", Netcdf_mode::Read);
+    }
+    else
+    {
+            Netcdf_file input_nc("rte_rrtmgp_input_"+std::to_string(iinp)+".nc", Netcdf_mode::Read);
+    }
 
     const int n_col = input_nc.get_dimension_size("col");
     const int n_lay = input_nc.get_dimension_size("lay");
@@ -242,7 +249,15 @@ void solve_radiation(int argc, char** argv)
     // Create the general dimensions and arrays.
     Status::print_message("Preparing NetCDF output file.");
 
-    Netcdf_file output_nc("rte_rrtmgp_output.nc", Netcdf_mode::Create);
+    if (iinp == 0)
+    {
+        Netcdf_file output_nc("rte_rrtmgp_output.nc", Netcdf_mode::Create);
+    }
+    else
+    {
+        Netcdf_file output_nc("rte_rrtmgp_output"+std::to_string(iinp)+".nc", Netcdf_mode::Create);
+    }
+    
     output_nc.add_dimension("col", n_col);
     output_nc.add_dimension("lay", n_lay);
     output_nc.add_dimension("lev", n_lev);
@@ -554,9 +569,18 @@ void solve_radiation(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+    const int multiple_inputs = 0; //set to 0 if only 1 input ("test_rte_rrtmgp.nc") is used 
     try
     {
-        solve_radiation<FLOAT_TYPE>(argc, argv);
+        if (multiple_inputs == 0)
+        {
+            solve_radiation<FLOAT_TYPE>(argc, argv, 0);
+        } 
+        else 
+        {
+            for (int iinp=1; iinp<=multiple_inputs; ++iinp)
+                solve_radiation<FLOAT_TYPE>(argc, argv, iinp);
+        }
     }
 
     // Catch any exceptions and return 1.
