@@ -9,8 +9,8 @@
 #include <iostream>
 #include "Netcdf_interface.h"
 #include "Network.h"
-//#include <mkl.h>
-#include <cblas.h>
+#include <mkl.h>
+//#include <cblas.h>
 #include <time.h>
 #include <sys/time.h>
 #define restrict __restrict__
@@ -109,15 +109,15 @@ namespace
         if (n_layers==2)
         {
             matmul_bias_act_blas(n_batch, n_layer1, n_lay_in, layer1_wgth, layer1_bias, input,  hiddenlayer1);
-            matmul_bias_act_blas(n_batch, n_layer2, n_layer1,    layer2_wgth, layer2_bias, hiddenlayer1, hiddenlayer2);
+            matmul_bias_act_blas(n_batch, n_layer2, n_layer1, layer2_wgth, layer2_bias, hiddenlayer1, hiddenlayer2);
             cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n_lay_out, n_batch, n_layer2, 1.f,
                         output_wgth, n_layer2, hiddenlayer2, n_batch, 0.f, output, n_batch);
         }
         if (n_layers==3)
         {
             matmul_bias_act_blas(n_batch, n_layer1, n_lay_in, layer1_wgth, layer1_bias, input,  hiddenlayer1);
-            matmul_bias_act_blas(n_batch, n_layer2, n_layer1,    layer2_wgth, layer2_bias, hiddenlayer1, hiddenlayer2);
-            matmul_bias_act_blas(n_batch, n_layer3, n_layer2,    layer3_wgth, layer3_bias, hiddenlayer2, hiddenlayer3);
+            matmul_bias_act_blas(n_batch, n_layer2, n_layer1, layer2_wgth, layer2_bias, hiddenlayer1, hiddenlayer2);
+            matmul_bias_act_blas(n_batch, n_layer3, n_layer2, layer3_wgth, layer3_bias, hiddenlayer2, hiddenlayer3);
             cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n_lay_out, n_batch, n_layer3, 1.f,
                         output_wgth, n_layer3, hiddenlayer3, n_batch, 0.f, output, n_batch);
         }

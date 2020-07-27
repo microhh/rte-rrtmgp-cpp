@@ -19,6 +19,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <cmath>
+#include <chrono>
 #include <numeric>
 
 #include "Radiation_solver.h"
@@ -76,7 +77,7 @@ namespace
         // READ THE COEFFICIENTS FOR THE OPTICAL SOLVER.
         Netcdf_file coef_nc(coef_file, Netcdf_mode::Read);
         int n_absorbers = coef_nc.get_dimension_size("absorber");
-        constexpr int n_char = 32; //coef_nc.get_dimension_size("string_len");
+        constexpr int n_char = 32; 
         int n_bnds = coef_nc.get_dimension_size("bnd");
         int n_gpts = coef_nc.get_dimension_size("gpt");
         Array<std::string,1> gas_names(
@@ -442,7 +443,7 @@ void Radiation_solver_longwave<TF>::solve(
 
     const BOOL_TYPE top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
-    constexpr int n_col_block = 16;
+    constexpr int n_col_block = 8;
 
     // Read the sources and create containers for the substeps.
     int n_blocks = n_col / n_col_block;
@@ -473,8 +474,14 @@ void Radiation_solver_longwave<TF>::solve(
         if (n_col_block_residual > 0)
             cloud_optical_props_residual = std::make_unique<Optical_props_1scl<TF>>(n_col_block_residual, n_lay, *cloud_optics);
     }
-
-    // Lambda function for solving optical properties subset.
+    Array<TF,3> gpt_flux_up    ({n_col_block, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_dn    ({n_col_block, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_up_res    ({n_col_block_residual, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_dn_res    ({n_col_block_residual, n_lev, n_gpt});
+    
+    TF total_duration = 0;
+   
+   // Lambda function for solving optical properties subset.
     auto call_kernels = [&](
             const int col_s_in, const int col_e_in,
             std::unique_ptr<Optical_props_arry<TF>>& optical_props_subset_in,
@@ -482,7 +489,9 @@ void Radiation_solver_longwave<TF>::solve(
             Source_func_lw<TF>& sources_subset_in,
             const Array<TF,2>& emis_sfc_subset_in,
             Fluxes_broadband<TF>& fluxes,
-            Fluxes_broadband<TF>& bnd_fluxes)
+            Fluxes_broadband<TF>& bnd_fluxes,
+            Array<TF,3>& gpt_flux_up, 
+            Array<TF,3>& gpt_flux_dn) 
     {
         const int n_col_in = col_e_in - col_s_in + 1;
         Gas_concs<TF> gas_concs_subset(gas_concs, col_s_in, n_col_in);
@@ -495,6 +504,8 @@ void Radiation_solver_longwave<TF>::solve(
         else
             col_dry_subset = std::move(col_dry.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}));
 
+        auto time_start = std::chrono::high_resolution_clock::now();
+
         kdist->gas_optics(
                 p_lay.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                 p_lev_subset,
@@ -505,6 +516,10 @@ void Radiation_solver_longwave<TF>::solve(
                 sources_subset_in,
                 col_dry_subset,
                 t_lev.subset({{ {col_s_in, col_e_in}, {1, n_lev} }}) );
+        auto time_end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+        total_duration += duration;
+        Status::print_message("Duration longwave optics: " + std::to_string(duration) + " (ms)");
 
         if (switch_cloud_optics)
         {
@@ -544,11 +559,9 @@ void Radiation_solver_longwave<TF>::solve(
         if (!switch_fluxes)
             return;
 
-        Array<TF,3> gpt_flux_up({n_col_in, n_lev, n_gpt});
-        Array<TF,3> gpt_flux_dn({n_col_in, n_lev, n_gpt});
-
         constexpr int n_ang = 1;
 
+        time_start = std::chrono::high_resolution_clock::now();
         Rte_lw<TF>::rte_lw(
                 optical_props_subset_in,
                 top_at_1,
@@ -568,6 +581,11 @@ void Radiation_solver_longwave<TF>::solve(
                 lw_flux_dn ({icol+col_s_in-1, ilev}) = fluxes.get_flux_dn ()({icol, ilev});
                 lw_flux_net({icol+col_s_in-1, ilev}) = fluxes.get_flux_net()({icol, ilev});
             }
+        time_end = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+
+        Status::print_message("Duration longwave fluxes: " + std::to_string(duration) + " (ms)");
+
 
         if (switch_output_bnd_fluxes)
         {
@@ -603,7 +621,9 @@ void Radiation_solver_longwave<TF>::solve(
                 *sources_subset,
                 emis_sfc_subset,
                 *fluxes_subset,
-                *bnd_fluxes_subset);
+                *bnd_fluxes_subset,
+                gpt_flux_up,
+                gpt_flux_dn);
     }
 
     if (n_col_block_residual > 0)
@@ -624,8 +644,11 @@ void Radiation_solver_longwave<TF>::solve(
                 *sources_residual,
                 emis_sfc_residual,
                 *fluxes_residual,
-                *bnd_fluxes_residual);
+                *bnd_fluxes_residual,
+                gpt_flux_up_res,
+                gpt_flux_dn_res);
     }
+    std::cout<<"total_longwave_gasoptics: "<<total_duration<<std::endl;
 }
 
 template<typename TF>
@@ -680,7 +703,7 @@ void Radiation_solver_shortwave<TF>::solve(
 
     const BOOL_TYPE top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
-    constexpr int n_col_block = 16;
+    constexpr int n_col_block = 8;
 
     // Read the sources and create containers for the substeps.
     int n_blocks = n_col / n_col_block;
@@ -702,14 +725,24 @@ void Radiation_solver_shortwave<TF>::solve(
         if (n_col_block_residual > 0)
             cloud_optical_props_residual = std::make_unique<Optical_props_2str<TF>>(n_col_block_residual, n_lay, *cloud_optics);
     }
-
+    Array<TF,3> gpt_flux_up    ({n_col_block, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_dn    ({n_col_block, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_dn_dir({n_col_block, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_up_res    ({n_col_block_residual, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_dn_res    ({n_col_block_residual, n_lev, n_gpt});
+    Array<TF,3> gpt_flux_dn_dir_res({n_col_block_residual, n_lev, n_gpt});
+    
+    TF total_duration = 0;
     // Lambda function for solving optical properties subset.
     auto call_kernels = [&](
             const int col_s_in, const int col_e_in,
             std::unique_ptr<Optical_props_arry<TF>>& optical_props_subset_in,
             std::unique_ptr<Optical_props_2str<TF>>& cloud_optical_props_subset_in,
             Fluxes_broadband<TF>& fluxes,
-            Fluxes_broadband<TF>& bnd_fluxes)
+            Fluxes_broadband<TF>& bnd_fluxes,
+            Array<TF,3>& gpt_flux_up, 
+            Array<TF,3>& gpt_flux_dn, 
+            Array<TF,3>& gpt_flux_dn_dir)
     {
         const int n_col_in = col_e_in - col_s_in + 1;
         Gas_concs<TF> gas_concs_subset(gas_concs, col_s_in, n_col_in);
@@ -724,6 +757,7 @@ void Radiation_solver_shortwave<TF>::solve(
 
         Array<TF,2> toa_src_subset({n_col_in, n_gpt});
 
+        auto time_start = std::chrono::high_resolution_clock::now();
         kdist->gas_optics(
                 p_lay.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                 p_lev_subset,
@@ -732,6 +766,10 @@ void Radiation_solver_shortwave<TF>::solve(
                 optical_props_subset_in,
                 toa_src_subset,
                 col_dry_subset);
+        auto time_end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+        total_duration += duration;
+        Status::print_message("Duration shortwave optics: " + std::to_string(duration) + " (ms)");
 
         auto tsi_scaling_subset = tsi_scaling.subset({{ {col_s_in, col_e_in} }});
 
@@ -779,10 +817,7 @@ void Radiation_solver_shortwave<TF>::solve(
         if (!switch_fluxes)
             return;
 
-        Array<TF,3> gpt_flux_up    ({n_col_in, n_lev, n_gpt});
-        Array<TF,3> gpt_flux_dn    ({n_col_in, n_lev, n_gpt});
-        Array<TF,3> gpt_flux_dn_dir({n_col_in, n_lev, n_gpt});
-
+        time_start = std::chrono::high_resolution_clock::now();
         Rte_sw<TF>::rte_sw(
                 optical_props_subset_in,
                 top_at_1,
@@ -806,6 +841,10 @@ void Radiation_solver_shortwave<TF>::solve(
                 sw_flux_dn_dir ({icol+col_s_in-1, ilev}) = fluxes.get_flux_dn_dir()({icol, ilev});
                 sw_flux_net    ({icol+col_s_in-1, ilev}) = fluxes.get_flux_net   ()({icol, ilev});
             }
+        time_end = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+
+        Status::print_message("Duration shortwave fluxes: " + std::to_string(duration) + " (ms)");
 
         if (switch_output_bnd_fluxes)
         {
@@ -838,7 +877,10 @@ void Radiation_solver_shortwave<TF>::solve(
                 optical_props_subset,
                 cloud_optical_props_subset,
                 *fluxes_subset,
-                *bnd_fluxes_subset);
+                *bnd_fluxes_subset,
+                gpt_flux_up,
+                gpt_flux_dn,
+                gpt_flux_dn_dir);
     }
 
     if (n_col_block_residual > 0)
@@ -856,8 +898,12 @@ void Radiation_solver_shortwave<TF>::solve(
                 optical_props_residual,
                 cloud_optical_props_residual,
                 *fluxes_residual,
-                *bnd_fluxes_residual);
+                *bnd_fluxes_residual,
+                gpt_flux_up_res,
+                gpt_flux_dn_res,
+                gpt_flux_dn_dir_res);
     }
+    std::cout<<"total_shortwave_gasoptics: "<<total_duration<<std::endl;
 }
 
 #ifdef FLOAT_SINGLE_RRTMGP

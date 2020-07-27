@@ -343,7 +343,7 @@ void Gas_optics_nn<TF>::lay2sfc_factor(
             for (int igpt=1; igpt<=16; ++igpt)
             {
                 const int idxgpt = igpt + 16 * (iband-1);
-                src_sfc({icol,idxgpt}) = src_layer({icol,1,idxgpt});//sfc_factor({iband}) * src_layer({icol,1,idxgpt});
+                src_sfc({icol,idxgpt}) = sfc_factor({iband}) * src_layer({icol,1,idxgpt});
             }           
     }                       
 }
