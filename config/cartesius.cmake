@@ -41,7 +41,7 @@ if(USECUDA)
 endif()
 
 if(USEICC)
-    set(USER_CXX_FLAGS "-std=c++14 -restrict")
+    set(USER_CXX_FLAGS "-std=c++14 -restrict -lmkl_intel_lp64 -lmkl_sequential -lmkl_core ")
     set(USER_CXX_FLAGS_RELEASE "-Ofast -xAVX -axCORE-AVX-I,CORE-AVX2,CORE-AVX512")
     add_definitions(-DRESTRICTKEYWORD=restrict)
 else()
@@ -49,7 +49,7 @@ else()
     set(USER_CXX_FLAGS_RELEASE "-Ofast -march=ivybridge") # -march optimized for the CPU present in Cartesius GPU nodes
     add_definitions(-DRESTRICTKEYWORD=__restrict__)
 endif()
-
+set(USER_FC_FLAGS "-Ofast -xAVX -axCORE-AVX-I,CORE-AVX2,CORE-AVX512")
 set(USER_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wno-unknown-pragmas")
 
 set(FFTW_LIB       "fftw3")
