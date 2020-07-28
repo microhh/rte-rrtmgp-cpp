@@ -26,6 +26,8 @@
 #define GAS_CONCS_H
 
 #include <map>
+#include <string>
+
 #include "define_bool.h"
 
 template<typename, int> class Array;

@@ -26,6 +26,8 @@
 #define FLUXES_H
 
 #include <memory>
+#include <stdexcept>
+
 #include "define_bool.h"
 
 // Forward declarations.
