@@ -24,6 +24,7 @@ class Network
             const int n_layer3) const;
 
         Network ();
+
         Network(Netcdf_group& grp,
                 const int n_layers,
                 const int n_layer1,

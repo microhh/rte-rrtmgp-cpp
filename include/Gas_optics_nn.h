@@ -75,8 +75,6 @@ class Gas_optics_nn : public Gas_optics<TF>
 
     private:
         const TF press_ref_trop = 9948.431564193395; //network is trained on this boundary, so it is hardcoded
-        bool is_longwave;   
-        bool do_taussa;
         Array<std::string,1> gas_names;
 
         void set_solar_variability(
