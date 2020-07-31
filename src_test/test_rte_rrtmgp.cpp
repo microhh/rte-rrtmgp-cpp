@@ -138,7 +138,19 @@ void print_command_line_options(
     }
 }
 
-
+Netcdf_file read_input_nc(int iinp)
+{
+    if (iinp == 0)
+    {
+        Netcdf_file input_nc("rte_rrtmgp_input.nc", Netcdf_mode::Read);
+        return input_nc;
+        }
+    else
+    {
+        Netcdf_file input_nc("rte_rrtmgp_input_"+std::to_string(iinp)+".nc", Netcdf_mode::Read);
+        return input_nc;
+    }
+}
 template<typename TF>
 void solve_radiation(int argc, char** argv, int iinp)
 {
@@ -172,15 +184,8 @@ void solve_radiation(int argc, char** argv, int iinp)
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
-
-    if (iinp == 0)
-    {
-        Netcdf_file input_nc("rte_rrtmgp_input.nc", Netcdf_mode::Read);
-    }
-    else
-    {
-            Netcdf_file input_nc("rte_rrtmgp_input_"+std::to_string(iinp)+".nc", Netcdf_mode::Read);
-    }
+    //Netcdf_file input_nc = read_input_nc(iinp);   
+    Netcdf_file input_nc("rte_rrtmgp_input.nc", Netcdf_mode::Read);
 
     const int n_col = input_nc.get_dimension_size("col");
     const int n_lay = input_nc.get_dimension_size("lay");
@@ -249,14 +254,14 @@ void solve_radiation(int argc, char** argv, int iinp)
     // Create the general dimensions and arrays.
     Status::print_message("Preparing NetCDF output file.");
 
-    if (iinp == 0)
-    {
+//    if (iinp == 0)
+//    {
         Netcdf_file output_nc("rte_rrtmgp_output.nc", Netcdf_mode::Create);
-    }
-    else
-    {
-        Netcdf_file output_nc("rte_rrtmgp_output"+std::to_string(iinp)+".nc", Netcdf_mode::Create);
-    }
+//    }
+//    else
+//    {
+//        Netcdf_file output_nc("rte_rrtmgp_output"+std::to_string(iinp)+".nc", Netcdf_mode::Create);
+//    }
     
     output_nc.add_dimension("col", n_col);
     output_nc.add_dimension("lay", n_lay);
