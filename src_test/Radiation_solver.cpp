@@ -351,7 +351,8 @@ Radiation_solver_longwave<TF>::Radiation_solver_longwave(
 
 template<typename TF>
 void Radiation_solver_longwave<TF>::solve(
-        const bool switch_fluxes,
+        const int ix, const int n_y,
+	const bool switch_fluxes,
         const bool switch_cloud_optics,
         const bool switch_output_optical,
         const bool switch_output_bnd_fluxes,
@@ -367,7 +368,7 @@ void Radiation_solver_longwave<TF>::solve(
         Array<TF,2>& lw_flux_up, Array<TF,2>& lw_flux_dn, Array<TF,2>& lw_flux_net,
         Array<TF,3>& lw_bnd_flux_up, Array<TF,3>& lw_bnd_flux_dn, Array<TF,3>& lw_bnd_flux_net) const
 {
-    const int n_col = p_lay.dim(1);
+    const int n_col = n_y; //n_lay.dim(1);
     const int n_lay = p_lay.dim(2);
     const int n_lev = p_lev.dim(2);
     const int n_gpt = this->kdist->get_ngpt();
@@ -519,8 +520,8 @@ void Radiation_solver_longwave<TF>::solve(
 
     for (int b=1; b<=n_blocks; ++b)
     {
-        const int col_s = (b-1) * n_col_block + 1;
-        const int col_e =  b    * n_col_block;
+        const int col_s = (ix-1) * n_y + (b-1) * n_col_block + 1;
+        const int col_e = (ix-1) * n_y + b    * n_col_block;
 
         Array<TF,2> emis_sfc_subset = emis_sfc.subset({{ {1, n_bnd}, {col_s, col_e} }});
 
@@ -541,8 +542,8 @@ void Radiation_solver_longwave<TF>::solve(
 
     if (n_col_block_residual > 0)
     {
-        const int col_s = n_col - n_col_block_residual + 1;
-        const int col_e = n_col;
+        const int col_s = (ix-1) * n_y + n_col - n_col_block_residual + 1;
+        const int col_e = (ix-1) * n_y + n_col;
 
         Array<TF,2> emis_sfc_residual = emis_sfc.subset({{ {1, n_bnd}, {col_s, col_e} }});
         std::unique_ptr<Fluxes_broadband<TF>> fluxes_residual =
@@ -577,7 +578,8 @@ Radiation_solver_shortwave<TF>::Radiation_solver_shortwave(
 
 template<typename TF>
 void Radiation_solver_shortwave<TF>::solve(
-        const bool switch_fluxes,
+		const int ix, const int n_y,
+		const bool switch_fluxes,
         const bool switch_cloud_optics,
         const bool switch_output_optical,
         const bool switch_output_bnd_fluxes,
@@ -596,7 +598,7 @@ void Radiation_solver_shortwave<TF>::solve(
         Array<TF,3>& sw_bnd_flux_up, Array<TF,3>& sw_bnd_flux_dn,
         Array<TF,3>& sw_bnd_flux_dn_dir, Array<TF,3>& sw_bnd_flux_net) const
 {
-    const int n_col = p_lay.dim(1);
+    const int n_col = n_y; //p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
     const int n_lev = p_lev.dim(2);
     const int n_gpt = this->kdist->get_ngpt();
@@ -749,8 +751,8 @@ void Radiation_solver_shortwave<TF>::solve(
 
     for (int b=1; b<=n_blocks; ++b)
     {
-        const int col_s = (b-1) * n_col_block + 1;
-        const int col_e =  b    * n_col_block;
+        const int col_s = (ix-1) * n_y + (b-1) * n_col_block + 1;
+        const int col_e = (ix-1) * n_y +  b    * n_col_block;
 
         std::unique_ptr<Fluxes_broadband<TF>> fluxes_subset =
                 std::make_unique<Fluxes_broadband<TF>>(n_col_block, n_lev);
@@ -767,8 +769,8 @@ void Radiation_solver_shortwave<TF>::solve(
 
     if (n_col_block_residual > 0)
     {
-        const int col_s = n_col - n_col_block_residual + 1;
-        const int col_e = n_col;
+        const int col_s = (ix-1) * n_y + n_col - n_col_block_residual + 1;
+        const int col_e = (ix-1) * n_y + n_col;
 
         std::unique_ptr<Fluxes_broadband<TF>> fluxes_residual =
                 std::make_unique<Fluxes_broadband<TF>>(n_col_block_residual, n_lev);

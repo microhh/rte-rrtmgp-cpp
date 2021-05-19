@@ -26,6 +26,7 @@
 #define GAS_CONCS_H
 
 #include <map>
+#include <vector>
 #include <string>
 
 #include "define_bool.h"
@@ -47,6 +48,12 @@ class Gas_concs
         // Insert new gas into the map.
         // void get_vmr(const std::string& name, Array<TF,2>& data) const;
         const Array<TF,2>& get_vmr(const std::string& name) const;
+
+        // Remove gas
+        void remove_vmr(const std::string& name);
+        
+        // Names of all gases in map
+        std::vector<std::string> gas_names();
 
         // Check if gas exists in map.
         BOOL_TYPE exists(const std::string& name) const;

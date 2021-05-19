@@ -104,6 +104,13 @@ const Array<TF,2>& Gas_concs<TF>::get_vmr(const std::string& name) const
     return this->gas_concs_map.at(name);
 }
 
+// Get gas from map.
+template<typename TF>
+void Gas_concs<TF>::remove_vmr(const std::string& name) 
+{
+    this->gas_concs_map.erase(name);
+}
+
 // Check if gas exists in map.
 template<typename TF>
 BOOL_TYPE Gas_concs<TF>::exists(const std::string& name) const
@@ -111,6 +118,17 @@ BOOL_TYPE Gas_concs<TF>::exists(const std::string& name) const
     return gas_concs_map.count(name) != 0;
 }
 
+template<typename TF>
+std::vector<std::string> Gas_concs<TF>::gas_names() 
+{
+    std::vector<std::string> gases;
+    for(typename std::map<std::string, Array<TF,2>>::iterator it = this->gas_concs_map.begin(); it != this->gas_concs_map.end(); ++it)
+    {
+        gases.push_back(it->first);
+        std::cout<<it->first<<std::endl;
+    }
+    return gases;
+}
 #ifdef FLOAT_SINGLE_RRTMGP
 template class Gas_concs<float>;
 #else

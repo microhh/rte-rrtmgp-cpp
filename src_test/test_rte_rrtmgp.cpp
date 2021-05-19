@@ -312,7 +312,8 @@ void solve_radiation(int argc, char** argv)
         auto time_start = std::chrono::high_resolution_clock::now();
 
         rad_lw.solve(
-                switch_fluxes,
+				0,0,
+				switch_fluxes,
                 switch_cloud_optics,
                 switch_output_optical,
                 switch_output_bnd_fluxes,
@@ -464,7 +465,8 @@ void solve_radiation(int argc, char** argv)
         auto time_start = std::chrono::high_resolution_clock::now();
 
         rad_sw.solve(
-                switch_fluxes,
+        		0,0,
+				switch_fluxes,
                 switch_cloud_optics,
                 switch_output_optical,
                 switch_output_bnd_fluxes,

@@ -35,6 +35,7 @@ class Radiation_solver_longwave
                 const std::string& file_name_cloud);
 
         void solve(
+				const int ix, const int n_y,
                 const bool switch_fluxes,
                 const bool switch_cloud_optics,
                 const bool switch_output_optical,
@@ -75,7 +76,8 @@ class Radiation_solver_shortwave
                 const std::string& file_name_cloud);
 
         void solve(
-                const bool switch_fluxes,
+        		const int ix, const int n_y,
+				const bool switch_fluxes,
                 const bool switch_cloud_optics,
                 const bool switch_output_optical,
                 const bool switch_output_bnd_fluxes,

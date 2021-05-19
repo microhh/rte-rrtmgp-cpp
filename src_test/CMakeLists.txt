@@ -25,4 +25,7 @@ if(USECUDA)
 else()
   add_executable(test_rte_rrtmgp Radiation_solver.cpp test_rte_rrtmgp.cpp)
   target_link_libraries(test_rte_rrtmgp rte_rrtmgp ${LIBS} m)
+  
+  add_executable(test_rte_rrtmgp_3D Radiation_solver.cpp tilted_column.cpp test_rte_rrtmgp_3D.cpp)
+  target_link_libraries(test_rte_rrtmgp_3D rte_rrtmgp ${LIBS} m)
 endif()
