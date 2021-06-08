@@ -63,6 +63,11 @@ void read_and_set_vmr(
         }
         else if (n_dims == 3)
         {
+            std::cout<<n_lay<<std::endl;
+            std::cout<<dims.at("lay")<<std::endl;
+            std::cout<<dims.at("x")<<std::endl;
+            std::cout<<dims.at("y")<<std::endl;
+            Array<TF,2> argh(input_nc.get_variable<TF>(vmr_gas_name, {n_lay, n_y, n_x}), {n_col, n_lay});
             if (dims.at("lay") == n_lay && dims.at("x")*dims.at("y") == n_col)
                 gas_concs.set_vmr(gas_name,
                         Array<TF,2>(input_nc.get_variable<TF>(vmr_gas_name, {n_lay, n_y, n_x}), {n_col, n_lay}));
@@ -189,19 +194,17 @@ void solve_radiation(int argc, char** argv)
     Array<TF,1> yh;
     Array<TF,1> zh;
     Array<TF,1> z;
-    if (switch_tilting)
-    {
-        xh.set_dims({n_x+1});
-        xh = std::move(input_nc.get_variable<TF>("xh", {n_x+1})); 
-        yh.set_dims({n_y+1});
-        yh = std::move(input_nc.get_variable<TF>("yh", {n_y+1})); 
-        zh.set_dims({n_lev_in});
-        zh = std::move(input_nc.get_variable<TF>("zh", {n_lev_in})); 
-        z.set_dims({n_lay_in});
-        z = std::move(input_nc.get_variable<TF>("z", {n_lay_in})); 
-    }
 
-	// Read the atmospheric fields.
+    xh.set_dims({n_x+1});
+    xh = std::move(input_nc.get_variable<TF>("xh", {n_x+1})); 
+    yh.set_dims({n_y+1});
+    yh = std::move(input_nc.get_variable<TF>("yh", {n_y+1})); 
+    zh.set_dims({n_lev_in});
+    zh = std::move(input_nc.get_variable<TF>("zh", {n_lev_in})); 
+    z.set_dims({n_lay_in});
+    z = std::move(input_nc.get_variable<TF>("z", {n_lay_in})); 
+    
+    // Read the atmospheric fields.
     Array<TF,2> p_lay(input_nc.get_variable<TF>("p_lay", {n_lay_in, n_y, n_x}), {n_col, n_lay_in});
     Array<TF,2> t_lay(input_nc.get_variable<TF>("t_lay", {n_lay_in, n_y, n_x}), {n_col, n_lay_in});
     Array<TF,2> p_lev(input_nc.get_variable<TF>("p_lev", {n_lev_in, n_y, n_x}), {n_col, n_lev_in});
@@ -242,6 +245,14 @@ void solve_radiation(int argc, char** argv)
     Array<TF,2> iwp;
     Array<TF,2> rel;
     Array<TF,2> rei;
+    
+    TF sza;
+    TF azi;
+    if (switch_shortwave || switch_tilting)
+    {
+        sza = input_nc.get_variable<TF>("sza");
+        azi = input_nc.get_variable<TF>("azi");
+    }
 
     if (switch_cloud_optics)
     {
@@ -257,14 +268,15 @@ void solve_radiation(int argc, char** argv)
         rei.set_dims({n_col, n_lay_in});
         rei = std::move(input_nc.get_variable<TF>("rei", {n_lay_in, n_y, n_x}));
     }
-	
+    
     int n_lev_tilt;
     int n_lay_tilt;
+    Array<ijk,1> path;
+    Array<TF,1> zh_tilt;
     if (switch_tilting)
     {
-        Array<ijk,1> path;
-        Array<TF,1> zh_tilt;
-        tilted_path(xh.v(),yh.v(),zh.v(),z.v(),.55,1.3,path.v(),zh_tilt.v());
+        auto time_start = std::chrono::high_resolution_clock::now();
+        tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,path.v(),zh_tilt.v());
         n_lev_tilt = zh_tilt.v().size();
         n_lay_tilt = n_lev_tilt - 1;
         path.set_dims({n_lay_tilt}); 
@@ -298,6 +310,10 @@ void solve_radiation(int argc, char** argv)
                     iwp({icol, ilay}) *= dz;
                 }
             }
+        auto time_end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+
+        Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
         }
         
         std::vector<std::string> gases = gas_concs.gas_names();
@@ -313,6 +329,8 @@ void solve_radiation(int argc, char** argv)
                 gas_concs.set_vmr(gases[igas], gas_tmp);
             
             }
+            else if (gas.size() == 1)
+            { }
             else
             {
                 throw std::runtime_error("oh no!!! I don't have a tilted column implementation for single profiles yet :'(");
@@ -339,16 +357,26 @@ void solve_radiation(int argc, char** argv)
     Netcdf_file output_nc("rte_rrtmgp_output.nc", Netcdf_mode::Create);
     output_nc.add_dimension("y", n_y);
     output_nc.add_dimension("x", n_x);
+    output_nc.add_dimension("lay_in", n_lay_in);
     output_nc.add_dimension("lay", n_lay);
     output_nc.add_dimension("lev", n_lev);
     output_nc.add_dimension("pair", 2);
 
-    std::cout<<"-----------------"<<std::endl;	
     auto nc_lay = output_nc.add_variable<TF>("p_lay", {"lay", "y", "x"});
     auto nc_lev = output_nc.add_variable<TF>("p_lev", {"lev", "y", "x"});
+    
 
     nc_lay.insert(p_lay.v(), {0, 0, 0}, {n_lay, n_y, n_x});
     nc_lev.insert(p_lev.v(), {0, 0, 0}, {n_lev, n_y, n_x});
+    
+    //auto nc_x   = output_nc.add_variable<TF>("x", {"x",});
+    //auto nc_y   = output_nc.add_variable<TF>("y", {"y",});
+    auto nc_z   = output_nc.add_variable<TF>("z", {"lay_in",});
+//    auto nc_zh  = output_nc.add_variable<TF>("zh", {"lev",});
+    //nc_x  .insert(x  .v(), {0}, {n_x});
+    //nc_y  .insert(y  .v(), {0}, {n_y});
+    nc_z  .insert(z  .v(), {0}, {n_lay_in,});
+//    nc_zh .insert(zh .v(), {0}, {n_lev});
     std::cout<<"-----------------"<<std::endl;	
     ////// RUN THE LONGWAVE SOLVER //////
     if (switch_longwave)
@@ -409,10 +437,11 @@ void solve_radiation(int argc, char** argv)
         auto time_start = std::chrono::high_resolution_clock::now();
 
         // solve each y-slice independently
-	#pragma omp parallel for
+//	#pragma omp parallel for
 	for (int ix = 1; ix <= n_x; ++ix)
 	{
-           rad_lw.solve(
+            std::cout<<ix<<std::endl;
+            rad_lw.solve(
                 ix, n_y,
 		switch_fluxes,
                 switch_cloud_optics,
@@ -501,8 +530,11 @@ void solve_radiation(int argc, char** argv)
         // Read the boundary conditions.
         const int n_bnd_sw = rad_sw.get_n_bnd();
         const int n_gpt_sw = rad_sw.get_n_gpt();
-
-        Array<TF,1> mu0(input_nc.get_variable<TF>("mu0", {n_y, n_x}), {n_col});
+        TF mu = std::cos(sza);
+        Array<TF,1> mu0({n_col});
+        for (int icol=1; icol<=n_col; ++icol)
+            mu0({icol}) = mu;
+        
         Array<TF,2> sfc_alb_dir(input_nc.get_variable<TF>("sfc_alb_dir", {n_y, n_x, n_bnd_sw}), {n_bnd_sw, n_col});
         Array<TF,2> sfc_alb_dif(input_nc.get_variable<TF>("sfc_alb_dif", {n_y, n_x, n_bnd_sw}), {n_bnd_sw, n_col});
 
@@ -566,7 +598,7 @@ void solve_radiation(int argc, char** argv)
 
         auto time_start = std::chrono::high_resolution_clock::now();
 	
-        #pragma omp parallel for
+//        #pragma omp parallel for
         for (int ix = 1; ix <= n_x; ++ix)
         {
             rad_sw.solve(
@@ -646,6 +678,22 @@ void solve_radiation(int argc, char** argv)
                 nc_sw_bnd_flux_dn_dir.insert(sw_bnd_flux_dn_dir.v(), {0, 0, 0, 0}, {n_bnd_sw, n_lev, n_y, n_x});
                 nc_sw_bnd_flux_net   .insert(sw_bnd_flux_net   .v(), {0, 0, 0, 0}, {n_bnd_sw, n_lev, n_y, n_x});
             }
+
+            Array<TF, 2> sw_heating({n_col, n_lay});
+            for (int icol=1; icol<=n_col; ++icol)
+                for (int ilay=1; ilay<=n_lay; ++ilay)
+                    sw_heating({icol, ilay}) = (sw_flux_up({icol, ilay+1}) - sw_flux_up({icol, ilay}) -
+                                                sw_flux_dn({icol, ilay+1}) + sw_flux_dn({icol, ilay})) * TF(9.80665) /
+                                               (TF(1004.64) * (p_lev({icol, ilay+1}) - p_lev({icol, ilay}))) * TF(86400.);
+            
+            if (switch_tilting)
+            {
+                translate_heating_rates(n_x, n_y, n_lay_in,n_lev_in,
+                                        path.v(), sw_heating.v());
+                sw_heating.expand_dims({n_col, n_lay_in});
+            }
+            auto nc_sw_heat = output_nc.add_variable<TF>("sw_heating"   , {"lay_in", "y", "x"});
+            nc_sw_heat .insert(sw_heating    .v(), {0, 0, 0}, {n_lay_in, n_y, n_x});
         }
     }
 

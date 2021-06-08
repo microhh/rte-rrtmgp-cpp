@@ -40,6 +40,9 @@ void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_l
                  const TF zp, const ijk offset,
                  TF* p_out);
 
+template<typename TF>
+void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
+                             const std::vector<ijk>& tilted_path, std::vector<TF>& heat);
 
 
 
