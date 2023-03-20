@@ -330,7 +330,9 @@ void ray_tracer_kernel_bw(
     }
 
     __syncthreads();
+
     Vector<Float> surface_normal = {0, 0, 1};
+
     //const Phase_kind surface_kind = Phase_kind::Lambertian;
     const int n = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -579,6 +581,25 @@ void ray_tracer_kernel_bw(
                         // only specular reflection for water surfaces and direct radiation, otherwise keep using Lambertian to diffuse a bit
                         const Phase_kind surface_kind = (land_use_map[ij] == 0) ? ( (photon.kind == Photon_kind::Direct) ? Phase_kind::Specular : Phase_kind::Lambertian)
                                                                                 : Phase_kind::Lambertian;
+                        if (surface_kind == Phase_kind::Specular)
+                        {
+                            //// testing waves
+                            Float nx = 0;
+                            Float ny = 0;
+
+                            for (int iwave=0; iwave<100; ++iwave)
+                            {
+                                int iw = iwave*5;
+                                nx += waves[iw+2] * waves[iw+1]/2 * waves[iw+0]*
+                                         pow( (sin((waves[iw+2]*photon.position.x + waves[iw+3]*photon.position.y) * waves[iw+1]/2) + 1), 1.5) *
+                                            cos((waves[iw+2]*photon.position.x + waves[iw+3]*photon.position.y)* waves[iw+1]/2);
+                                ny += waves[iw+3] * waves[iw+1]/2 * waves[iw+0]*
+                                         pow( (sin((waves[iw+2]*photon.position.x + waves[iw+3]*photon.position.y) * waves[iw+1]/2) + 1), 1.5) *
+                                            cos((waves[iw+2]*photon.position.x + waves[iw+3]*photon.position.y)* waves[iw+1]/2);
+                            }
+
+                            surface_normal = normalize(Vector<Float>({nx,ny,1}));
+                        }
 
                         // SUN SCATTERING GOES HERE
                         const Float p_sun = probability_from_sun(photon, sun_direction, solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, Float(0.), 0,
