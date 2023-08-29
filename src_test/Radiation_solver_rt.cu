@@ -43,30 +43,6 @@
 namespace
 {
     __global__
-    void scaling_to_subset_kernel(
-            const int ncol, const int ngpt, Float* __restrict__ toa_src, const Float* __restrict__ tsi_scaling)
-    {
-        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-        if ( ( icol < ncol)  )
-        {
-            const int idx = icol;
-            toa_src[idx] *= tsi_scaling[icol];
-        }
-    }
-
-    void scaling_to_subset(
-            const int ncol, const int ngpt, Array_gpu<Float,1>& toa_src, const Array_gpu<Float,1>& tsi_scaling)
-    {
-        const int block_col = 16;
-        const int grid_col  = ncol/block_col + (ncol%block_col > 0);
-
-        dim3 grid_gpu(grid_col, 1);
-        dim3 block_gpu(block_col, 1);
-        scaling_to_subset_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, ngpt, toa_src.ptr(), tsi_scaling.ptr());
-    }
-
-    __global__
     void compute_tod_flux_kernel(
             const int ncol, const int nlay, const int col_per_thread, const Float* __restrict__ flux_dn, const Float* __restrict__ flux_dn_dir, Float* __restrict__ tod_dir_diff)
     {

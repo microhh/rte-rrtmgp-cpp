@@ -15,16 +15,6 @@ namespace
 {
     using namespace Raytracer_functions;
 
-    inline void gpu_assert(cudaError_t code, const char *file, int line, bool abort=true)
-    {
-        if (code != cudaSuccess)
-        {
-            fprintf(stderr,"CUDA_SAFE_CALL: %s %s %d\n", cudaGetErrorString(code), file, line);
-            if (abort) exit(code);
-        }
-    }
-
-
     template<typename T>
     T* allocate_gpu(const int length)
     {
