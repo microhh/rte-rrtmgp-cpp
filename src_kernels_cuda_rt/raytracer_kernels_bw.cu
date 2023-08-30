@@ -12,8 +12,7 @@ namespace
 
     constexpr Float w_thres = 0.5;
 
-    // constexpr Float half_angle = .26656288/180. * M_PI; // sun has a half angle of .266 degrees
-
+    // sun has a half angle of .266 degrees
     constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
     constexpr Float solid_angle = Float(6.799910294339209e-05); // 2.*M_PI*(1-cos_half_angle);
 

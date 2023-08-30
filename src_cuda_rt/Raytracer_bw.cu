@@ -63,15 +63,6 @@ namespace
         }
     }
 
-    inline void gpu_assert(cudaError_t code, const char *file, int line, bool abort=true)
-    {
-        if (code != cudaSuccess)
-        {
-            fprintf(stderr,"CUDA_SAFE_CALL: %s %s %d\n", cudaGetErrorString(code), file, line);
-            if (abort) exit(code);
-        }
-    }
-
     template<typename T>
     T* allocate_gpu(const int length)
     {
@@ -292,24 +283,6 @@ namespace
             flux[idx] = count[idx] * flux_per_ray;
         }
     }
-
-    __global__
-    void add_to_flux_2d(
-            const Camera camera, const Float photons_per_col, const Float toa_src, const Float toa_factor,
-            const Float* __restrict__ count, Float* __restrict__ flux)
-    {
-        const int ix = blockIdx.x*blockDim.x + threadIdx.x;
-        const int iy = blockIdx.y*blockDim.y + threadIdx.y;
-
-        if ( ( ix < camera.nx) && ( iy < camera.ny) )
-        {
-            const int idx = ix + iy*camera.nx;
-            const Float flux_per_ray = toa_src * toa_factor / photons_per_col;
-            flux[idx] += count[idx] * flux_per_ray;
-        }
-    }
-
-
 }
 
 
@@ -426,8 +399,6 @@ void Raytracer_bw::trace_rays(
     const int grid_col_y  = grid_cells.y/block_col_y + (grid_cells.y%block_col_y > 0);
     const int grid_z  = grid_cells.z/block_z + (grid_cells.z%block_z > 0);
 
-    dim3 grid_2d(grid_col_x, grid_col_y);
-    dim3 block_2d(block_col_x, block_col_y);
     dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
     dim3 block_3d(block_col_x, block_col_y, block_z);
 
@@ -579,8 +550,6 @@ void Raytracer_bw::trace_rays_bb(
     const int grid_col_y  = grid_cells.y/block_col_y + (grid_cells.y%block_col_y > 0);
     const int grid_z  = grid_cells.z/block_z + (grid_cells.z%block_z > 0);
 
-    dim3 grid_2d(grid_col_x, grid_col_y);
-    dim3 block_2d(block_col_x, block_col_y);
     dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
     dim3 block_3d(block_col_x, block_col_y, block_z);
 

@@ -42,60 +42,6 @@
 
 namespace
 {
-    __global__
-    void move_optprop_kernel(
-        const int ncol, const int nlay, const Float* __restrict__ tau_in, const Float* __restrict__ ssa_in,
-        Float* __restrict__ tau_out, Float* __restrict__ ssa_out)
-    {
-        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-        const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
-        if ((icol<ncol) && (ilay<nlay))
-        {
-            const int idx = icol + ilay*ncol;
-            tau_out[idx] = tau_in[idx];
-            ssa_out[idx] = ssa_in[idx];
-        }
-
-    }
-
-
-    __global__
-    void scaling_to_subset_kernel(
-            const int ncol, const int ngpt, Float* __restrict__ toa_src, const Float tsi_scaling)
-    {
-        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-        if ( ( icol < ncol)  )
-        {
-            const int idx = icol;
-            toa_src[idx] *= tsi_scaling;
-        }
-    }
-
-
-    void scaling_to_subset(
-            const int ncol, const int ngpt, Array_gpu<Float,1>& toa_src, const Float tsi_scaling)
-    {
-        const int block_col = 16;
-        const int grid_col  = ncol/block_col + (ncol%block_col > 0);
-
-        dim3 grid_gpu(grid_col, 1);
-        dim3 block_gpu(block_col, 1);
-        scaling_to_subset_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, ngpt, toa_src.ptr(), tsi_scaling);
-    }
-
-    __global__
-    void scaling_to_subset_kernel(
-            const int ncol, const int ngpt, Float* __restrict__ toa_src, const Float* __restrict__ tsi_scaling)
-    {
-        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-        if ( ( icol < ncol)  )
-        {
-            const int idx = icol;
-            toa_src[idx] *= tsi_scaling[icol];
-        }
-    }
-
     // spectral albedo functions estimated from http://gsp.humboldt.edu/olm/Courses/GSP_216/lessons/reflectance.html
     __device__
     Float get_grass_alb_proc(const Float wv)
@@ -197,58 +143,6 @@ namespace
         dim3 block_gpu(block_col, 1);
         spectral_albedo_kernel<<<grid_gpu, block_gpu>>>(
             ncol, wv1, wv2, land_use_map.ptr(), albedo.ptr());
-    }
-
-    void scaling_to_subset(
-            const int ncol, const int ngpt, Array_gpu<Float,1>& toa_src, const Array_gpu<Float,1>& tsi_scaling)
-    {
-        const int block_col = 16;
-        const int grid_col  = ncol/block_col + (ncol%block_col > 0);
-
-        dim3 grid_gpu(grid_col, 1);
-        dim3 block_gpu(block_col, 1);
-        scaling_to_subset_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, ngpt, toa_src.ptr(), tsi_scaling.ptr());
-    }
-
-    __global__
-    void compute_tod_flux_kernel(
-            const int ncol, const int nlay, const int col_per_thread, const Float* __restrict__ flux_dn, const Float* __restrict__ flux_dn_dir, Float* __restrict__ tod_dir_diff)
-    {
-        const int i = blockIdx.x*blockDim.x + threadIdx.x;
-        Float flx_dir = 0;
-        Float flx_tot = 0;
-        for (int icol = i*col_per_thread; icol < (i+1)*col_per_thread; ++icol)
-        {
-            if ( ( icol < ncol)  )
-            {
-                const int idx = icol + nlay*ncol;
-                flx_dir += flux_dn_dir[idx];
-                flx_tot += flux_dn[idx];
-            }
-        }
-        atomicAdd(&tod_dir_diff[0], flx_dir);
-        atomicAdd(&tod_dir_diff[1], flx_tot - flx_dir);
-    }
-
-    void compute_tod_flux(
-            const int ncol, const int nlay, const Array_gpu<Float,2>& flux_dn, const Array_gpu<Float,2>& flux_dn_dir, Array<Float,1>& tod_dir_diff)
-    {
-        const int col_per_thread = 32;
-        const int nthread = int(ncol/col_per_thread) + 1;
-        const int block_col = 16;
-        const int grid_col  = nthread/block_col + (nthread%block_col > 0);
-
-        dim3 grid_gpu(grid_col, 1);
-        dim3 block_gpu(block_col, 1);
-
-        Array_gpu<Float,1> tod_dir_diff_g({2});
-        compute_tod_flux_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, col_per_thread, flux_dn.ptr(), flux_dn_dir.ptr(), tod_dir_diff_g.ptr());
-        Array<Float,1> tod_dir_diff_c(tod_dir_diff_g);
-
-        tod_dir_diff({1}) = tod_dir_diff_c({1}) / Float(ncol);
-        tod_dir_diff({2}) = tod_dir_diff_c({2}) / Float(ncol);
     }
 
     std::vector<std::string> get_variable_string(
@@ -787,7 +681,6 @@ Float Planck_integrator(
 Float rayleigh_mean(
     const Float wv1, const Float wv2)
 {
-    const Float n = 1.000287;
     const Float Ns = 2.546899e19;
     const Float dwv = (wv2-wv1)/100.;
     Float sigma_mean = 0;
@@ -950,7 +843,6 @@ void Radiation_solver_shortwave::solve_gpu(
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(cam_ns, cam_nx, cam_ny, XYZ.ptr());
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
-    Float total_source = 0.;
 
     int previous_band = 0;
     for (int igpt=1; igpt<=n_gpt; ++igpt)
@@ -1242,7 +1134,6 @@ void Radiation_solver_shortwave::solve_gpu_bb(
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(cam_nx, cam_ny, radiance.ptr());
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
-    Float total_source = 0.;
 
     int previous_band = 0;
     for (int igpt=1; igpt<=n_gpt; ++igpt)
