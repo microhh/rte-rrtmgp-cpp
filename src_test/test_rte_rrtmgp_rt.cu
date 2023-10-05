@@ -282,11 +282,13 @@ void solve_radiation(int argc, char** argv)
     const int n_z = input_nc.get_dimension_size("z");
 
     Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {n_col_x}), {n_col_x});
+    Array<Float,1> grid_xh(input_nc.get_variable<Float>("xh", {n_col_x+1}), {n_col_x+1});
     Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {n_col_y}), {n_col_y});
+    Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
     Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z}), {n_z});
 
     const Vector<int> grid_cells = {n_col_x, n_col_y, n_z};
-    const Vector<Float> grid_d = {grid_x({2}) - grid_x({1}), grid_y({2}) - grid_y({1}), grid_z({2}) - grid_z({1})};
+    const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), grid_z({2}) - grid_z({1})};
     const Vector<int> kn_grid = {input_nc.get_variable<int>("ngrid_x"),
                                  input_nc.get_variable<int>("ngrid_y"),
                                  input_nc.get_variable<int>("ngrid_z")};
