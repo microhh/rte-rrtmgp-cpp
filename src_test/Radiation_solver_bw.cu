@@ -738,13 +738,13 @@ void Radiation_solver_shortwave::load_mie_tables(
 {
     Netcdf_file mie_nc(file_name_mie, Netcdf_mode::Read);
     const int n_bnd_sw = this->get_n_bnd_gpu();
-    const int n_re  = mie_nc.get_dimension_size("n_reff");
+    const int n_re  = mie_nc.get_dimension_size("r_eff");
     const int n_mie = mie_nc.get_dimension_size("n_ang");
 
     if (switch_broadband)
     {
-        Array<Float,2> mie_cdf(mie_nc.get_variable<Float>("cdf", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
-        Array<Float,3> mie_ang(mie_nc.get_variable<Float>("ang", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, n_bnd_sw});
+        Array<Float,2> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
+        Array<Float,3> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, n_bnd_sw});
 
         Array<Float,3> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, n_bnd_sw});
         Array<Float,2> mie_phase_ang(mie_nc.get_variable<Float>("phase_ang", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
@@ -757,7 +757,7 @@ void Radiation_solver_shortwave::load_mie_tables(
     }
     else
     {
-        const int n_sub = mie_nc.get_dimension_size("n_subband");
+        const int n_sub = mie_nc.get_dimension_size("sub_band");
         Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("cdf", {n_bnd_sw, n_sub, n_mie}), {n_mie, n_sub, n_bnd_sw});
         Array<Float,4> mie_ang(mie_nc.get_variable<Float>("ang", {n_bnd_sw, n_sub, n_re, n_mie}), {n_mie, n_re, n_sub, n_bnd_sw});
 

@@ -589,12 +589,12 @@ void Radiation_solver_shortwave::load_mie_tables(
         const std::string& file_name_mie)
 {
     Netcdf_file mie_nc(file_name_mie, Netcdf_mode::Read);
-    const int n_re  = mie_nc.get_dimension_size("n_reff");
+    const int n_re  = mie_nc.get_dimension_size("r_eff");
     const int n_mie = mie_nc.get_dimension_size("n_ang");
 
     const int n_bnd_sw = this->get_n_bnd_gpu();
-    Array<Float,2> mie_cdf(mie_nc.get_variable<Float>("cdf", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
-    Array<Float,3> mie_ang(mie_nc.get_variable<Float>("ang", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, n_bnd_sw});
+    Array<Float,2> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
+    Array<Float,3> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, n_bnd_sw});
 
     this->mie_cdfs = mie_cdf;
     this->mie_angs = mie_ang;
@@ -732,13 +732,16 @@ void Radiation_solver_shortwave::solve_gpu(
 
         std::unique_ptr<Optical_props_arry_rt> optical_props_block =
                 std::make_unique<Optical_props_2str_rt>(n_col_block, n_lay, *kdist_gpu);
-
-        for (int n=0; n<n_blocks; ++n)
+       
+        if (n_blocks > 0)
         {
-            const int col_s = n*n_col_block + 1;
-            const int col_e = (n+1)*n_col_block;
+            for (int n=0; n<n_blocks; ++n)
+            {
+                const int col_s = n*n_col_block + 1;
+                const int col_e = (n+1)*n_col_block;
 
-            gas_optics_subset(col_s, col_e, n_col_block, optical_props_block);
+                gas_optics_subset(col_s, col_e, n_col_block, optical_props_block);
+            }
         }
 
         optical_props_block.reset();

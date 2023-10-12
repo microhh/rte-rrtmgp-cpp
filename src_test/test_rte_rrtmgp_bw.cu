@@ -681,14 +681,14 @@ void solve_radiation(int argc, char** argv)
             radiance.set_dims({camera.nx, camera.ny});
 
             if (switch_cloud_mie)
-                rad_sw.load_mie_tables("mie_lut.nc", switch_broadband);
+                rad_sw.load_mie_tables("mie_lut_broadband.nc", switch_broadband);
         }
         else
         {
             XYZ.set_dims({camera.nx, camera.ny, 3});
 
             if (switch_cloud_mie)
-                rad_sw.load_mie_tables("mie_lut_vis.nc", switch_broadband);
+                rad_sw.load_mie_tables("mie_lut_visualisation.nc", switch_broadband);
         }
         // Solve the radiation.
         Status::print_message("Solving the shortwave radiation.");
