@@ -743,11 +743,11 @@ void Radiation_solver_shortwave::load_mie_tables(
 
     if (switch_broadband)
     {
-        Array<Float,2> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
-        Array<Float,3> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, n_bnd_sw});
+        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, 1, n_mie}), {n_mie, 1, n_bnd_sw});
+        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, 1, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
 
-        Array<Float,3> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, n_bnd_sw});
-        Array<Float,2> mie_phase_ang(mie_nc.get_variable<Float>("phase_ang", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
+        Array<Float,4> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, 1, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
+        Array<Float,1> mie_phase_ang(mie_nc.get_variable<Float>("phase_angle", {n_mie}), {n_mie});
 
         this->mie_cdfs = mie_cdf;
         this->mie_angs = mie_ang;
@@ -758,17 +758,18 @@ void Radiation_solver_shortwave::load_mie_tables(
     else
     {
         const int n_sub = mie_nc.get_dimension_size("sub_band");
-        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("cdf", {n_bnd_sw, n_sub, n_mie}), {n_mie, n_sub, n_bnd_sw});
-        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("ang", {n_bnd_sw, n_sub, n_re, n_mie}), {n_mie, n_re, n_sub, n_bnd_sw});
+        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_sub, n_mie}), {n_mie, n_sub, n_bnd_sw});
+        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_sub, n_re, n_mie}), {n_mie, n_re, n_sub, n_bnd_sw});
 
         Array<Float,4> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, n_sub, n_re, n_mie}), {n_mie, n_re, n_sub, n_bnd_sw});
-        Array<Float,3> mie_phase_ang(mie_nc.get_variable<Float>("phase_ang", {n_bnd_sw, n_sub, n_mie}), {n_mie, n_sub, n_bnd_sw});
+        Array<Float,1> mie_phase_ang(mie_nc.get_variable<Float>("phase_angle", {n_mie}), {n_mie});
 
-        this->mie_cdfs_vis = mie_cdf;
-        this->mie_angs_vis = mie_ang;
+        this->mie_cdfs = mie_cdf;
+        this->mie_angs = mie_ang;
 
-        this->mie_phase_vis = mie_phase;
-        this->mie_phase_angs_vis = mie_phase_ang;
+        this->mie_phase = mie_phase;
+        this->mie_phase_angs = mie_phase_ang;
+    
     }
 
 }
@@ -838,7 +839,6 @@ void Radiation_solver_shortwave::solve_gpu(
     Array_gpu<Float,3> mie_cdfs_sub;
     Array_gpu<Float,4> mie_angs_sub;
     Array_gpu<Float,4> mie_phase_sub;
-    Array_gpu<Float,3> mie_phase_angs_sub;
 
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(cam_ns, cam_nx, cam_ny, XYZ.ptr());
 
@@ -1022,10 +1022,9 @@ void Radiation_solver_shortwave::solve_gpu(
 
             if (switch_cloud_mie)
             {
-                mie_cdfs_sub = mie_cdfs_vis.subset({{ {1, n_mie}, {iwv+1,iwv+1}, {band, band} }});
-                mie_angs_sub = mie_angs_vis.subset({{ {1, n_mie}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
-                mie_phase_sub = mie_phase_vis.subset({{ {1, n_mie}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
-                mie_phase_angs_sub = mie_phase_angs_vis.subset({{ {1, n_mie}, {iwv+1,iwv+1}, {band, band} }});
+                mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {iwv+1,iwv+1}, {band, band} }});
+                mie_angs_sub = mie_angs.subset({{ {1, n_mie}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
+                mie_phase_sub = mie_phase.subset({{ {1, n_mie}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
             }
 
             raytracer.trace_rays(
@@ -1036,7 +1035,7 @@ void Radiation_solver_shortwave::solve_gpu(
                     mie_cdfs_sub,
                     mie_angs_sub,
                     mie_phase_sub,
-                    mie_phase_angs_sub,
+                    mie_phase_angs,
                     rel,
                     dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
                     dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
@@ -1126,10 +1125,9 @@ void Radiation_solver_shortwave::solve_gpu_bb(
     Array<int,2> cld_mask_liq({n_col, n_lay});
     Array<int,2> cld_mask_ice({n_col, n_lay});
 
-    Array_gpu<Float,2> mie_cdfs_sub;
-    Array_gpu<Float,3> mie_angs_sub;
-    Array_gpu<Float,3> mie_phase_sub;
-    Array_gpu<Float,2> mie_phase_angs_sub;
+    Array_gpu<Float,3> mie_cdfs_sub;
+    Array_gpu<Float,4> mie_angs_sub;
+    Array_gpu<Float,4> mie_phase_sub;
 
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(cam_nx, cam_ny, radiance.ptr());
 
@@ -1277,10 +1275,9 @@ void Radiation_solver_shortwave::solve_gpu_bb(
 
         if (switch_cloud_mie)
         {
-            mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {band, band} }});
-            mie_angs_sub = mie_angs.subset({{ {1, n_mie}, {1, n_re}, {band, band} }});
-            mie_phase_sub = mie_phase.subset({{ {1, n_mie}, {1, n_re}, {band, band} }});
-            mie_phase_angs_sub = mie_phase_angs.subset({{ {1, n_mie}, {band, band} }});
+            mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {1,1}, {band, band} }});
+            mie_angs_sub = mie_angs.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
+            mie_phase_sub = mie_phase.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
         }
 
         raytracer.trace_rays_bb(
@@ -1291,7 +1288,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                 mie_cdfs_sub,
                 mie_angs_sub,
                 mie_phase_sub,
-                mie_phase_angs_sub,
+                mie_phase_angs,
                 rel,
                 dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
                 dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),

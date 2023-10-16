@@ -17,7 +17,7 @@ using namespace Raytracer_functions;
 
 
 #ifdef RTE_USE_SP
-constexpr int bw_kernel_block= 256;
+constexpr int bw_kernel_block= 512;
 constexpr int bw_kernel_grid = 1024;
 #else
 constexpr int bw_kernel_block = 256;

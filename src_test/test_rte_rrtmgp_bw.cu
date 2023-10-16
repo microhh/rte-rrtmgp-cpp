@@ -322,9 +322,6 @@ void solve_radiation(int argc, char** argv)
                                  cam_in.get_variable<Float>("roll"));
     camera.setup_normal_camera(camera);
 
-    printf("width:  %f %f %f ",camera.cam_width.x,camera.cam_width.y,camera.cam_width.z);
-    printf("height: %f %f %f ",camera.cam_height.x,camera.cam_height.y,camera.cam_height.z);
-    printf("depth:  %f %f %f ",camera.cam_depth.x,camera.cam_depth.y,camera.cam_depth.z);
     // Read the atmospheric fields.
     Array<Float,2> p_lay(input_nc.get_variable<Float>("p_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
     Array<Float,2> t_lay(input_nc.get_variable<Float>("t_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});

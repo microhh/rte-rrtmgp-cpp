@@ -232,15 +232,11 @@ class Radiation_solver_shortwave
         std::unique_ptr<Optical_props_2str_rt> cloud_optical_props;
         std::unique_ptr<Optical_props_2str_rt> aerosol_optical_props;
 
-        Array_gpu<Float,2> mie_cdfs;
-        Array_gpu<Float,3> mie_angs;
-        Array_gpu<Float,3> mie_phase;
-        Array_gpu<Float,2> mie_phase_angs;
-
-        Array_gpu<Float,3> mie_cdfs_vis;
-        Array_gpu<Float,4> mie_angs_vis;
-        Array_gpu<Float,4> mie_phase_vis;
-        Array_gpu<Float,3> mie_phase_angs_vis;
+        Array_gpu<Float,1> mie_phase_angs;
+        
+        Array_gpu<Float,3> mie_cdfs;
+        Array_gpu<Float,4> mie_angs;
+        Array_gpu<Float,4> mie_phase;
         #endif
 };
 #endif
