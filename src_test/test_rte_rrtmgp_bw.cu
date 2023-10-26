@@ -317,6 +317,9 @@ void solve_radiation(int argc, char** argv)
                        cam_in.get_variable<Float>("py"),
                        cam_in.get_variable<Float>("pz")};
 
+    camera.nx  = int(cam_in.get_variable<Float>("nx"));
+    camera.ny  = int(cam_in.get_variable<Float>("ny"));
+
     camera.setup_rotation_matrix(cam_in.get_variable<Float>("yaw"),
                                  cam_in.get_variable<Float>("pitch"),
                                  cam_in.get_variable<Float>("roll"));

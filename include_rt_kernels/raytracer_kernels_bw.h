@@ -75,10 +75,15 @@ struct Camera
             cam_width = normalize(cross(dir_cam, dir_up));
             cam_height = normalize(cross(dir_cam, cam_width));
             cam_depth = dir_cam / tan(fov/Float(180)*M_PI/Float(2.));
+        
+            if (camera.nx > camera.ny)
+                cam_height = cam_height * Float(camera.ny)/Float(camera.nx);
+            else if (camera.ny > camera.nx)
+                cam_width = cam_width * Float(camera.nx)/Float(camera.ny);
         }
     }
 
-    // size of output arrays, either number of horizontal and vertical pixels, or number of zenith/azimuth angles of fisheye lens
+    // size of output arrays, either number of horizontal and vertical pixels, or number of zenith/azimuth angles of fisheye lens. Default to 1024
     int ny = 1024;
     int nx = 1024;
 };

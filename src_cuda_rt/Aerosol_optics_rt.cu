@@ -179,7 +179,9 @@ namespace
         {
             std::string name = i<10 ? "aermr0"+std::to_string(i) : "aermr"+std::to_string(i);
             if (aerosol_concs.get_vmr(name).dim(1) == 1)
+            {
                 aerosol_concs.set_vmr(name, aerosol_concs.get_vmr(name).subset({ {{1, ncol}, {1, nlay}}} ));
+            }
         }
     }
 }

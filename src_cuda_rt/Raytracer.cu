@@ -306,7 +306,6 @@ void Raytracer::trace_rays(
         grid = {rt_kernel_grid};
         block = {rt_kernel_block};
     }
-
     // size of mie table, will be zero if HG is used for cloud scattering
     const int mie_table_size = mie_cdf.size();
 

@@ -203,7 +203,7 @@ namespace
         {
 
             const Float i = (Float(ij_cam % camera.nx) + rng())/ Float(camera.nx);
-            const Float j = (Float(ij_cam / camera.nx) + rng())/ Float(camera.nx);
+            const Float j = (Float(ij_cam / camera.nx) + rng())/ Float(camera.ny);
 
             if (camera.fisheye)
             {
@@ -217,7 +217,7 @@ namespace
             }
             else
             {
-                // square camera based on Villefranque et al. 2019
+                // Rectangular camera based on Villefranque et al. 2019
                 photon.direction = normalize(camera.cam_width * (2*i-Float(1.0)) + camera.cam_height * (2*j-Float(1.0)) + camera.cam_depth);
             }
 
@@ -347,7 +347,7 @@ void ray_tracer_kernel_bw(
     const Float s_min = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
     const Float s_min_bg = max(max(grid_size.x, grid_size.y), z_top) * Float_epsilon;
 
-    const int pixels_per_thread = camera.nx * camera.ny / (bw_kernel_grid * bw_kernel_block);
+    const Float pixels_per_thread = Float(camera.nx * camera.ny) / (bw_kernel_grid * bw_kernel_block);
     const int photons_per_pixel = photons_to_shoot / pixels_per_thread ;
 
     while (counter[0] < camera.nx*camera.ny)
