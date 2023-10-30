@@ -786,7 +786,7 @@ void Radiation_solver_shortwave::solve_gpu(
         const Vector<int>& grid_cells,
         const Vector<Float>& grid_d,
         const Vector<int>& kn_grid,
-        const Int ray_count,
+        const int photons_per_pixel,
         const Gas_concs_gpu& gas_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
@@ -1029,7 +1029,7 @@ void Radiation_solver_shortwave::solve_gpu(
 
             raytracer.trace_rays(
                     igpt-1,
-                    ray_count, n_lay,
+                    photons_per_pixel, n_lay,
                     grid_cells, grid_d, kn_grid,
                     z_lev,
                     mie_cdfs_sub,
@@ -1078,7 +1078,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
         const Vector<int>& grid_cells,
         const Vector<Float>& grid_d,
         const Vector<int>& kn_grid,
-        const Int ray_count,
+        const int photons_per_pixel,
         const Gas_concs_gpu& gas_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
@@ -1282,7 +1282,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
 
         raytracer.trace_rays_bb(
                 igpt-1,
-                ray_count, n_lay,
+                photons_per_pixel, n_lay,
                 grid_cells, grid_d, kn_grid,
                 z_lev,
                 mie_cdfs_sub,

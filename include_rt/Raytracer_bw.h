@@ -20,7 +20,7 @@ class Raytracer_bw
 
         void trace_rays(
                 const int igpt,
-                const Int photons_to_shoot,
+                const int photons_per_pixel,
                 const int nlay,
                 const Vector<int>& grid_cells,
                 const Vector<Float>& grid_d,
@@ -53,7 +53,7 @@ class Raytracer_bw
 
         void trace_rays_bb(
                 const int igpt,
-                const Int photons_to_shoot,
+                const int photons_per_pixel,
                 const int nlay,
                 const Vector<int>& grid_cells,
                 const Vector<Float>& grid_d,

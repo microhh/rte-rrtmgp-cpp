@@ -92,7 +92,7 @@ struct Camera
 __global__
 void ray_tracer_kernel_bw(
         const int igpt,
-        const Int photons_to_shoot,
+        const int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
         Float* __restrict__ camera_count,
         Float* __restrict__ camera_shot,

@@ -270,7 +270,7 @@ namespace
 
     __global__
     void count_to_flux_2d(
-            const Camera camera, const Float photons_per_col, const Float toa_src, const Float toa_factor,
+            const Camera camera, const Float photons_per_pixel, const Float toa_src, const Float toa_factor,
             const Float* __restrict__ count, Float* __restrict__ flux)
     {
         const int ix = blockIdx.x*blockDim.x + threadIdx.x;
@@ -279,7 +279,7 @@ namespace
         if ( ( ix < camera.nx) && ( iy < camera.ny) )
         {
             const int idx = ix + iy*camera.nx;
-            const Float flux_per_ray = toa_src * toa_factor / photons_per_col;
+            const Float flux_per_ray = toa_src * toa_factor / photons_per_pixel;
             flux[idx] = count[idx] * flux_per_ray;
         }
     }
@@ -357,7 +357,7 @@ void Raytracer_bw::normalize_xyz_camera(
 
 void Raytracer_bw::trace_rays(
         const int igpt,
-        const Int photons_to_shoot,
+        const int photons_per_pixel,
         const int nlay,
         const Vector<int>& grid_cells,
         const Vector<Float>& grid_d,
@@ -468,13 +468,12 @@ void Raytracer_bw::trace_rays(
                                          std::cos(zenith_angle)};
 
     dim3 grid{bw_kernel_grid}, block{bw_kernel_block};
-    Int photons_per_thread = photons_to_shoot / (bw_kernel_grid * bw_kernel_block);
 
     const int mie_table_size = mie_cdf.size();
 
     ray_tracer_kernel_bw<<<grid, block, nbg*sizeof(Float) + 2 * sizeof(Float)*mie_table_size>>>(
             igpt,
-            photons_per_thread, k_null_grid.ptr(),
+            photons_per_pixel, k_null_grid.ptr(),
             camera_count.ptr(),
             shot_count.ptr(),
             counter.ptr(),
@@ -500,9 +499,8 @@ void Raytracer_bw::trace_rays(
     dim3 grid_cam(grid_cam_x, grid_cam_y);
     dim3 block_cam(block_cam_x, block_cam_y);
 
-    const Float photons_per_col = Float(photons_to_shoot) / (camera.nx * camera.ny);
     count_to_flux_2d<<<grid_cam, block_cam>>>(
-            camera, photons_per_col,
+            camera, photons_per_pixel,
             toa_src,
             toa_factor,
             camera_count.ptr(),
@@ -512,7 +510,7 @@ void Raytracer_bw::trace_rays(
 
 void Raytracer_bw::trace_rays_bb(
         const int igpt,
-        const Int photons_to_shoot,
+        const int photons_per_pixel,
         const int nlay,
         const Vector<int>& grid_cells,
         const Vector<Float>& grid_d,
@@ -618,13 +616,12 @@ void Raytracer_bw::trace_rays_bb(
                                          std::cos(zenith_angle)};
 
     dim3 grid{bw_kernel_grid}, block{bw_kernel_block};
-    Int photons_per_thread = photons_to_shoot / (bw_kernel_grid * bw_kernel_block);
 
     const int mie_table_size = mie_cdf.size();
 
     ray_tracer_kernel_bw<<<grid, block, nbg*sizeof(Float)+ 2 * sizeof(Float)*mie_table_size>>>(
             igpt,
-            photons_per_thread, k_null_grid.ptr(),
+            photons_per_pixel, k_null_grid.ptr(),
             camera_count.ptr(),
             shot_count.ptr(),
             counter.ptr(),
@@ -651,10 +648,9 @@ void Raytracer_bw::trace_rays_bb(
     dim3 grid_cam(grid_cam_x, grid_cam_y);
     dim3 block_cam(block_cam_x, block_cam_y);
 
-    const Float photons_per_col = Float(photons_to_shoot) / (camera.nx * camera.ny);
 
     count_to_flux_2d<<<grid_cam, block_cam>>>(
-            camera, photons_per_col,
+            camera, photons_per_pixel,
             toa_src,
             Float(1.),
             camera_count.ptr(),

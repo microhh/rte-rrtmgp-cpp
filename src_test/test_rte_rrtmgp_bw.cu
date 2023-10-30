@@ -142,7 +142,7 @@ void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbn
 
 bool parse_command_line_options(
         std::map<std::string, std::pair<bool, std::string>>& command_line_options,
-        Int& ray_count_exponent,
+        int& photons_per_pixel,
         int argc, char** argv)
 {
     for (int i=1; i<argc; ++i)
@@ -163,7 +163,7 @@ bool parse_command_line_options(
             return true;
         }
 
-        //check if option is integer n (2**n rays)
+        //check if option is integer n
         if (std::isdigit(argument[0]))
         {
             if (argument.size() > 1)
@@ -178,7 +178,7 @@ bool parse_command_line_options(
 
                 }
             }
-            ray_count_exponent = Int(std::stoi(argv[i]));
+            photons_per_pixel = int(std::stoi(argv[i]));
         }
         else
         {
@@ -249,9 +249,9 @@ void solve_radiation(int argc, char** argv)
         {"profiling"        , { false, "Perform additional profiling run."           }},
         {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties" }}};
-    Int ray_count_exponent = 22;
+    int photons_per_pixel = 1;
 
-    if (parse_command_line_options(command_line_options, ray_count_exponent, argc, argv))
+    if (parse_command_line_options(command_line_options, photons_per_pixel, argc, argv))
         return;
 
 
@@ -272,16 +272,7 @@ void solve_radiation(int argc, char** argv)
     // Print the options to the screen.
     print_command_line_options(command_line_options);
 
-    Int ray_count;
-
-    ray_count = pow(Int(2),ray_count_exponent);
-    if (ray_count < bw_kernel_block*bw_kernel_grid)
-    {
-        std::string error = "Cannot shoot " + std::to_string(ray_count) + " rays with current block/grid sizes.";
-        throw std::runtime_error(error);
-    }
-    else
-        Status::print_message("Using "+ std::to_string(Int(pow(2, ray_count_exponent))) + " rays");
+    Status::print_message("Using "+ std::to_string(photons_per_pixel) + " ray(s) per pixel");
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -733,7 +724,7 @@ void solve_radiation(int argc, char** argv)
                     grid_cells,
                     grid_d,
                     kn_grid,
-                    ray_count,
+                    photons_per_pixel,
                     gas_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
                     t_lay_gpu, t_lev_gpu,
@@ -802,7 +793,7 @@ void solve_radiation(int argc, char** argv)
                     grid_cells,
                     grid_d,
                     kn_grid,
-                    ray_count,
+                    photons_per_pixel,
                     gas_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
                     t_lay_gpu, t_lev_gpu,
