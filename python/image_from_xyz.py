@@ -60,7 +60,7 @@ if args.fisheye:
     RGB = RGB.swapaxes(0,2)
 
     # plot
-    fig,ax = pl.subplots(figsize=(nx//args.dpi, ny//args.dpi), frameon=False, subplot_kw={'projection':'polar'})
+    fig,ax = pl.subplots(figsize=(nx/args.dpi, ny/args.dpi), frameon=False, subplot_kw={'projection':'polar'})
     ax.grid(False)
     ax.pcolormesh(az[::], r, RGB,rasterized=True)
 
@@ -72,17 +72,16 @@ else:
     # reshape RGB array
     RGB = RGB.reshape((3, ny, nx))
     RGB = RGB.swapaxes(0,2).swapaxes(0,1)[::-1,:]
-
+    
     # plot
-    fig,ax = pl.subplots(figsize=(nx//args.dpi, ny//args.dpi), frameon=False)
+    fig,ax = pl.subplots(figsize=(nx/args.dpi, ny/args.dpi), frameon=False)
     ax.grid(False)
     ax.pcolormesh(px, py, RGB, rasterized=True)
-
 
 pl.subplots_adjust(left=0,right=1,top=1,bottom=0)
 ax.set_yticks([])
 ax.set_xticklabels([])
 
-pl.savefig("image.png", transparent=True, dpi=args.dpi)
+#pl.savefig("image.png", transparent=True, dpi=args.dpi)
 pl.show()
 
