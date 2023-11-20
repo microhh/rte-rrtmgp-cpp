@@ -213,7 +213,7 @@ namespace
         else
         {
             // Rectangular camera based on Villefranque et al. 2019
-            photon.direction = normalize(camera.cam_width * (2*i-Float(1.0)) + camera.cam_height * (2*j-Float(1.0)) + camera.cam_depth);
+            photon.direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
         }
 
         photon.position = camera.position + s_min;

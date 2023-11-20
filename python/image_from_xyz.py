@@ -13,6 +13,7 @@ sRGB = colour.RGB_COLOURSPACES['sRGB']
 parser = argparse.ArgumentParser()
 parser.add_argument('--name',default='rte_rrtmgp_output.nc', help="Raytracer output file")
 parser.add_argument('--fisheye', action='store_true', help="If true: output is on a radial grid (zenith,azimuth), else: output is on a rectangular/square grid")
+parser.add_argument('--save_to_file', action='store_true', help="If true: image is saved to 'image.png', otherwise it is shown")
 parser.add_argument('--p_norm', default=98, type=float, help="Percentile of luminance to use for luminance normalization, defaults to 98")
 parser.add_argument('--dpi',   default=300, type=int, help="dots-per-inch to determine figure size based on number of pixels")
 parser.add_argument('--illuminant', default="E", help="Assumed original illuminant of XYZ values, which are transformed to D65 corresponding to sRGB. Defaults to E [1/3,1/3]. '--illuminant ?' prints all options ")
@@ -82,6 +83,8 @@ pl.subplots_adjust(left=0,right=1,top=1,bottom=0)
 ax.set_yticks([])
 ax.set_xticklabels([])
 
-#pl.savefig("image.png", transparent=True, dpi=args.dpi)
-pl.show()
+if args.save_to_file:
+    pl.savefig("image.png", transparent=True, dpi=args.dpi)
+else:
+    pl.show()
 
