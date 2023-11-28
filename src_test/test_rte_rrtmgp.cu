@@ -754,6 +754,18 @@ void solve_radiation(int argc, char** argv)
             nc_sw_flux_dn    .insert(sw_flux_dn_cpu    .v(), {0, 0, 0});
             nc_sw_flux_dn_dir.insert(sw_flux_dn_dir_cpu.v(), {0, 0, 0});
             nc_sw_flux_net   .insert(sw_flux_net_cpu   .v(), {0, 0, 0});
+            
+            nc_sw_flux_up.add_attribute("long_name","Upwelling shortwave fluxes (TwoStream solver)");
+            nc_sw_flux_up.add_attribute("units","W m-2");
+            
+            nc_sw_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes (TwoStream solver)");
+            nc_sw_flux_dn.add_attribute("units","W m-2");
+            
+            nc_sw_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes (TwoStream solver)");
+            nc_sw_flux_dn_dir.add_attribute("units","W m-2");
+            
+            nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
+            nc_sw_flux_net.add_attribute("units","W m-2");
 
             if (switch_output_bnd_fluxes)
             {
@@ -766,6 +778,18 @@ void solve_radiation(int argc, char** argv)
                 nc_sw_bnd_flux_dn    .insert(sw_bnd_flux_dn_cpu    .v(), {0, 0, 0, 0});
                 nc_sw_bnd_flux_dn_dir.insert(sw_bnd_flux_dn_dir_cpu.v(), {0, 0, 0, 0});
                 nc_sw_bnd_flux_net   .insert(sw_bnd_flux_net_cpu   .v(), {0, 0, 0, 0});
+                
+                nc_sw_bnd_flux_up.add_attribute("long_name","Upwelling shortwave fluxes per spectral band (TwoStream solver)");
+                nc_sw_bnd_flux_up.add_attribute("units","W m-2");
+                
+                nc_sw_bnd_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes per spectral band (TwoStream solver)");
+                nc_sw_bnd_flux_dn.add_attribute("units","W m-2");
+                
+                nc_sw_bnd_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes per spectral band (TwoStream solver)");
+                nc_sw_bnd_flux_dn_dir.add_attribute("units","W m-2");
+                
+                nc_sw_bnd_flux_net.add_attribute("long_name","Net shortwave fluxes per spectral band (TwoStream solver)");
+                nc_sw_bnd_flux_net.add_attribute("units","W m-2");
             }
         }
     }

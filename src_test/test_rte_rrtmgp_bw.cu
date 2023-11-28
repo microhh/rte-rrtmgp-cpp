@@ -863,7 +863,9 @@ void solve_radiation(int argc, char** argv)
             nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
 
             auto nc_var = output_nc.add_variable<Float>("radiance", {"y","x"});
-            nc_var.insert(radiance_cpu.v(), {0, 00});
+            nc_var.insert(radiance_cpu.v(), {0, 0});
+            nc_var.add_attribute("long_name", "shortwave radiance");
+            nc_var.add_attribute("units", "W m-2 sr-1");
         }
         else
         {
@@ -877,7 +879,8 @@ void solve_radiation(int argc, char** argv)
 
             auto nc_xyz = output_nc.add_variable<Float>("XYZ", {"n","y","x"});
             nc_xyz.insert(xyz_cpu.v(), {0, 0, 0});
-
+            
+            nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
         }
         auto nc_mu0 = output_nc.add_variable<Float>("sza");
         nc_mu0.insert(acos(mu0({1}))/M_PI * Float(180.), {0});
