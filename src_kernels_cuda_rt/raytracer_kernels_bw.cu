@@ -179,7 +179,6 @@ namespace
             Photon& photon,
             Float* __restrict__ camera_count,
             Float* __restrict__ camera_shot,
-            Int& photons_shot,
             const int ij_cam, const int n,
             Random_number_generator<Float>& rng,
             const Vector<Float>& sun_direction,
@@ -190,7 +189,7 @@ namespace
             const Vector<Float>& grid_d,
             const Vector<Float>& grid_size,
             const Vector<int>& grid_cells,
-            const bool generation_completed, Float& weight, int& bg_idx,
+            Float& weight, int& bg_idx,
             const Camera& camera,
             const int kbg,
             const Float* __restrict__ bg_tau_cum,
@@ -198,53 +197,49 @@ namespace
             const Float s_min,
             const Float s_min_bg)
     {
-        ++photons_shot;
-        if (!generation_completed)
+        const Float i = (Float(ij_cam % camera.nx) + rng())/ Float(camera.nx);
+        const Float j = (Float(ij_cam / camera.nx) + rng())/ Float(camera.ny);
+
+        if (camera.fisheye)
         {
+            const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
+            const Float photon_azimuth = j * Float(2.) * M_PI;
+            const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
 
-            const Float i = (Float(ij_cam % camera.nx) + rng())/ Float(camera.nx);
-            const Float j = (Float(ij_cam / camera.nx) + rng())/ Float(camera.nx);
-
-            if (camera.fisheye)
-            {
-                const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
-                const Float photon_azimuth = j * Float(2.) * M_PI;
-                const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
-
-                photon.direction.x = dot(camera.mx,  dir_tmp);
-                photon.direction.y = dot(camera.my,  dir_tmp);
-                photon.direction.z = dot(camera.mz,  dir_tmp) * Float(-1);
-            }
-            else
-            {
-                // square camera based on Villefranque et al. 2019
-                photon.direction = normalize(camera.cam_width * (2*i-Float(1.0)) + camera.cam_height * (2*j-Float(1.0)) + camera.cam_depth);
-            }
-
-            photon.position = camera.position + s_min;
-
-            photon.kind = Photon_kind::Direct;
-            weight = 1;
-            bg_idx = 0;
-
-            for (int i=0; i<kbg; ++i)
-            {
-                if (photon.position.z > z_lev_bg[i]) bg_idx = i;
-            }
-
-            if ( (dot(photon.direction, sun_direction) > cos_half_angle) )
-            {
-                const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
-                                           k_null_grid,k_ext,
-                                           bg_tau_cum, z_lev_bg, bg_idx,
-                                           kn_grid, kn_grid_d, grid_d,
-                                           grid_size, grid_cells,
-                                           s_min, s_min_bg);
-
-               atomicAdd(&camera_count[ij_cam], weight * trans_sun);
-            }
-            atomicAdd(&camera_shot[ij_cam], Float(1.));
+            photon.direction.x = dot(camera.mx,  dir_tmp);
+            photon.direction.y = dot(camera.my,  dir_tmp);
+            photon.direction.z = dot(camera.mz,  dir_tmp) * Float(-1);
         }
+        else
+        {
+            // Rectangular camera based on Villefranque et al. 2019
+            photon.direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
+        }
+
+        photon.position = camera.position + s_min;
+
+        photon.kind = Photon_kind::Direct;
+        weight = 1;
+        bg_idx = 0;
+
+        for (int i=0; i<kbg; ++i)
+        {
+            if (photon.position.z > z_lev_bg[i]) bg_idx = i;
+        }
+
+        if ( (dot(photon.direction, sun_direction) > cos_half_angle) )
+        {
+            const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
+                                       k_null_grid,k_ext,
+                                       bg_tau_cum, z_lev_bg, bg_idx,
+                                       kn_grid, kn_grid_d, grid_d,
+                                       grid_size, grid_cells,
+                                       s_min, s_min_bg);
+
+           atomicAdd(&camera_count[ij_cam], weight * trans_sun);
+        }
+        atomicAdd(&camera_shot[ij_cam], Float(1.));
+        
     }
 
     __device__
@@ -287,7 +282,7 @@ namespace
 __global__
 void ray_tracer_kernel_bw(
         const int igpt,
-        const Int photons_to_shoot,
+        const int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
         Float* __restrict__ camera_count,
         Float* __restrict__ camera_shot,
@@ -333,10 +328,11 @@ void ray_tracer_kernel_bw(
     }
 
     __syncthreads();
+    
     Vector<Float> surface_normal = {0, 0, 1};
-    //const Phase_kind surface_kind = Phase_kind::Lambertian;
+    
     const int n = blockDim.x * blockIdx.x + threadIdx.x;
-
+    
     const Float bg_transmissivity = exp(-bg_tau_cum[0]);
 
     const Vector<Float> kn_grid_d = grid_size / kn_grid;
@@ -347,33 +343,26 @@ void ray_tracer_kernel_bw(
     const Float s_min = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
     const Float s_min_bg = max(max(grid_size.x, grid_size.y), z_top) * Float_epsilon;
 
-    const int pixels_per_thread = camera.nx * camera.ny / (bw_kernel_grid * bw_kernel_block);
-    const int photons_per_pixel = photons_to_shoot / pixels_per_thread ;
-
-    while (counter[0] < camera.nx*camera.ny)
+    while (counter[0] < camera.nx*camera.ny*photons_per_pixel)
     {
-        const int ij_cam = atomicAdd(&counter[0], 1);
+        const int count = atomicAdd(&counter[0], 1);
+        const int ij_cam = count / photons_per_pixel;
 
         if (ij_cam >= camera.nx*camera.ny)
             return;
 
-        // const int i = ij_cam % camera.nx;
-        // const int j = ij_cam / camera.nx;
-
-        const bool completed = false;
-        Int photons_shot = Atomic_reduce_const;
         Float weight;
         int bg_idx;
 
         Photon photon;
 
         reset_photon(
-                photon, camera_count,camera_shot, photons_shot,
+                photon, camera_count, camera_shot,
                 ij_cam, n, rng, sun_direction,
                 k_null_grid, k_ext,
                 kn_grid, kn_grid_d, grid_d,
                 grid_size, grid_cells,
-                completed, weight, bg_idx,
+                weight, bg_idx,
                 camera,
                 kbg, bg_tau_cum, z_lev_bg, s_min, s_min_bg);
 
@@ -383,10 +372,9 @@ void ray_tracer_kernel_bw(
         bool transition = false;
         int i_n, j_n, k_n, ijk_n;
 
-        while (photons_shot < photons_per_pixel)
+        bool photon_alive = true;
+        while (photon_alive)
         {
-            const bool photon_generation_completed = (int(photons_shot) == photons_per_pixel - 1);
-
             if (!transition)
             {
                 tau = sample_tau(rng());
@@ -425,16 +413,7 @@ void ray_tracer_kernel_bw(
                     else if (photon.position.z >= z_top)
                     {
                         // Leaving top-of-domain
-                        d_max = Float(0.);
-                        reset_photon(
-                                photon, camera_count,camera_shot, photons_shot,
-                                ij_cam, n, rng, sun_direction,
-                                k_null_grid, k_ext,
-                                kn_grid, kn_grid_d, grid_d,
-                                grid_size, grid_cells,
-                                photon_generation_completed, weight, bg_idx,
-                                camera,
-                                kbg, bg_tau_cum, z_lev_bg, s_min, s_min_bg);
+                        photon_alive = false;
                     }
                     else
                     {
@@ -524,16 +503,7 @@ void ray_tracer_kernel_bw(
                     }
                     else
                     {
-                        d_max = Float(0.);
-                        reset_photon(
-                                photon, camera_count,camera_shot, photons_shot,
-                                ij_cam, n, rng, sun_direction,
-                                k_null_grid, k_ext,
-                                kn_grid, kn_grid_d, grid_d,
-                                grid_size, grid_cells,
-                                photon_generation_completed, weight, bg_idx,
-                                camera,
-                                kbg, bg_tau_cum, z_lev_bg, s_min, s_min_bg);
+                        photon_alive = false;
                     }
                 }
             }
@@ -617,15 +587,7 @@ void ray_tracer_kernel_bw(
                         }
                         else
                         {
-                            reset_photon(
-                                    photon, camera_count,camera_shot, photons_shot,
-                                    ij_cam, n, rng, sun_direction,
-                                    k_null_grid, k_ext,
-                                    kn_grid, kn_grid_d, grid_d,
-                                    grid_size, grid_cells,
-                                    photon_generation_completed, weight, bg_idx,
-                                    camera,
-                                    kbg, bg_tau_cum, z_lev_bg, s_min, s_min_bg);
+                            photon_alive = false;
                         }
                     }
 
@@ -769,17 +731,7 @@ void ray_tracer_kernel_bw(
                     }
                     else
                     {
-                        d_max = Float(0.);
-
-                        reset_photon(
-                                photon, camera_count,camera_shot, photons_shot,
-                                ij_cam, n, rng, sun_direction,
-                                k_null_grid, k_ext,
-                                kn_grid, kn_grid_d, grid_d,
-                                grid_size, grid_cells,
-                                photon_generation_completed, weight, bg_idx,
-                                camera,
-                                kbg, bg_tau_cum, z_lev_bg, s_min, s_min_bg);
+                        photon_alive = false;
                     }
                 }
             }

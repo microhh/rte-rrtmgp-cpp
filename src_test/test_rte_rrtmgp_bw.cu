@@ -142,7 +142,7 @@ void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbn
 
 bool parse_command_line_options(
         std::map<std::string, std::pair<bool, std::string>>& command_line_options,
-        Int& ray_count_exponent,
+        int& photons_per_pixel,
         int argc, char** argv)
 {
     for (int i=1; i<argc; ++i)
@@ -163,7 +163,7 @@ bool parse_command_line_options(
             return true;
         }
 
-        //check if option is integer n (2**n rays)
+        //check if option is integer n
         if (std::isdigit(argument[0]))
         {
             if (argument.size() > 1)
@@ -178,7 +178,7 @@ bool parse_command_line_options(
 
                 }
             }
-            ray_count_exponent = Int(std::stoi(argv[i]));
+            photons_per_pixel = int(std::stoi(argv[i]));
         }
         else
         {
@@ -249,9 +249,9 @@ void solve_radiation(int argc, char** argv)
         {"profiling"        , { false, "Perform additional profiling run."           }},
         {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties" }}};
-    Int ray_count_exponent = 22;
+    int photons_per_pixel = 1;
 
-    if (parse_command_line_options(command_line_options, ray_count_exponent, argc, argv))
+    if (parse_command_line_options(command_line_options, photons_per_pixel, argc, argv))
         return;
 
 
@@ -272,16 +272,7 @@ void solve_radiation(int argc, char** argv)
     // Print the options to the screen.
     print_command_line_options(command_line_options);
 
-    Int ray_count;
-
-    ray_count = pow(Int(2),ray_count_exponent);
-    if (ray_count < bw_kernel_block*bw_kernel_grid)
-    {
-        std::string error = "Cannot shoot " + std::to_string(ray_count) + " rays with current block/grid sizes.";
-        throw std::runtime_error(error);
-    }
-    else
-        Status::print_message("Using "+ std::to_string(Int(pow(2, ray_count_exponent))) + " rays");
+    Status::print_message("Using "+ std::to_string(photons_per_pixel) + " ray(s) per pixel");
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -317,14 +308,14 @@ void solve_radiation(int argc, char** argv)
                        cam_in.get_variable<Float>("py"),
                        cam_in.get_variable<Float>("pz")};
 
+    camera.nx  = int(cam_in.get_variable<Float>("nx"));
+    camera.ny  = int(cam_in.get_variable<Float>("ny"));
+
     camera.setup_rotation_matrix(cam_in.get_variable<Float>("yaw"),
                                  cam_in.get_variable<Float>("pitch"),
                                  cam_in.get_variable<Float>("roll"));
     camera.setup_normal_camera(camera);
 
-    printf("width:  %f %f %f ",camera.cam_width.x,camera.cam_width.y,camera.cam_width.z);
-    printf("height: %f %f %f ",camera.cam_height.x,camera.cam_height.y,camera.cam_height.z);
-    printf("depth:  %f %f %f ",camera.cam_depth.x,camera.cam_depth.y,camera.cam_depth.z);
     // Read the atmospheric fields.
     Array<Float,2> p_lay(input_nc.get_variable<Float>("p_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
     Array<Float,2> t_lay(input_nc.get_variable<Float>("t_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
@@ -681,14 +672,14 @@ void solve_radiation(int argc, char** argv)
             radiance.set_dims({camera.nx, camera.ny});
 
             if (switch_cloud_mie)
-                rad_sw.load_mie_tables("mie_lut.nc", switch_broadband);
+                rad_sw.load_mie_tables("mie_lut_broadband.nc", switch_broadband);
         }
         else
         {
             XYZ.set_dims({camera.nx, camera.ny, 3});
 
             if (switch_cloud_mie)
-                rad_sw.load_mie_tables("mie_lut_vis.nc", switch_broadband);
+                rad_sw.load_mie_tables("mie_lut_visualisation.nc", switch_broadband);
         }
         // Solve the radiation.
         Status::print_message("Solving the shortwave radiation.");
@@ -733,7 +724,7 @@ void solve_radiation(int argc, char** argv)
                     grid_cells,
                     grid_d,
                     kn_grid,
-                    ray_count,
+                    photons_per_pixel,
                     gas_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
                     t_lay_gpu, t_lev_gpu,
@@ -802,7 +793,7 @@ void solve_radiation(int argc, char** argv)
                     grid_cells,
                     grid_d,
                     kn_grid,
-                    ray_count,
+                    photons_per_pixel,
                     gas_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
                     t_lay_gpu, t_lev_gpu,
@@ -872,7 +863,9 @@ void solve_radiation(int argc, char** argv)
             nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
 
             auto nc_var = output_nc.add_variable<Float>("radiance", {"y","x"});
-            nc_var.insert(radiance_cpu.v(), {0, 00});
+            nc_var.insert(radiance_cpu.v(), {0, 0});
+            nc_var.add_attribute("long_name", "shortwave radiance");
+            nc_var.add_attribute("units", "W m-2 sr-1");
         }
         else
         {
@@ -886,7 +879,8 @@ void solve_radiation(int argc, char** argv)
 
             auto nc_xyz = output_nc.add_variable<Float>("XYZ", {"n","y","x"});
             nc_xyz.insert(xyz_cpu.v(), {0, 0, 0});
-
+            
+            nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
         }
         auto nc_mu0 = output_nc.add_variable<Float>("sza");
         nc_mu0.insert(acos(mu0({1}))/M_PI * Float(180.), {0});

@@ -267,19 +267,45 @@ void Raytracer::trace_rays(
                                          -std::sin(zenith_angle) * std::sin(Float(0.5*M_PI) - azimuth_angle),
                                          -std::cos(zenith_angle)};
 
-    dim3 grid{rt_kernel_grid}, block{rt_kernel_block};
-
-    // smallest two power that is larger than grid dimension
-    const Int qrng_grid_x = pow(Float(2.), int(std::log2(Float(grid_cells.x))) + Float(1.));
-    const Int qrng_grid_y = pow(Float(2.), int(std::log2(Float(grid_cells.y))) + Float(1.));
-
+    // smallest two power that is larger than grid dimension (minimum of 2 is currently required)
+    const Int qrng_grid_x = std::max(Float(2), pow(Float(2.), ceil(std::log2(Float(grid_cells.x)))) );
+    const Int qrng_grid_y = std::max(Float(2), pow(Float(2.), ceil(std::log2(Float(grid_cells.y)))) );
+   
     // total number of photons
     const Int photons_total = photons_per_pixel * qrng_grid_x * qrng_grid_y;
 
     // number of photons per thread, this should a power of 2 and nonzero
     Float photons_per_thread_tmp = std::max(Float(1), static_cast<Float>(photons_total) / (rt_kernel_grid * rt_kernel_block));
-    Int photons_per_thread = pow(Float(2.), std::floor(std::log2(Float(photons_per_thread_tmp))));
-
+    Int photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
+    
+    dim3 grid,block;
+    // with very low number of columns and photons_per_pixel, we may have too many threads firing a single photons, actually exceeding photons_per pixel
+    // In that case, reduce grid and block size, but issue a warning that we do so
+    Int actual_photons_per_pixel = photons_per_thread * rt_kernel_grid * rt_kernel_block / (qrng_grid_x * qrng_grid_y);
+    if (actual_photons_per_pixel > photons_per_pixel)
+    {
+        int rt_kernel_grid_new = rt_kernel_grid;
+        int rt_kernel_block_new = rt_kernel_block;
+        Int n_too_many = actual_photons_per_pixel / photons_per_pixel;
+        int flip = true;
+        while (n_too_many > 1)
+        {
+            if (flip)
+                rt_kernel_grid_new /= 2;
+            else
+                rt_kernel_block_new /= 2;
+            n_too_many /= 2;
+            flip = not flip;
+            grid = {rt_kernel_grid_new};
+            block = {rt_kernel_block_new};
+            printf("Using only block size %d and grid size %d due to low column count and low number of requested photons\n",rt_kernel_block_new,rt_kernel_grid_new);
+        } 
+    }
+    else
+    {
+        grid = {rt_kernel_grid};
+        block = {rt_kernel_block};
+    }
     // size of mie table, will be zero if HG is used for cloud scattering
     const int mie_table_size = mie_cdf.size();
 
