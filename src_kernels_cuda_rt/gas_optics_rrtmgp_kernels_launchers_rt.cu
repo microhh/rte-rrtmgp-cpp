@@ -479,7 +479,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             block_maj = tunings["gas_optical_depths_major_kernel_rt"].second;
         }
         
-        grid_maj = calc_grid_size(block_maj, dim3(ncol, nlay, 1));
+        grid_maj = calc_grid_size(block_maj, dim3(nlay, ncol, 1));
 
         gas_optical_depths_major_kernel<<<grid_maj, block_maj>>>(
             ncol, nlay, nband, ngpt,
@@ -536,7 +536,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             block_min_1 = tunings["gas_optical_depths_minor_kernel_lower_rt"].second;
         }
         
-        grid_min_1 = calc_grid_size(block_min_1, dim3(ncol, nlay, 1));
+        grid_min_1 = calc_grid_size(block_min_1, dim3(nlay, ncol, 1));
 
         gas_optical_depths_minor_kernel<<<grid_min_1, block_min_1>>>(
                 ncol, nlay, ngpt, igpt,
@@ -599,7 +599,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             block_min_2 = tunings["gas_optical_depths_minor_kernel_upper_rt"].second;
         }
         
-        grid_min_2 = calc_grid_size(block_min_2, dim3(ncol, nlay, 1));
+        grid_min_2 = calc_grid_size(block_min_2, dim3(nlay, ncol, 1));
 
         gas_optical_depths_minor_kernel<<<grid_min_2, block_min_2>>>(
                 ncol, nlay, ngpt, igpt,
