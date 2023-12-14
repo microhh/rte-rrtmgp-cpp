@@ -1055,8 +1055,8 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
         this->col_gas.set_offsets({0, 0, -1});
         this->col_mix.set_dims({2, ncol, nlay, this->get_nflav()});
         this->fminor.set_dims({2, 2, ncol, nlay, this->get_nflav()});
-        this->scalings_lower.set_dims({ncol, nlay,  this->minor_scales_with_density_lower.dim(1)});
-        this->scalings_upper.set_dims({ncol, nlay,  this->minor_scales_with_density_upper.dim(1)});
+//        this->scalings_lower.set_dims({ncol, nlay,  this->minor_scales_with_density_lower.dim(1)});
+//        this->scalings_upper.set_dims({ncol, nlay,  this->minor_scales_with_density_upper.dim(1)});
     }
 
     const int block_lay = 16;
@@ -1106,28 +1106,28 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
     if (this->idx_h2o == -1)
         throw std::runtime_error("idx_h2o cannot be found");
 
-    Gas_optics_rrtmgp_kernels_cuda_rt::minor_scalings(
-            ncol, nlay, nflav, ngpt,
-            nminorlower, nminorupper,
-            idx_h2o,
-            gpoint_flavor_gpu.ptr(),
-            minor_limits_gpt_lower_gpu.ptr(),
-            minor_limits_gpt_upper_gpu.ptr(),
-            minor_scales_with_density_lower_gpu.ptr(),
-            minor_scales_with_density_upper_gpu.ptr(),
-            scale_by_complement_lower_gpu.ptr(),
-            scale_by_complement_upper_gpu.ptr(),
-            idx_minor_lower_gpu.ptr(),
-            idx_minor_upper_gpu.ptr(),
-            idx_minor_scaling_lower_gpu.ptr(),
-            idx_minor_scaling_upper_gpu.ptr(),
-            play.ptr(),
-            tlay.ptr(),
-            col_gas.ptr(),
-            tropo.ptr(),
-            scalings_lower.ptr(),
-            scalings_upper.ptr());
-
+//    Gas_optics_rrtmgp_kernels_cuda_rt::minor_scalings(
+//            ncol, nlay, nflav, ngpt,
+//            nminorlower, nminorupper,
+//            idx_h2o,
+//            gpoint_flavor_gpu.ptr(),
+//            minor_limits_gpt_lower_gpu.ptr(),
+//            minor_limits_gpt_upper_gpu.ptr(),
+//            minor_scales_with_density_lower_gpu.ptr(),
+//            minor_scales_with_density_upper_gpu.ptr(),
+//            scale_by_complement_lower_gpu.ptr(),
+//            scale_by_complement_upper_gpu.ptr(),
+//            idx_minor_lower_gpu.ptr(),
+//            idx_minor_upper_gpu.ptr(),
+//            idx_minor_scaling_lower_gpu.ptr(),
+//            idx_minor_scaling_upper_gpu.ptr(),
+//            play.ptr(),
+//            tlay.ptr(),
+//            col_gas.ptr(),
+//            tropo.ptr(),
+//            scalings_lower.ptr(),
+//            scalings_upper.ptr());
+//
 
     bool has_rayleigh = (this->krayl.size() > 0);
 

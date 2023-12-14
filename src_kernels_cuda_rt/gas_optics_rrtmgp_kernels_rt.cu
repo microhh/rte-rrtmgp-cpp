@@ -468,6 +468,7 @@ void gas_optical_depths_minor_kernel(
 
     if ( (icol < ncol) && (ilay < nlay) )
     {
+        const int ncollay = ncol * nlay; 
         const int idx_collay = icol + ilay*ncol;
         const int minor_start = first_last_minor[2*igpt];
         const int minor_end   = first_last_minor[2*igpt+1];
@@ -478,8 +479,8 @@ void gas_optical_depths_minor_kernel(
             const int gpt_offs = 1-idx_tropo;
             const int iflav = gpoint_flavor[2*igpt + gpt_offs]-1;
 
-            const int idx_fcl2 = 2 * 2 * (icol + ilay*ncol + iflav*ncol*nlay);
-            const int idx_fcl1 = 2 * (icol + ilay*ncol + iflav*ncol*nlay);
+            const int idx_fcl2 = 2 * 2 * (idx_collay + iflav*ncollay);
+            const int idx_fcl1 = 2 * (idx_collay + iflav*ncollay);
 
             const Float* kfminor = &fminor[idx_fcl2];
             const Float* kin = &kminor[0];
@@ -487,20 +488,39 @@ void gas_optical_depths_minor_kernel(
             const int j0 = jeta[idx_fcl1];
             const int j1 = jeta[idx_fcl1+1];
             const int kjtemp = jtemp[idx_collay];
-            const int idx_out = icol + ilay*ncol;
+            
             for (int imnr=minor_start; imnr<=minor_end; ++imnr)
             {
                 const int idx_scl = icol + ilay*ncol + imnr*ncol*nlay;
+                Float scaling = col_gas[idx_collay + idx_minor[imnr] * ncollay]; //mv
+                
+                if (minor_scales_with_density[imnr])
+                {
+                    const Float PaTohPa = Float(0.01);
+                    scaling *= PaTohPa * play[idx_collay] / tlay[idx_collay];
+                
+                    if (idx_minor_scaling[imnr] > 0)
+                    {
+                        const int idx_collaywv = idx_collay + idx_h2o*ncollay;     
+                        const Float vmr_fact = Float(1.) / col_gas[idx_collay];
+                        const Float dry_fact = Float(1.) / (Float(1.) + col_gas[idx_collaywv] * vmr_fact);
+                        
+                        if (scale_by_complement[imnr])
+                            scaling *= (Float(1.) - col_gas[idx_collay + idx_minor_scaling[imnr] * ncollay] * vmr_fact * dry_fact);
+                        else
+                            scaling *= col_gas[idx_collay + idx_minor_scaling[imnr] * ncollay] * vmr_fact * dry_fact;
+                    }
+                }
 
                 const int start_of_band = minor_limits_gpt[2*imnr]-1;
                 const int gpt_offset = kminor_start[imnr]-1;
 
                 Float ltau_minor = kfminor[0] * kin[(kjtemp-1) + (j0-1)*ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta] +
-                                kfminor[1] * kin[(kjtemp-1) +  j0   *ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta] +
-                                kfminor[2] * kin[kjtemp     + (j1-1)*ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta] +
-                                kfminor[3] * kin[kjtemp     +  j1   *ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta];
+                                   kfminor[1] * kin[(kjtemp-1) +  j0   *ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta] +
+                                   kfminor[2] * kin[kjtemp     + (j1-1)*ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta] +
+                                   kfminor[3] * kin[kjtemp     +  j1   *ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta];
 
-                tau[idx_out] += ltau_minor * scalings[idx_scl];
+                tau[idx_collay] += ltau_minor * scaling;//s[idx_scl];
             }
         }
     }

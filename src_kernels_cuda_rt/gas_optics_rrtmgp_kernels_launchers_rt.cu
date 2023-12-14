@@ -232,7 +232,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             std::tie(grid_1, block_1) = tune_kernel(
                     "minor_scalings_lower_kernel_rt",
                     dim3(ncol, nlay, nminorlower),
-                    {8, 16, 24, 32, 48, 64, 128}, {1}, {1, 2, 4, 8, 16, 32},
+                    {8, 16, 24, 32, 64, 128, 256, 512}, {1}, {1, 2, 4, 8, 16, 32},
                     scaling_kernel,
                     ncol, nlay, nflav, nminorlower,
                     idx_h2o, idx_tropo,
@@ -276,7 +276,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             std::tie(grid_2, block_2) = tune_kernel(
                     "minor_scalings_upper_kernel_rt",
                     dim3(ncol, nlay, nminorupper),
-                    {8, 16, 24, 32, 48, 64, 128}, {1}, {1, 2, 4, 8, 16, 32},
+                    {8, 16, 24, 32, 48, 64, 128, 256,512}, {1}, {1, 2, 4, 8, 16, 32},
                     scaling_kernel,
                     ncol, nlay, nflav, nminorupper,
                     idx_h2o, idx_tropo,
