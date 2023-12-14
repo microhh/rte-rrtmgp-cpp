@@ -137,7 +137,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
     }
 
     void interpolation(
-            const int ncol, const int nlay,
+            const int ncol, const int nlay, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int* flavor,
             const Float* press_ref_log,
@@ -160,15 +160,15 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         Tuner_map& tunings = Tuner::get_map();
         Float tmin = std::numeric_limits<Float>::min();
 
-        dim3 grid(ncol, nlay, nflav), block;
+        dim3 grid(ncol, nlay, 1), block;
         if (tunings.count("interpolation_kernel_rt") == 0)
         {
             std::tie(grid, block) = tune_kernel(
                     "interpolation_kernel_rt",
-                    dim3(ncol, nlay, nflav),
-                    {1, 2, 4, 8, 16, 32, 64, 128, 256}, {1}, {1, 2, 4, 8, 16, 32, 64, 128, 256},
+                    dim3(ncol, nlay, 1),
+                    {1, 2, 4, 8, 16, 32, 64, 128, 256, 512}, {1, 2, 4}, {1},
                     interpolation_kernel,
-                    ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
+                    igpt, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
                     flavor, press_ref_log, temp_ref,
                     press_ref_log_delta, temp_ref_min,
                     temp_ref_delta, press_ref_trop_log,
@@ -183,11 +183,11 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         {
             block = tunings["interpolation_kernel_rt"].second;
         }
-         
-        grid = calc_grid_size(block, dim3(ncol, nlay, nflav));
+
+        grid = calc_grid_size(block, dim3(ncol, nlay, 1));
 
         interpolation_kernel<<<grid, block>>>(
-                ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
+                igpt, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
                 flavor, press_ref_log, temp_ref,
                 press_ref_log_delta, temp_ref_min,
                 temp_ref_delta, press_ref_trop_log,
@@ -197,121 +197,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 jeta, jpress);
 
     }
-
-
-    void minor_scalings(
-            const int ncol, const int nlay, const int nflav, const int ngpt,
-            const int nminorlower, const int nminorupper,
-            const int idx_h2o,
-            const int* gpoint_flavor,
-            const int* minor_limits_gpt_lower,
-            const int* minor_limits_gpt_upper,
-            const Bool* minor_scales_with_density_lower,
-            const Bool* minor_scales_with_density_upper,
-            const Bool* scale_by_complement_lower,
-            const Bool* scale_by_complement_upper,
-            const int* idx_minor_lower,
-            const int* idx_minor_upper,
-            const int* idx_minor_scaling_lower,
-            const int* idx_minor_scaling_upper,
-            const Float* play,
-            const Float* tlay,
-            const Float* col_gas,
-            const Bool* tropo,
-            Float* scalings_lower,
-            Float* scalings_upper)
-    {
-        Tuner_map& tunings = Tuner::get_map();
-
-        // lower atmosphere
-        int idx_tropo=1;
-
-        dim3 grid_1(ncol, nlay, nminorlower), block_1;
-        if (tunings.count("minor_scalings_lower_kernel_rt") == 0)
-        {
-            std::tie(grid_1, block_1) = tune_kernel(
-                    "minor_scalings_lower_kernel_rt",
-                    dim3(ncol, nlay, nminorlower),
-                    {8, 16, 24, 32, 64, 128, 256, 512}, {1}, {1, 2, 4, 8, 16, 32},
-                    scaling_kernel,
-                    ncol, nlay, nflav, nminorlower,
-                    idx_h2o, idx_tropo,
-                    gpoint_flavor,
-                    minor_limits_gpt_lower,
-                    minor_scales_with_density_lower,
-                    scale_by_complement_lower,
-                    idx_minor_lower,
-                    idx_minor_scaling_lower,
-                    play, tlay, col_gas,
-                    tropo, scalings_lower);
-
-            tunings["minor_scalings_lower_kernel_rt"].first = grid_1;
-            tunings["minor_scalings_lower_kernel_rt"].second = block_1;
-        }
-        else
-        {
-            block_1 = tunings["minor_scalings_lower_kernel_rt"].second;
-        }
-        
-        grid_1 = calc_grid_size(block_1, dim3(ncol, nlay, nminorlower));
-
-        scaling_kernel<<<grid_1, block_1>>>(
-                ncol, nlay, nflav, nminorlower,
-                idx_h2o, idx_tropo,
-                gpoint_flavor,
-                minor_limits_gpt_lower,
-                minor_scales_with_density_lower,
-                scale_by_complement_lower,
-                idx_minor_lower,
-                idx_minor_scaling_lower,
-                play, tlay, col_gas,
-                tropo, scalings_lower);
-
-        // upper atmosphere
-        idx_tropo=0;
-
-        dim3 grid_2(ncol, nlay, nminorupper), block_2;
-        if (tunings.count("minor_scalings_upper_kernel_rt") == 0)
-        {
-            std::tie(grid_2, block_2) = tune_kernel(
-                    "minor_scalings_upper_kernel_rt",
-                    dim3(ncol, nlay, nminorupper),
-                    {8, 16, 24, 32, 48, 64, 128, 256,512}, {1}, {1, 2, 4, 8, 16, 32},
-                    scaling_kernel,
-                    ncol, nlay, nflav, nminorupper,
-                    idx_h2o, idx_tropo,
-                    gpoint_flavor,
-                    minor_limits_gpt_upper,
-                    minor_scales_with_density_upper,
-                    scale_by_complement_upper,
-                    idx_minor_upper,
-                    idx_minor_scaling_upper,
-                    play, tlay, col_gas,
-                    tropo, scalings_upper);
-
-            tunings["minor_scalings_upper_kernel_rt"].first = grid_2;
-            tunings["minor_scalings_upper_kernel_rt"].second = block_2;
-        }
-        else
-        {
-            block_2 = tunings["minor_scalings_upper_kernel_rt"].second;
-        }
-
-        grid_2 = calc_grid_size(block_2, dim3(ncol, nlay, nminorupper));
-        
-        scaling_kernel<<<grid_2, block_2>>>(
-                ncol, nlay, nflav, nminorupper,
-                idx_h2o, idx_tropo,
-                gpoint_flavor,
-                minor_limits_gpt_upper,
-                minor_scales_with_density_upper,
-                scale_by_complement_upper,
-                idx_minor_upper,
-                idx_minor_scaling_upper,
-                play, tlay, col_gas,
-                tropo, scalings_upper);
-    }
-
 
     void combine_abs_and_rayleigh(
             const int ncol, const int nlay,
@@ -356,7 +241,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
     void compute_tau_rayleigh(
             const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
-            const int* gpoint_flavor,
             const int* gpoint_bands,
             const int* band_lims_gpt,
             const Float* krayl,
@@ -378,7 +262,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 ncol, nlay, nbnd, ngpt,
                 ngas, nflav, neta, npres, ntemp,
                 igpt,
-                gpoint_flavor,
                 gpoint_bands,
                 band_lims_gpt,
                 krayl,
@@ -396,12 +279,11 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         }
 
         grid = calc_grid_size(block, dim3(ncol, nlay, 1));
-       
+
         compute_tau_rayleigh_kernel<<<grid, block>>>(
                 ncol, nlay, nbnd, ngpt,
                 ngas, nflav, neta, npres, ntemp,
                 igpt,
-                gpoint_flavor,
                 gpoint_bands,
                 band_lims_gpt,
                 krayl,
@@ -418,7 +300,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const int nminorlower, const int nminorklower,
             const int nminorupper, const int nminorkupper,
             const int idx_h2o,
-            const int* gpoint_flavor,
             const int* band_lims_gpt,
             const Float* kmajor,
             const Float* kminor_lower,
@@ -463,8 +344,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                     gas_optical_depths_major_kernel,
                     ncol, nlay, nband, ngpt,
                     nflav, neta, npres, ntemp,
-                    igpt,
-                    gpoint_flavor, band_lims_gpt,
+                    igpt, band_lims_gpt,
                     kmajor, col_mix, fmajor, jeta,
                     tropo, jtemp, jpress,
                     tau_tmp);
@@ -478,14 +358,13 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         {
             block_maj = tunings["gas_optical_depths_major_kernel_rt"].second;
         }
-        
+
         grid_maj = calc_grid_size(block_maj, dim3(nlay, ncol, 1));
 
         gas_optical_depths_major_kernel<<<grid_maj, block_maj>>>(
             ncol, nlay, nband, ngpt,
             nflav, neta, npres, ntemp,
-            igpt,
-            gpoint_flavor, band_lims_gpt,
+            igpt, band_lims_gpt,
             kmajor, col_mix, fmajor, jeta,
             tropo, jtemp, jpress,
             tau);
@@ -513,7 +392,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                         nminorlower,
                         nminorklower,
                         idx_h2o, idx_tropo,
-                        gpoint_flavor,
                         kminor_lower,
                         minor_limits_gpt_lower,
                         first_last_minor_lower,
@@ -545,7 +423,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 nminorlower,
                 nminorklower,
                 idx_h2o, idx_tropo,
-                gpoint_flavor,
                 kminor_lower,
                 minor_limits_gpt_lower,
                 first_last_minor_lower,
@@ -576,7 +453,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                    nminorupper,
                    nminorkupper,
                    idx_h2o, idx_tropo,
-                   gpoint_flavor,
                    kminor_upper,
                    minor_limits_gpt_upper,
                    first_last_minor_upper,
@@ -608,7 +484,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 nminorupper,
                 nminorkupper,
                 idx_h2o, idx_tropo,
-                gpoint_flavor,
                 kminor_upper,
                 minor_limits_gpt_upper,
                 first_last_minor_upper,
@@ -643,7 +518,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* pfracin,
             const Float temp_ref_min, const Float totplnk_delta,
             const Float* totplnk,
-            const int* gpoint_flavor,
             Float* sfc_src,
             Float* lay_src,
             Float* lev_src_inc,
@@ -668,7 +542,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                     fmajor, jeta, tropo, jtemp,
                     jpress, gpoint_bands, band_lims_gpt,
                     pfracin, temp_ref_min, totplnk_delta,
-                    totplnk, gpoint_flavor,
+                    totplnk,
                     delta_Tsurf, sfc_src, lay_src,
                     lev_src_inc, lev_src_dec,
                     sfc_src_jac);
@@ -690,7 +564,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 fmajor, jeta, tropo, jtemp,
                 jpress, gpoint_bands, band_lims_gpt,
                 pfracin, temp_ref_min, totplnk_delta,
-                totplnk, gpoint_flavor,
+                totplnk,
                 delta_Tsurf,
                 sfc_src, lay_src,
                 lev_src_inc, lev_src_dec,

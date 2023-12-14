@@ -701,7 +701,7 @@ void Radiation_solver_shortwave::solve_gpu(
         }
 
         // We loop over the gas optics, due to memory constraints
-        constexpr int n_col_block = 1<<14; // 2^14
+        constexpr int n_col_block = 1<<17;
 
         Array_gpu<Float,1> toa_src_temp({n_col_block});
 
