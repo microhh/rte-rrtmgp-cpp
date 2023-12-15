@@ -259,6 +259,7 @@ void interpolation_kernel(
         const int igpt,
         const int ncol, const int nlay, const int ngas, const int nflav,
         const int neta, const int npres, const int ntemp, const Float tmin,
+        const int* __restrict__ gpoint_flavor,
         const int* __restrict__ flavor,
         const Float* __restrict__ press_ref_log,
         const Float* __restrict__ temp_ref,
@@ -285,7 +286,7 @@ void interpolation_kernel(
         const int idx = icol + ilay*ncol;
 
         const int itropo = !tropo[idx];
-        const int iflav = flavor[itropo + 2*igpt] - 1;
+        const int iflav = gpoint_flavor[itropo + 2*igpt] - 1;
 
         const Float locpress = Float(1.) + (log(play[idx]) - press_ref_log[0]) / press_ref_log_delta;
 
@@ -405,7 +406,6 @@ void gas_optical_depths_minor_kernel(
         const int* __restrict__ jeta,
         const int* __restrict__ jtemp,
         const Bool* __restrict__ tropo,
-        const Float* __restrict__ scalings,
         Float* __restrict__ tau)
 {
     const int ilay = blockIdx.x * blockDim.x + threadIdx.x;

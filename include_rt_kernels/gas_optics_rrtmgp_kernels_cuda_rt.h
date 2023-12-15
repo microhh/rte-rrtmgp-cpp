@@ -46,6 +46,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
     void interpolation(
             const int ncol, const int nlay, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
+            const int* gpoint_flavor,
             const int* flavor,
             const Float* press_ref_log,
             const Float* temp_ref,
@@ -111,12 +112,10 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* fminor, const Float* play,
             const Float* tlay, const Float* col_gas,
             const int* jeta, const int* jtemp,
-            const int* jpress, 
-            const Float* scalings_lower,
-            const Float* scalings_upper,
+            const int* jpress,
             Float* tau);
 
-    
+
     void Planck_source(
             const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
             const int nflav, const int neta, const int npres, const int ntemp,

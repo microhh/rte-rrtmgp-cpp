@@ -139,6 +139,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
     void interpolation(
             const int ncol, const int nlay, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
+            const int* gpoint_flavor,
             const int* flavor,
             const Float* press_ref_log,
             const Float* temp_ref,
@@ -169,7 +170,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                     {1, 2, 4, 8, 16, 32, 64, 128, 256, 512}, {1, 2, 4}, {1},
                     interpolation_kernel,
                     igpt, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
-                    flavor, press_ref_log, temp_ref,
+                    gpoint_flavor, flavor, press_ref_log, temp_ref,
                     press_ref_log_delta, temp_ref_min,
                     temp_ref_delta, press_ref_trop_log,
                     vmr_ref, play, tlay,
@@ -188,7 +189,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
         interpolation_kernel<<<grid, block>>>(
                 igpt, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
-                flavor, press_ref_log, temp_ref,
+                gpoint_flavor, flavor, press_ref_log, temp_ref,
                 press_ref_log_delta, temp_ref_min,
                 temp_ref_delta, press_ref_trop_log,
                 vmr_ref, play, tlay,
@@ -324,8 +325,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* tlay, const Float* col_gas,
             const int* jeta, const int* jtemp,
             const int* jpress,
-            const Float* scalings_lower,
-            const Float* scalings_upper,
             Float* tau)
     {
         Tuner_map& tunings = Tuner::get_map();
@@ -402,7 +401,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                         kminor_start_lower,
                         play, tlay, col_gas,
                         fminor, jeta, jtemp,
-                        tropo, scalings_lower,
+                        tropo,
                         tau_tmp);
             Tools_gpu::free_gpu<Float>(tau_tmp);
 
@@ -433,7 +432,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 kminor_start_lower,
                 play, tlay, col_gas,
                 fminor, jeta, jtemp,
-                tropo, scalings_lower, tau);
+                tropo, tau);
 
         // Upper
         idx_tropo = 0;
@@ -463,7 +462,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                    kminor_start_upper,
                    play, tlay, col_gas,
                    fminor, jeta, jtemp,
-                   tropo, scalings_upper,
+                   tropo,
                    tau_tmp);
             Tools_gpu::free_gpu<Float>(tau_tmp);
 
@@ -494,7 +493,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 kminor_start_upper,
                 play, tlay, col_gas,
                 fminor, jeta, jtemp,
-                tropo, scalings_upper, tau);
+                tropo, tau);
 
     }
 

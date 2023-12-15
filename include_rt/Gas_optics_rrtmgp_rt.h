@@ -301,9 +301,9 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Gas_concs_gpu& gas_desc,
                 std::unique_ptr<Optical_props_arry_rt>& optical_props,
                 Array_gpu<int,2>& jtemp, Array_gpu<int,2>& jpress,
-                Array_gpu<int,4>& jeta,
+                Array_gpu<int,3>& jeta,
                 Array_gpu<Bool,2>& tropo,
-                Array_gpu<Float,6>& fmajor,
+                Array_gpu<Float,5>& fmajor,
                 const Array_gpu<Float,2>& col_dry);
 
         void combine_abs_and_rayleigh(
@@ -316,8 +316,8 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Array_gpu<Float,2>& play, const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay, const Array_gpu<Float,1>& tsfc,
                 const Array_gpu<int,2>& jtemp, const Array_gpu<int,2>& jpress,
-                const Array_gpu<int,4>& jeta, const Array_gpu<Bool,2>& tropo,
-                const Array_gpu<Float,6>& fmajor,
+                const Array_gpu<int,3>& jeta, const Array_gpu<Bool,2>& tropo,
+                const Array_gpu<Float,5>& fmajor,
                 Source_func_lw_rt& sources,
                 const Array_gpu<Float,2>& tlev);
 };
