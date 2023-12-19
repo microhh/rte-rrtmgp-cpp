@@ -1081,7 +1081,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
     const int gas_2 = flavor({2,flav_1});
     const int gas_3 = flavor({1,flav_2});
     const int gas_4 = flavor({2,flav_2});
-    printf("%d %d %d %d\n",gas_1,gas_2,gas_3,gas_4);
+    
     add_if_not_in_vector(gases, gas_1);
     add_if_not_in_vector(gases, gas_2);
     add_if_not_in_vector(gases, gas_3);
@@ -1118,18 +1118,13 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
     }
 
     for (int i=0; i<gases.size(); ++i)
-    //for (int i=0; i<ngas; ++i)
     {
-        //printf("%d ",gases[i]);
         const int igas = gases[i];
         const Array_gpu<Float,2>& vmr_2d = igas > 0 ? gas_desc.get_vmr(this->gas_names({igas})) : gas_desc.get_vmr(this->gas_names({1}));
-        std::string xx = (igas > 0) ? this->gas_names({igas}) : this->gas_names({1});
-        std::cout<< xx << "  ";
         fill_gases_kernel<<<grid_gpu, block_gpu>>>(
             ncol, nlay, vmr_2d.dim(1), vmr_2d.dim(2), ngas, igas, vmr_2d.ptr(), col_gas.ptr(), col_dry.ptr());
     }
-    std::cout <<" \n";
-   // printf("\n");
+    
     Gas_optics_rrtmgp_kernels_cuda_rt::interpolation(
             ncol, nlay, igpt,
             ngas, nflav, neta, npres, ntemp,

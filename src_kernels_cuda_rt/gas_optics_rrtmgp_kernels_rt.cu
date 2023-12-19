@@ -198,7 +198,6 @@ void Planck_source_kernel(
         const int ibnd = gpoint_bands[igpt]-1;
         const int idx_collay = icol + ilay * ncol;
         const int itropo = !tropo[idx_collay];
-        const int gpt_start = band_lims_gpt[2*ibnd] - 1;
 
         const int idx_fcl3 = 2 * 2 * 2 * (icol + ilay*ncol);
         const int idx_fcl1 = 2 *         (icol + ilay*ncol);
@@ -278,8 +277,8 @@ void interpolation_kernel(
         int* __restrict__ jeta,
         int* __restrict__ jpress)
 {
-    const int icol  = blockIdx.x*blockDim.x + threadIdx.x;
-    const int ilay  = blockIdx.y*blockDim.y + threadIdx.y;
+    const int icol  = blockIdx.y*blockDim.y + threadIdx.y;
+    const int ilay  = blockIdx.x*blockDim.x + threadIdx.x;
 
     if ( (icol < ncol) && (ilay < nlay) )
     {
@@ -420,9 +419,6 @@ void gas_optical_depths_minor_kernel(
 
         if ((tropo[idx_collay] == idx_tropo) && (minor_start >= 0) )
         {
-
-            const int gpt_offs = 1-idx_tropo;
-
             const int idx_fcl2 = 2 * 2 * idx_collay;
             const int idx_fcl1 = 2 * idx_collay;
 
@@ -488,13 +484,9 @@ void compute_tau_rayleigh_kernel(
 
     if ( (icol < ncol) && (ilay < nlay) )
     {
-        const int ibnd = gpoint_bands[igpt]-1;
-
         const int idx_collay = icol + ilay*ncol;
         const int idx_collaywv = icol + ilay*ncol + idx_h2o*nlay*ncol;
         const int itropo = !tropo[idx_collay];
-
-        const int gpt_start = band_lims_gpt[2*ibnd]-1;
 
         const int idx_fcl2 = 2*2*(icol + ilay*ncol);
         const int idx_fcl1 =   2*(icol + ilay*ncol);

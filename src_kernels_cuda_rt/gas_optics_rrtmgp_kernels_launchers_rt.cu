@@ -161,13 +161,13 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         Tuner_map& tunings = Tuner::get_map();
         Float tmin = std::numeric_limits<Float>::min();
 
-        dim3 grid(ncol, nlay, 1), block;
+        dim3 grid(nlay, ncol, 1), block;
         if (tunings.count("interpolation_kernel_rt") == 0)
         {
             std::tie(grid, block) = tune_kernel(
                     "interpolation_kernel_rt",
-                    dim3(ncol, nlay, 1),
-                    {1, 2, 4, 8, 16, 32, 64, 128, 256, 512}, {1, 2, 4}, {1},
+                    dim3(nlay, ncol, 1),
+                    {1,2,4}, {1, 2, 4, 8, 16, 32, 64, 128, 256, 512}, {1},
                     interpolation_kernel,
                     igpt, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
                     gpoint_flavor, flavor, press_ref_log, temp_ref,
@@ -185,7 +185,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             block = tunings["interpolation_kernel_rt"].second;
         }
 
-        grid = calc_grid_size(block, dim3(ncol, nlay, 1));
+        grid = calc_grid_size(block, dim3(nlay, ncol, 1));
 
         interpolation_kernel<<<grid, block>>>(
                 igpt, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
