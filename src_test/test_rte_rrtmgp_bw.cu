@@ -269,6 +269,12 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_cloud       = command_line_options.at("delta-cloud"      ).first;
     const bool switch_delta_aerosol     = command_line_options.at("delta-aerosol"    ).first;
 
+    if (switch_longwave)
+    {
+        std::string error = "No longwave radiation implemented in the ray tracer";
+        throw std::runtime_error(error);
+    }
+    
     // Print the options to the screen.
     print_command_line_options(command_line_options);
 
