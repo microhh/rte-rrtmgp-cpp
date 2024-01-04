@@ -298,7 +298,7 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> t_lay(input_nc.get_variable<Float>("t_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
     Array<Float,2> p_lev(input_nc.get_variable<Float>("p_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
     Array<Float,2> t_lev(input_nc.get_variable<Float>("t_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
-
+    
     // Fetch the col_dry in case present.
     Array<Float,2> col_dry;
     if (input_nc.variable_exists("col_dry"))

@@ -483,17 +483,17 @@ void Radiation_solver_longwave::solve_gpu(
             }
         }
 
-        kdist_gpu->gas_optics(
-                igpt-1,
-                p_lay,
-                p_lev,
-                t_lay,
-                t_sfc,
-                gas_concs,
-                optical_props,
-                *sources,
-                col_dry,
-                t_lev);
+        //kdist_gpu->gas_optics(
+        //        igpt-1,
+        //        p_lay,
+        //        p_lev,
+        //        t_lay,
+        //        t_sfc,
+        //        gas_concs,
+        //        optical_props,
+        //        *sources,
+        //        col_dry,
+        //        t_lev);
 
         if (switch_cloud_optics)
         {
@@ -688,6 +688,7 @@ void Radiation_solver_shortwave::solve_gpu(
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
     int previous_band = 0;
+    
     for (int igpt=1; igpt<=n_gpt; ++igpt)
     {
         int band = 0;
@@ -701,60 +702,43 @@ void Radiation_solver_shortwave::solve_gpu(
         }
 
         // We loop over the gas optics, due to memory constraints
-        constexpr int n_col_block = 1<<17;
+        constexpr int n_col_block = 1<<14;
 
         Array_gpu<Float,1> toa_src_temp({n_col_block});
-
         auto gas_optics_subset = [&](
-                const int col_s, const int col_e, const int n_col_subset,
-                std::unique_ptr<Optical_props_arry_rt>& optical_props_subset)
+                const int col_s, const int n_col_subset)
         {
-            Gas_concs_gpu gas_concs_subset(gas_concs, col_s, n_col_subset);
             // Run the gas_optics on a subset.
             kdist_gpu->gas_optics(
-                    igpt-1,
-                    p_lay.subset({{ {col_s, col_e}, {1, n_lay} }}),
-                    p_lev.subset({{ {col_s, col_e}, {1, n_lev} }}),
-                    t_lay.subset({{ {col_s, col_e}, {1, n_lay} }}),
-                    gas_concs_subset,
-                    optical_props_subset,
+                    igpt-1, 
+                    col_s, 
+                    n_col_subset, 
+                    n_col,
+                    p_lay,
+                    p_lev,
+                    t_lay,
+                    gas_concs,
+                    optical_props,
                     toa_src_temp,
-                    col_dry.subset({{ {col_s, col_e}, {1, n_lay} }}));
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lay, n_col_subset, col_s,
-                    optical_props->get_tau().ptr(), optical_props->get_ssa().ptr(), optical_props->get_g().ptr(),
-                    optical_props_subset->get_tau().ptr(), optical_props_subset->get_ssa().ptr(), optical_props_subset->get_g().ptr());
-
+                    col_dry);
         };
 
         const int n_blocks = n_col / n_col_block;
         const int n_col_residual = n_col % n_col_block;
 
-        std::unique_ptr<Optical_props_arry_rt> optical_props_block =
-                std::make_unique<Optical_props_2str_rt>(n_col_block, n_lay, *kdist_gpu);
-       
         if (n_blocks > 0)
         {
             for (int n=0; n<n_blocks; ++n)
             {
-                const int col_s = n*n_col_block + 1;
-                const int col_e = (n+1)*n_col_block;
-
-                gas_optics_subset(col_s, col_e, n_col_block, optical_props_block);
+                const int col_s = n*n_col_block;
+                gas_optics_subset(col_s, n_col_block);
             }
         }
 
-        optical_props_block.reset();
-
         if (n_col_residual > 0)
         {
-            std::unique_ptr<Optical_props_arry_rt> optical_props_residual =
-                    std::make_unique<Optical_props_2str_rt>(n_col_residual, n_lay, *kdist_gpu);
-
-            const int col_s = n_blocks*n_col_block + 1;
-            const int col_e = n_col;
-
-            gas_optics_subset(col_s, col_e, n_col_residual, optical_props_residual);
+            const int col_s = n_blocks*n_col_block;
+            gas_optics_subset(col_s, n_col_residual);
         }
 
         toa_src.fill(toa_src_temp({1}) * tsi_scaling({1}));

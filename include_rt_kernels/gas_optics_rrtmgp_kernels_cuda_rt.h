@@ -44,7 +44,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
     void interpolation(
-            const int ncol, const int nlay, const int igpt,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int* gpoint_flavor,
             const int* flavor,
@@ -66,13 +66,13 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             int* jpress);
 
     void combine_abs_and_rayleigh(
-            const int ncol, const int nlay,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay,
             const Float* tau_local, const Float* tau_rayleigh,
             Float* tau, Float* ssa, Float* g);
 
 
     void compute_tau_rayleigh(
-            const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int* gpoint_bands,
             const int* band_lims_gpt,
@@ -84,7 +84,8 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
     void compute_tau_absorption(
-            const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, 
+            const int ngpt, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int nminorlower, const int nminorklower,
             const int nminorupper, const int nminorkupper,

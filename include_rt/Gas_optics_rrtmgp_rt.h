@@ -141,7 +141,7 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
 
         // Longwave variant.
         void gas_optics(
-                const int igpt,
+                const int igpt, const int col_s, const int ncol_block, const int ncol,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
@@ -154,7 +154,7 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
 
         // shortwave variant
         void gas_optics(
-                const int igpt,
+                const int igpt, const int col_s, const int ncol_block, const int ncol,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
@@ -294,7 +294,8 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Float md_index, const Float sb_index);
 
         void compute_gas_taus(
-                const int ncol, const int nlay, const int ngpt, const int nband, const int igpt,
+                const int col_s, const int ncol_block, const int ncol, const int nlay, 
+                const int ngpt, const int nband, const int igpt,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
