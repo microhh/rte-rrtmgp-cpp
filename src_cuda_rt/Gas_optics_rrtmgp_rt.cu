@@ -416,6 +416,7 @@ namespace
 
         }
     }
+
 }
 
 
@@ -808,6 +809,56 @@ void Gas_optics_rrtmgp_rt::init_abs_coeffs(
     this->planck_frac_gpu = this->planck_frac;
 }
 
+    
+void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
+    const int igpt,
+    std::vector<int>& gases)
+{
+    // In any case, we want indices 0 and 1
+    gases.push_back(0);
+    gases.push_back(1);
+
+    for (int iflav=1; iflav<=2; ++iflav)
+    {
+        const int flav = gpoint_flavor({iflav, igpt+1});
+        for (int igas=1; igas<=2; ++igas)
+        {
+            const int gas = flavor({igas, flav});
+            add_if_not_in_vector(gases, gas);
+        }
+    }
+
+    const int minor_start_lower = first_last_minor_lower({1, igpt+1});
+    const int minor_end_lower   = first_last_minor_lower({2, igpt+1});
+
+    for (int imnr=minor_start_lower+1; imnr<=minor_end_lower+1; ++imnr)
+    {
+        const int minor_gas = idx_minor_lower({imnr});
+        add_if_not_in_vector(gases, minor_gas);
+
+        if ( (minor_scales_with_density_lower({imnr})) && (idx_minor_scaling_lower({imnr}) > 0))
+        {
+            const int scale_gas = idx_minor_scaling_lower({imnr});
+            add_if_not_in_vector(gases, scale_gas);
+        }
+    }
+
+    const int minor_start_upper = first_last_minor_upper({1, igpt+1});
+    const int minor_end_upper   = first_last_minor_upper({2, igpt+1});
+
+    for (int imnr=minor_start_upper+1; imnr<=minor_end_upper+1; ++imnr)
+    {
+        const int minor_gas = idx_minor_upper({imnr});
+        add_if_not_in_vector(gases, minor_gas);
+
+        if ( (minor_scales_with_density_upper({imnr})) && (idx_minor_scaling_upper({imnr}) > 0))
+        {
+            const int scale_gas = idx_minor_scaling_upper({imnr});
+            add_if_not_in_vector(gases, scale_gas);
+        }
+    }
+
+}
 
 __global__
 void fill_gases_kernel(
@@ -1078,48 +1129,8 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
     dim3 block_gpu(block_col, block_lay);
 
     // what gases do we need?
-    std::vector<int> gases = {0,1};
-    const int flav_1 = gpoint_flavor({1,igpt+1});
-    const int flav_2 = gpoint_flavor({2,igpt+1});
-    const int gas_1 = flavor({1,flav_1});
-    const int gas_2 = flavor({2,flav_1});
-    const int gas_3 = flavor({1,flav_2});
-    const int gas_4 = flavor({2,flav_2});
-    
-    add_if_not_in_vector(gases, gas_1);
-    add_if_not_in_vector(gases, gas_2);
-    add_if_not_in_vector(gases, gas_3);
-    add_if_not_in_vector(gases, gas_4);
-
-    const int minor_start_lower = first_last_minor_lower({1, igpt+1});
-    const int minor_end_lower   = first_last_minor_lower({2, igpt+1});
-
-    for (int imnr=minor_start_lower+1; imnr<=minor_end_lower+1; ++imnr)
-    {
-        const int minor_gas = idx_minor_lower({imnr});
-        add_if_not_in_vector(gases, minor_gas);
-
-        if ( (minor_scales_with_density_lower({imnr})) && (idx_minor_scaling_lower({imnr}) > 0))
-        {
-            const int scale_gas = idx_minor_scaling_lower({imnr});
-            add_if_not_in_vector(gases, scale_gas);
-        }
-    }
-
-    const int minor_start_upper = first_last_minor_upper({1, igpt+1});
-    const int minor_end_upper   = first_last_minor_upper({2, igpt+1});
-
-    for (int imnr=minor_start_upper+1; imnr<=minor_end_upper+1; ++imnr)
-    {
-        const int minor_gas = idx_minor_upper({imnr});
-        add_if_not_in_vector(gases, minor_gas);
-
-        if ( (minor_scales_with_density_upper({imnr})) && (idx_minor_scaling_upper({imnr}) > 0))
-        {
-            const int scale_gas = idx_minor_scaling_upper({imnr});
-            add_if_not_in_vector(gases, scale_gas);
-        }
-    }
+    std::vector<int> gases;
+    find_relevant_gases_gpt(igpt, gases);
 
     for (int i=0; i<gases.size(); ++i)
     {

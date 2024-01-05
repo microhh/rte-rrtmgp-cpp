@@ -321,6 +321,10 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Array_gpu<Float,5>& fmajor,
                 Source_func_lw_rt& sources,
                 const Array_gpu<Float,2>& tlev);
+
+        void find_relevant_gases_gpt(
+            const int igpt,
+            std::vector<int>& gases);
 };
 #endif
 
