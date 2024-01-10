@@ -57,7 +57,7 @@ class Gas_optics_rt : public Optical_props_rt
 
         // Longwave variant.
         virtual void gas_optics(
-                const int igpt,
+                const int igpt, const int col_s, const int ncol_block, const int ncol,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
@@ -70,7 +70,7 @@ class Gas_optics_rt : public Optical_props_rt
 
         // Shortwave variant.
         virtual void gas_optics(
-                const int igpt,
+                const int igpt, const int col_s, const int ncol_block, const int ncol,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,

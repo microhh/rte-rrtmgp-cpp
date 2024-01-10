@@ -141,7 +141,7 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
 
         // Longwave variant.
         void gas_optics(
-                const int igpt,
+                const int igpt, const int col_s, const int ncol_block, const int ncol,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
@@ -154,7 +154,7 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
 
         // shortwave variant
         void gas_optics(
-                const int igpt,
+                const int igpt, const int col_s, const int ncol_block, const int ncol,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
@@ -249,14 +249,12 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
         Array_gpu<int,2> jtemp;
         Array_gpu<int,2> jpress;;
         Array_gpu<Bool,2> tropo;
-        Array_gpu<Float,6> fmajor;
-        Array_gpu<int,4> jeta;
+        Array_gpu<Float,5> fmajor;
+        Array_gpu<int,3> jeta;
         Array_gpu<Float,3> vmr;
         Array_gpu<Float,3> col_gas;
-        Array_gpu<Float,4> col_mix;
-        Array_gpu<Float,5> fminor;
-        Array_gpu<Float,3> scalings_lower;
-        Array_gpu<Float,3> scalings_upper;
+        Array_gpu<Float,3> col_mix;
+        Array_gpu<Float,4> fminor;
 
         int get_ngas() const { return this->gas_names.dim(1); }
 
@@ -296,16 +294,17 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Float md_index, const Float sb_index);
 
         void compute_gas_taus(
-                const int ncol, const int nlay, const int ngpt, const int nband, const int igpt,
+                const int col_s, const int ncol_block, const int ncol, const int nlay, 
+                const int ngpt, const int nband, const int igpt,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
                 const Gas_concs_gpu& gas_desc,
                 std::unique_ptr<Optical_props_arry_rt>& optical_props,
                 Array_gpu<int,2>& jtemp, Array_gpu<int,2>& jpress,
-                Array_gpu<int,4>& jeta,
+                Array_gpu<int,3>& jeta,
                 Array_gpu<Bool,2>& tropo,
-                Array_gpu<Float,6>& fmajor,
+                Array_gpu<Float,5>& fmajor,
                 const Array_gpu<Float,2>& col_dry);
 
         void combine_abs_and_rayleigh(
@@ -318,10 +317,14 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Array_gpu<Float,2>& play, const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay, const Array_gpu<Float,1>& tsfc,
                 const Array_gpu<int,2>& jtemp, const Array_gpu<int,2>& jpress,
-                const Array_gpu<int,4>& jeta, const Array_gpu<Bool,2>& tropo,
-                const Array_gpu<Float,6>& fmajor,
+                const Array_gpu<int,3>& jeta, const Array_gpu<Bool,2>& tropo,
+                const Array_gpu<Float,5>& fmajor,
                 Source_func_lw_rt& sources,
                 const Array_gpu<Float,2>& tlev);
+
+        void find_relevant_gases_gpt(
+            const int igpt,
+            std::vector<int>& gases);
 };
 #endif
 

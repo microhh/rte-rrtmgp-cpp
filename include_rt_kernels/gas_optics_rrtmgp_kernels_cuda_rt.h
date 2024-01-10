@@ -44,8 +44,9 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
     void interpolation(
-            const int ncol, const int nlay,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
+            const int* gpoint_flavor,
             const int* flavor,
             const Float* press_ref_log,
             const Float* temp_ref,
@@ -64,40 +65,15 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             int* jeta,
             int* jpress);
 
-    
-    void minor_scalings(
-            const int ncol, const int nlay, const int nflav, const int ngpt, 
-            const int nminorlower, const int nminorupper,
-            const int idx_h2o,  
-            const int* gpoint_flavor,
-            const int* minor_limits_gpt_lower,
-            const int* minor_limits_gpt_upper,
-            const Bool* minor_scales_with_density_lower,
-            const Bool* minor_scales_with_density_upper,
-            const Bool* scale_by_complement_lower,
-            const Bool* scale_by_complement_upper,
-            const int* idx_minor_lower,
-            const int* idx_minor_upper,
-            const int* idx_minor_scaling_lower,
-            const int* idx_minor_scaling_upper,
-            const Float* play,
-            const Float* tlay,
-            const Float* col_gas,
-            const Bool* tropo,
-            Float* scalings_lower,
-            Float* scalings_upper);
-    
-    
     void combine_abs_and_rayleigh(
-            const int ncol, const int nlay,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay,
             const Float* tau_local, const Float* tau_rayleigh,
             Float* tau, Float* ssa, Float* g);
 
-    
+
     void compute_tau_rayleigh(
-            const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
-            const int* gpoint_flavor,
             const int* gpoint_bands,
             const int* band_lims_gpt,
             const Float* krayl,
@@ -106,14 +82,14 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Bool* tropo, const int* jtemp,
             Float* tau_rayleigh);
 
-    
+
     void compute_tau_absorption(
-            const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, 
+            const int ngpt, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int nminorlower, const int nminorklower,
             const int nminorupper, const int nminorkupper,
             const int idx_h2o,
-            const int* gpoint_flavor,
             const int* band_lims_gpt,
             const Float* kmajor,
             const Float* kminor_lower,
@@ -137,12 +113,10 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* fminor, const Float* play,
             const Float* tlay, const Float* col_gas,
             const int* jeta, const int* jtemp,
-            const int* jpress, 
-            const Float* scalings_lower,
-            const Float* scalings_upper,
+            const int* jpress,
             Float* tau);
 
-    
+
     void Planck_source(
             const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
             const int nflav, const int neta, const int npres, const int ntemp,
@@ -161,7 +135,6 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* pfracin,
             const Float temp_ref_min, const Float totplnk_delta,
             const Float* totplnk,
-            const int* gpoint_flavor,
             Float* sfc_src,
             Float* lay_src,
             Float* lev_src_inc,

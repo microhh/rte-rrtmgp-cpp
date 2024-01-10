@@ -255,8 +255,6 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"      ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"    ).first;
 
-    // Print the options to the screen.
-    print_command_line_options(command_line_switches, command_line_ints);
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
@@ -264,6 +262,15 @@ void solve_radiation(int argc, char** argv)
         std::string error = "number of photons per pixel should be a power of 2 ";
         throw std::runtime_error(error);
     }
+
+    if (switch_longwave)
+    {
+        std::string error = "No longwave radiation implemented in the ray tracer";
+        throw std::runtime_error(error);
+    }
+
+    // Print the options to the screen.
+    print_command_line_options(command_line_switches, command_line_ints);
 
     int single_gpt = command_line_ints.at("single-gpt").first;
 
@@ -298,7 +305,7 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> t_lay(input_nc.get_variable<Float>("t_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
     Array<Float,2> p_lev(input_nc.get_variable<Float>("p_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
     Array<Float,2> t_lev(input_nc.get_variable<Float>("t_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
-
+    
     // Fetch the col_dry in case present.
     Array<Float,2> col_dry;
     if (input_nc.variable_exists("col_dry"))

@@ -11,6 +11,8 @@
 namespace
 {
     #include "rte_solver_kernels_rt.cu"
+    
+    using Tools_gpu::calc_grid_size;
 }
 
 
@@ -120,9 +122,10 @@ namespace Rte_solver_kernels_cuda_rt
         }
         else
         {
-            grid_1 = tunings["lw_step_1_rt"].first;
             block_1 = tunings["lw_step_1_rt"].second;
         }
+
+        grid_1 = calc_grid_size(block_1, dim3(ncol, nlay, 1));
 
         lw_solver_noscat_step_1_kernel<<<grid_1, block_1>>>(
                 ncol, nlay, ngpt, eps, top_at_1, ds, weights, tau, lay_source,
@@ -157,9 +160,10 @@ namespace Rte_solver_kernels_cuda_rt
         }
         else
         {
-            grid_2 = tunings["lw_step_2_rt"].first;
             block_2 = tunings["lw_step_2_rt"].second;
         }
+        
+        grid_2 = calc_grid_size(block_2, dim3(ncol, 1, 1));
 
         lw_solver_noscat_step_2_kernel<<<grid_2, block_2>>>(
                 ncol, nlay, ngpt, eps, top_at_1, ds, weights, tau, lay_source,
@@ -194,9 +198,10 @@ namespace Rte_solver_kernels_cuda_rt
         }
         else
         {
-            grid_3 = tunings["lw_step_3_rt"].first;
             block_3 = tunings["lw_step_3_rt"].second;
         }
+        
+        grid_3 = calc_grid_size(block_3, dim3(ncol, nlay+1, 1));
 
         lw_solver_noscat_step_3_kernel<<<grid_3, block_3>>>(
                 ncol, nlay, ngpt, eps, top_at_1, ds, weights, tau, lay_source,
@@ -302,10 +307,11 @@ namespace Rte_solver_kernels_cuda_rt
         }
         else
         {
-            grid_source = tunings["sw_source_2stream_kernel_rt"].first;
             block_source = tunings["sw_source_2stream_kernel_rt"].second;
         }
-
+            
+        grid_source = calc_grid_size(block_source, dim3(ncol, 1));
+        
         if (top_at_1)
         {
             sw_source_2stream_kernel<1><<<grid_source, block_source>>>(
@@ -362,9 +368,10 @@ namespace Rte_solver_kernels_cuda_rt
         }
         else
         {
-            grid_adding = tunings["sw_adding_rt"].first;
             block_adding = tunings["sw_adding_rt"].second;
         }
+        
+        grid_adding = calc_grid_size(block_adding, dim3(ncol, 1));
 
         if (top_at_1)
         {
