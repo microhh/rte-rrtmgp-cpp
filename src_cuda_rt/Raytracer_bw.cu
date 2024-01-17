@@ -98,24 +98,27 @@ namespace
             const Float fz = Float(grid_cells.z) / Float(kn_grid.z);
 
             const int x0 = grid_x*fx;
-            const int x1 = floor((grid_x+1)*fx);
+            const int x1 = min(grid_cells.x-1, int(floor((grid_x+1)*fx)));
+            
             const int y0 = grid_y*fy;
-            const int y1 = floor((grid_y+1)*fy);
+            const int y1 = min(grid_cells.y-1, int(floor((grid_y+1)*fy)));
+            
             const int z0 = grid_z*fz;
-            const int z1 = floor((grid_z+1)*fz);
+            const int z1 = min(grid_cells.z-1, int(floor((grid_z+1)*fz)));
 
             const int ijk_grid = grid_x + grid_y*kn_grid.x + grid_z*kn_grid.y*kn_grid.x;
             Float k_null_min = Float(1e15); // just a ridicilously high value
             Float k_null_max = Float(0.);
-
-            for (int k=z0; k<z1; ++k)
-                for (int j=y0; j<y1; ++j)
-                    for (int i=x0; i<x1; ++i)
+           
+            for (int k=z0; k<=z1; ++k)
+                for (int j=y0; j<=y1; ++j)
+                    for (int i=x0; i<=x1; ++i)
                     {
                         const int ijk_in = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
                         k_null_min = min(k_null_min, k_ext[ijk_in]);
                         k_null_max = max(k_null_max, k_ext[ijk_in]);
                     }
+
             if (k_null_min == k_null_max) k_null_min = k_null_max * Float(0.99);
             k_null_grid[ijk_grid].k_min = k_null_min;
             k_null_grid[ijk_grid].k_max = k_null_max;
