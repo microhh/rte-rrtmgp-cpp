@@ -169,7 +169,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                     dim3(nlay, ncol_sub, 1),
                     {1,2,4}, {1, 2, 4, 8, 16, 32, 64, 128, 256, 512}, {1},
                     interpolation_kernel,
-                    igpt, col_s, ncol_sub, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
+                    igpt-1, col_s, ncol_sub, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
                     gpoint_flavor, flavor, press_ref_log, temp_ref,
                     press_ref_log_delta, temp_ref_min,
                     temp_ref_delta, press_ref_trop_log,
@@ -188,7 +188,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         grid = calc_grid_size(block, dim3(nlay, ncol_sub, 1));
 
         interpolation_kernel<<<grid, block>>>(
-                igpt, col_s, ncol_sub, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
+                igpt-1, col_s, ncol_sub, ncol, nlay, ngas, nflav, neta, npres, ntemp, tmin,
                 gpoint_flavor, flavor, press_ref_log, temp_ref,
                 press_ref_log_delta, temp_ref_min,
                 temp_ref_delta, press_ref_trop_log,
@@ -262,7 +262,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                 compute_tau_rayleigh_kernel,
                 col_s, ncol_sub, ncol, nlay, nbnd, ngpt,
                 ngas, nflav, neta, npres, ntemp,
-                igpt,
+                igpt-1,
                 gpoint_bands,
                 band_lims_gpt,
                 krayl,
@@ -284,7 +284,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         compute_tau_rayleigh_kernel<<<grid, block>>>(
                 col_s, ncol_sub, ncol, nlay, nbnd, ngpt,
                 ngas, nflav, neta, npres, ntemp,
-                igpt,
+                igpt-1,
                 gpoint_bands,
                 band_lims_gpt,
                 krayl,
@@ -343,7 +343,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                     gas_optical_depths_major_kernel,
                     col_s, ncol_sub, ncol, nlay, nband, ngpt,
                     nflav, neta, npres, ntemp,
-                    igpt, band_lims_gpt,
+                    igpt-1, band_lims_gpt,
                     kmajor, col_mix, fmajor, jeta,
                     tropo, jtemp, jpress,
                     tau_tmp);
@@ -363,7 +363,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         gas_optical_depths_major_kernel<<<grid_maj, block_maj>>>(
             col_s, ncol_sub, ncol, nlay, nband, ngpt,
             nflav, neta, npres, ntemp,
-            igpt, band_lims_gpt,
+            igpt-1, band_lims_gpt,
             kmajor, col_mix, fmajor, jeta,
             tropo, jtemp, jpress,
             tau);
@@ -385,7 +385,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                         dim3(nlay, ncol_sub, 1),
                         {1}, {32, 48, 64, 96, 128, 256, 384, 512}, {1},
                         gas_optical_depths_minor_kernel,
-                        col_s, ncol_sub, ncol, nlay, ngpt, igpt,
+                        col_s, ncol_sub, ncol, nlay, ngpt, igpt-1,
                         ngas, nflav, ntemp, neta,
                         nscale_lower,
                         nminorlower,
@@ -416,7 +416,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         grid_min_1 = calc_grid_size(block_min_1, dim3(nlay, ncol_sub, 1));
 
         gas_optical_depths_minor_kernel<<<grid_min_1, block_min_1>>>(
-                col_s, ncol_sub, ncol, nlay, ngpt, igpt,
+                col_s, ncol_sub, ncol, nlay, ngpt, igpt-1,
                 ngas, nflav, ntemp, neta,
                 nscale_lower,
                 nminorlower,
@@ -446,7 +446,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                    dim3(nlay, ncol_sub, 1),
                    {1}, {32, 48, 64, 96, 128, 256, 384, 512}, {1},
                    gas_optical_depths_minor_kernel,
-                   col_s, ncol_sub, ncol, nlay, ngpt, igpt,
+                   col_s, ncol_sub, ncol, nlay, ngpt, igpt-1,
                    ngas, nflav, ntemp, neta,
                    nscale_upper,
                    nminorupper,
@@ -477,7 +477,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         grid_min_2 = calc_grid_size(block_min_2, dim3(nlay, ncol_sub, 1));
 
         gas_optical_depths_minor_kernel<<<grid_min_2, block_min_2>>>(
-                col_s, ncol_sub, ncol, nlay, ngpt, igpt,
+                col_s, ncol_sub, ncol, nlay, ngpt, igpt-1,
                 ngas, nflav, ntemp, neta,
                 nscale_upper,
                 nminorupper,
@@ -536,7 +536,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                     {16, 32, 48, 64, 96, 128, 256, 512}, {1, 2, 4, 8}, {1},
                     Planck_source_kernel,
                     ncol, nlay, nbnd, ngpt,
-                    nflav, neta, npres, ntemp, nPlanckTemp, igpt,
+                    nflav, neta, npres, ntemp, nPlanckTemp, igpt-1,
                     tlay, tlev, tsfc, sfc_lay,
                     fmajor, jeta, tropo, jtemp,
                     jpress, gpoint_bands, band_lims_gpt,
@@ -558,7 +558,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
         Planck_source_kernel<<<grid, block>>>(
                 ncol, nlay, nbnd, ngpt,
-                nflav, neta, npres, ntemp, nPlanckTemp, igpt,
+                nflav, neta, npres, ntemp, nPlanckTemp, igpt-1,
                 tlay, tlev, tsfc, sfc_lay,
                 fmajor, jeta, tropo, jtemp,
                 jpress, gpoint_bands, band_lims_gpt,

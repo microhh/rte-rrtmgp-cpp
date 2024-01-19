@@ -313,7 +313,7 @@ void Raytracer::trace_rays(
             photons_per_thread,
             qrng_grid_x,
             qrng_grid_y,
-            Int(qrng_gpt_offset),
+            Int(qrng_gpt_offset-1),
             k_null_grid.ptr(),
             tod_dn_count.ptr(),
             tod_up_count.ptr(),
