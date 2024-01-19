@@ -63,7 +63,7 @@ namespace
         dim3 block_gpu(block_col, 1);
 
         spread_col_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, igpt, src_out.ptr(), src_in.ptr());
+            ncol, igpt-1, src_out.ptr(), src_in.ptr());
     }
 
 
@@ -820,7 +820,7 @@ void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
 
     for (int iflav=1; iflav<=2; ++iflav)
     {
-        const int flav = gpoint_flavor({iflav, igpt+1});
+        const int flav = gpoint_flavor({iflav, igpt});
         for (int igas=1; igas<=2; ++igas)
         {
             const int gas = flavor({igas, flav});
@@ -828,8 +828,8 @@ void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
         }
     }
 
-    const int minor_start_lower = first_last_minor_lower({1, igpt+1});
-    const int minor_end_lower   = first_last_minor_lower({2, igpt+1});
+    const int minor_start_lower = first_last_minor_lower({1, igpt});
+    const int minor_end_lower   = first_last_minor_lower({2, igpt});
 
     for (int imnr=minor_start_lower+1; imnr<=minor_end_lower+1; ++imnr)
     {
@@ -843,8 +843,8 @@ void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
         }
     }
 
-    const int minor_start_upper = first_last_minor_upper({1, igpt+1});
-    const int minor_end_upper   = first_last_minor_upper({2, igpt+1});
+    const int minor_start_upper = first_last_minor_upper({1, igpt});
+    const int minor_end_upper   = first_last_minor_upper({2, igpt});
 
     for (int imnr=minor_start_upper+1; imnr<=minor_end_upper+1; ++imnr)
     {

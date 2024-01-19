@@ -498,7 +498,7 @@ void Radiation_solver_longwave::solve_gpu(
         if (switch_cloud_optics)
         {
             cloud_optics_gpu->cloud_optics(
-                    band-1,
+                    band,
                     lwp,
                     iwp,
                     rel,
@@ -710,7 +710,7 @@ void Radiation_solver_shortwave::solve_gpu(
         {
             // Run the gas_optics on a subset.
             kdist_gpu->gas_optics(
-                    igpt-1, 
+                    igpt, 
                     col_s, 
                     n_col_subset, 
                     n_col,
@@ -748,7 +748,7 @@ void Radiation_solver_shortwave::solve_gpu(
             if (band > previous_band)
             {
                 cloud_optics_gpu->cloud_optics(
-                        band-1,
+                        band,
                         lwp,
                         iwp,
                         rel,
@@ -776,7 +776,7 @@ void Radiation_solver_shortwave::solve_gpu(
             {
                 Aerosol_concs_gpu aerosol_concs_subset(aerosol_concs, 1, n_col);
                 aerosol_optics_gpu->aerosol_optics(
-                        band-1,
+                        band,
                         aerosol_concs_subset,
                         rh, p_lev,
                         *aerosol_optical_props);
@@ -840,7 +840,7 @@ void Radiation_solver_shortwave::solve_gpu(
                 }
 
                 raytracer.trace_rays(
-                        igpt-1,
+                        igpt,
                         ray_count,
                         grid_cells,
                         grid_d,

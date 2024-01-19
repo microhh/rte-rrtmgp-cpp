@@ -475,7 +475,7 @@ void Raytracer_bw::trace_rays(
     const int mie_table_size = mie_cdf.size();
 
     ray_tracer_kernel_bw<<<grid, block, nbg*sizeof(Float) + 2 * sizeof(Float)*mie_table_size>>>(
-            igpt,
+            igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count.ptr(),
             shot_count.ptr(),
@@ -623,7 +623,7 @@ void Raytracer_bw::trace_rays_bb(
     const int mie_table_size = mie_cdf.size();
 
     ray_tracer_kernel_bw<<<grid, block, nbg*sizeof(Float)+ 2 * sizeof(Float)*mie_table_size>>>(
-            igpt,
+            igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count.ptr(),
             shot_count.ptr(),

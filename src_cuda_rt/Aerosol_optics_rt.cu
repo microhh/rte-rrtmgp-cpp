@@ -247,7 +247,7 @@ void Aerosol_optics_rt::aerosol_optics(
     constexpr Float eps = std::numeric_limits<Float>::epsilon();
 
     compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, ibnd, nbnd, nhum,
+            ncol, nlay, ibnd-1, nbnd, nhum,
             aerosol_concs.get_vmr("aermr01").ptr(),
             aerosol_concs.get_vmr("aermr02").ptr(),
             aerosol_concs.get_vmr("aermr03").ptr(),
