@@ -168,7 +168,7 @@ Raytracer::Raytracer()
 
 
 void Raytracer::trace_rays(
-        const int qrng_gpt_offset,
+        const int igpt,
         const Int photons_per_pixel,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
@@ -279,41 +279,36 @@ void Raytracer::trace_rays(
     Int photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
     
     dim3 grid,block;
+    
     // with very low number of columns and photons_per_pixel, we may have too many threads firing a single photons, actually exceeding photons_per pixel
-    // In that case, reduce grid and block size, but issue a warning that we do so
+    // In that case, reduce grid and block size
     Int actual_photons_per_pixel = photons_per_thread * rt_kernel_grid * rt_kernel_block / (qrng_grid_x * qrng_grid_y);
-    if (actual_photons_per_pixel > photons_per_pixel)
+    
+    int rt_kernel_grid_size = rt_kernel_grid;
+    int rt_kernel_block_size = rt_kernel_block;
+    while ( (actual_photons_per_pixel > photons_per_pixel) )
     {
-        int rt_kernel_grid_new = rt_kernel_grid;
-        int rt_kernel_block_new = rt_kernel_block;
-        Int n_too_many = actual_photons_per_pixel / photons_per_pixel;
-        int flip = true;
-        while (n_too_many > 1)
-        {
-            if (flip)
-                rt_kernel_grid_new /= 2;
-            else
-                rt_kernel_block_new /= 2;
-            n_too_many /= 2;
-            flip = not flip;
-            grid = {rt_kernel_grid_new};
-            block = {rt_kernel_block_new};
-            printf("Using only block size %d and grid size %d due to low column count and low number of requested photons\n",rt_kernel_block_new,rt_kernel_grid_new);
-        } 
+        if (rt_kernel_grid_size > 1)
+            rt_kernel_grid_size /= 2;
+        else
+            rt_kernel_block_size /= 2;        
+        
+        photons_per_thread_tmp = std::max(Float(1), static_cast<Float>(photons_total) / (rt_kernel_grid_size * rt_kernel_block_size));
+        photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
+        actual_photons_per_pixel = photons_per_thread * rt_kernel_grid_size * rt_kernel_block_size / (qrng_grid_x * qrng_grid_y);
     }
-    else
-    {
-        grid = {rt_kernel_grid};
-        block = {rt_kernel_block};
-    }
-    // size of mie table, will be zero if HG is used for cloud scattering
+    
+    grid = {rt_kernel_grid_size};
+    block = {rt_kernel_block_size};
+    
     const int mie_table_size = mie_cdf.size();
-
+    
+    const int qrng_gpt_offset = (igpt-1) * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
     ray_tracer_kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
             photons_per_thread,
             qrng_grid_x,
             qrng_grid_y,
-            Int(qrng_gpt_offset-1),
+            qrng_gpt_offset,
             k_null_grid.ptr(),
             tod_dn_count.ptr(),
             tod_up_count.ptr(),
@@ -357,4 +352,9 @@ void Raytracer::trace_rays(
             atmos_diffuse_count.ptr(),
             flux_abs_dir.ptr(),
             flux_abs_dif.ptr());
+
+
+
+
+
 }
