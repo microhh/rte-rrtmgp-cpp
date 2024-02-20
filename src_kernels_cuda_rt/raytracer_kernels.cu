@@ -142,7 +142,7 @@ void ray_tracer_kernel(
         const Vector<int> grid_cells,
         const Vector<int> kn_grid,
         const Vector<Float> sun_direction,
-        curandDirectionVectors32_t* qrng_vectors, unsigned int* qrng_constants, // const Float* __restrict__ cloud_dims)
+        curandDirectionVectors32_t* qrng_vectors, unsigned int* qrng_constants,
         const Float* __restrict__ mie_cdf,
         const Float* __restrict__ mie_ang,
         const int mie_table_size)
@@ -163,8 +163,8 @@ void ray_tracer_kernel(
     const int n = blockDim.x * blockIdx.x + threadIdx.x;
 
     Photon photon;
-    Random_number_generator<Float> rng(n);
-    Quasi_random_number_generator_2d qrng(qrng_vectors, qrng_constants, n*photons_to_shoot + qrng_gpt_offset*photons_to_shoot*rt_kernel_block*rt_kernel_grid);
+    Random_number_generator<Float> rng(n+qrng_gpt_offset);
+    Quasi_random_number_generator_2d qrng(qrng_vectors, qrng_constants, n*photons_to_shoot + qrng_gpt_offset);
 
     const Float s_min = max(grid_size.z, max(grid_size.y, grid_size.x)) * Float_epsilon;
 
