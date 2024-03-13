@@ -610,6 +610,7 @@ void Radiation_solver_shortwave::solve_gpu(
         const bool switch_single_gpt,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
+        const bool switch_clear_sky_tod,
         const int single_gpt,
         const Int ray_count,
         const Vector<int> grid_cells,
@@ -742,7 +743,56 @@ void Radiation_solver_shortwave::solve_gpu(
         }
 
         toa_src.fill(toa_src_temp({1}) * tsi_scaling({1}));
+        
+        if (switch_aerosol_optics)
+        {
+            if (band > previous_band)
+            {
+                Aerosol_concs_gpu aerosol_concs_subset(aerosol_concs, 1, n_col);
+                aerosol_optics_gpu->aerosol_optics(
+                        band,
+                        aerosol_concs_subset,
+                        rh, p_lev,
+                        *aerosol_optical_props);
+                if (switch_delta_aerosol)
+                    aerosol_optical_props->delta_scale();
+            }
 
+            // Add the cloud optical props to the gas optical properties.
+            add_to(
+                    dynamic_cast<Optical_props_2str_rt&>(*optical_props),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props));
+        }
+        else
+        {
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_tau().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_ssa().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_g().ptr());
+        }
+        
+        Array<Float,1> tod_dir_diff({2});
+       
+        if (switch_fluxes && switch_raytracing && switch_clear_sky_tod)
+        {
+            // If switch_clear_sky_tod, compute TOD irradiance for ray tracer with clear-sky atmosphere, otherwise compute TOD irradiance after cloud optics
+            std::unique_ptr<Fluxes_broadband_rt> fluxes =
+                    std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, n_lev);
+
+            rte_sw.rte_sw(
+                    optical_props,
+                    top_at_1,
+                    mu0,
+                    toa_src,
+                    sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
+                    sfc_alb_dif.subset({{ {band, band}, {1, n_col}}}),
+                    Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
+                    (*fluxes).get_flux_up(),
+                    (*fluxes).get_flux_dn(),
+                    (*fluxes).get_flux_dn_dir());
+
+            compute_tod_flux(n_col, grid_cells.z, (*fluxes).get_flux_dn(), (*fluxes).get_flux_dn_dir(), tod_dir_diff);
+        }
+        
         if (switch_cloud_optics)
         {
             if (band > previous_band)
@@ -770,31 +820,6 @@ void Radiation_solver_shortwave::solve_gpu(
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_g().ptr());
         }
 
-        if (switch_aerosol_optics)
-        {
-            if (band > previous_band)
-            {
-                Aerosol_concs_gpu aerosol_concs_subset(aerosol_concs, 1, n_col);
-                aerosol_optics_gpu->aerosol_optics(
-                        band,
-                        aerosol_concs_subset,
-                        rh, p_lev,
-                        *aerosol_optical_props);
-                if (switch_delta_aerosol)
-                    aerosol_optical_props->delta_scale();
-            }
-
-            // Add the cloud optical props to the gas optical properties.
-            add_to(
-                    dynamic_cast<Optical_props_2str_rt&>(*optical_props),
-                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props));
-        }
-        else
-        {
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_tau().ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_ssa().ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_g().ptr());
-        }
 
         // Store the optical properties, if desired
         if (switch_single_gpt && igpt == single_gpt)
@@ -830,8 +855,8 @@ void Radiation_solver_shortwave::solve_gpu(
                 Float zenith_angle = std::acos(mu0({1}));
                 Float azimuth_angle = azi({1}); // sun approximately from south
 
-                Array<Float,1> tod_dir_diff({2});
-                compute_tod_flux(n_col, grid_cells.z, (*fluxes).get_flux_dn(), (*fluxes).get_flux_dn_dir(), tod_dir_diff);
+                if (!switch_clear_sky_tod)
+                    compute_tod_flux(n_col, grid_cells.z, (*fluxes).get_flux_dn(), (*fluxes).get_flux_dn_dir(), tod_dir_diff);
 
                 if (switch_cloud_mie)
                 {

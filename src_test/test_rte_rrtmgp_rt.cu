@@ -234,7 +234,8 @@ void solve_radiation(int argc, char** argv)
         {"single-gpt"       , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
         {"profiling"        , { false, "Perform additional profiling run."         }},
         {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties"   }} };
+        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties"   }},  
+        {"clear-sky-tod"    , { false, "compute ray tracing TOD irradiance from clear-sky (no clouds) 2-stream computations"   }} };
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
@@ -254,6 +255,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_switches.at("profiling"        ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"      ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"    ).first;
+    const bool switch_clear_sky_tod     = command_line_switches.at("clear-sky-tod"    ).first;
 
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
@@ -764,6 +766,7 @@ void solve_radiation(int argc, char** argv)
                     switch_single_gpt,
                     switch_delta_cloud,
                     switch_delta_aerosol,
+                    switch_clear_sky_tod,
                     single_gpt,
                     photons_per_pixel,
                     grid_cells,
