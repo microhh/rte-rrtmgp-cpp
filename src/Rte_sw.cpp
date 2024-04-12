@@ -65,7 +65,7 @@ namespace rrtmgp_kernel_launcher
                 gpt_flux.ptr());
     }
 
-    template<typename Float>
+
     void sw_solver_2stream(
             const int ncol,
             const int nlay,
@@ -89,7 +89,10 @@ namespace rrtmgp_kernel_launcher
             Array<Float,3>& flux_dir_loc)
     {
         rrtmgp_kernels::rte_sw_solver_2stream(
-                ncol, nlay, ngpt, top_at_1,
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
                 tau.ptr(),
                 ssa.ptr(),
                 g  .ptr(),
