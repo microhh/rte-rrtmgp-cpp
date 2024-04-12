@@ -163,16 +163,26 @@ namespace rrtmgp_kernels
             Float* factor, Float* flux_dn);
 
     extern "C" void rte_sw_solver_2stream(
-            int* ncol, int* nlay, int* ngpt, Bool* top_at_1,
-            Float* tau,
-            Float* ssa,
-            Float* g,
-            Float* mu0,
-            Float* sfc_alb_dir_gpt, Float* sfc_alb_dif_gpt,
-            Float* inc_flux_dir,
-            Float* gpt_flux_up, Float* gpt_flux_dn, Float* gpt_flux_dir,
-            Bool* has_dif_bc, Float* inc_flux_dif,
-            Bool* do_broadband, Float* flux_up_loc, Float* flux_dn_loc, Float* flux_dir_loc);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const Float* tau,
+            const Float* ssa,
+            const Float* g,
+            const Float* mu0,
+            const Float* sfc_alb_dir_gpt,
+            const Float* sfc_alb_dif_gpt,
+            const Float* inc_flux_dir,
+            Float* gpt_flux_up,
+            Float* gpt_flux_dn,
+            Float* gpt_flux_dir,
+            const Bool& has_dif_bc,
+            const Float* inc_flux_dif,
+            const Bool& do_broadband,
+            Float* flux_up_loc,
+            Float* flux_dn_loc,
+            Float* flux_dir_loc);
 
     extern "C" void rte_increment_2stream_by_2stream(
             int* ncol, int* nlev, int* ngpt,
