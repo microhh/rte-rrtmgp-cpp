@@ -138,12 +138,19 @@ namespace rrtmgp_kernels
             Float* tau_rayleigh);
 
     extern "C" void apply_BC_0(
-            int* ncol, int* nlay, int* ngpt,
-            Bool* top_at_1, Float* gpt_flux_dn);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            Float* gpt_flux_dn);
 
     extern "C" void apply_BC_gpt(
-            int* ncol, int* nlay, int* ngpt,
-            Bool* top_at_1, Float* inc_flux, Float* gpt_flux_dn);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const Float* inc_flux,
+            Float* gpt_flux_dn);
 
     extern "C" void rte_lw_solver_noscat(
             int* ncol, int* nlay, int* ngpt, Bool* top_at_1, int* n_quad_angs,
@@ -158,9 +165,13 @@ namespace rrtmgp_kernels
             Bool* do_rescaling, Float* ssa, Float* g);
 
     extern "C" void apply_BC_factor(
-            int* ncol, int* nlay, int* ngpt,
-            Bool* top_at_1, Float* inc_flux,
-            Float* factor, Float* flux_dn);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const Float* inc_flux,
+            const Float* factor,
+            Float* flux_dn);
 
     extern "C" void rte_sw_solver_2stream(
             const int& ncol,

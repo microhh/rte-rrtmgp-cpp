@@ -32,34 +32,55 @@ namespace rrtmgp_kernel_launcher
 {
     template<typename Float>
     void apply_BC(
-            int ncol, int nlay, int ngpt,
-            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
+            Array<Float,3>& gpt_flux_dn)
     {
         rrtmgp_kernels::apply_BC_0(
-                &ncol, &nlay, &ngpt,
-                &top_at_1, gpt_flux_dn.ptr());
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                gpt_flux_dn.ptr());
     }
+
 
     template<typename Float>
     void apply_BC(
-            int ncol, int nlay, int ngpt, Bool top_at_1,
-            const Array<Float,2>& inc_flux, Array<Float,3>& gpt_flux_dn)
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
+            const Array<Float,2>& inc_flux,
+            Array<Float,3>& gpt_flux_dn)
     {
         rrtmgp_kernels::apply_BC_gpt(
-                &ncol, &nlay, &ngpt, &top_at_1,
-                const_cast<Float*>(inc_flux.ptr()), gpt_flux_dn.ptr());
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                const_cast<Float*>(inc_flux.ptr()),
+                gpt_flux_dn.ptr());
     }
+
 
     template<typename Float>
     void apply_BC(
-            int ncol, int nlay, int ngpt, Bool top_at_1,
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
             const Array<Float,2>& inc_flux,
             const Array<Float,1>& factor,
             Array<Float,3>& gpt_flux)
     {
         rrtmgp_kernels::apply_BC_factor(
-                &ncol, &nlay, &ngpt,
-                &top_at_1,
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
                 const_cast<Float*>(inc_flux.ptr()),
                 const_cast<Float*>(factor.ptr()),
                 gpt_flux.ptr());
