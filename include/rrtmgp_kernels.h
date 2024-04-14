@@ -137,6 +137,7 @@ namespace rrtmgp_kernels
             Bool* tropo, int* jtemp,
             Float* tau_rayleigh);
 
+    /*
     extern "C" void apply_BC_0(
             const int& ncol,
             const int& nlay,
@@ -151,6 +152,7 @@ namespace rrtmgp_kernels
             const Bool& top_at_1,
             const Float* inc_flux,
             Float* gpt_flux_dn);
+            */
 
     extern "C" void rte_lw_solver_noscat(
             int* ncol, int* nlay, int* ngpt, Bool* top_at_1, int* n_quad_angs,
@@ -164,6 +166,7 @@ namespace rrtmgp_kernels
             Bool* do_jacobians, Float* sfc_source_jac, Float* gpt_flux_up_jac,
             Bool* do_rescaling, Float* ssa, Float* g);
 
+    /*
     extern "C" void apply_BC_factor(
             const int& ncol,
             const int& nlay,
@@ -172,6 +175,7 @@ namespace rrtmgp_kernels
             const Float* inc_flux,
             const Float* factor,
             Float* flux_dn);
+            */
 
     extern "C" void rte_sw_solver_2stream(
             const int& ncol,

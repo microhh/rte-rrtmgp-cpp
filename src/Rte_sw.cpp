@@ -30,7 +30,7 @@
 
 namespace rrtmgp_kernel_launcher
 {
-    template<typename Float>
+    /*
     void apply_BC(
             const int ncol,
             const int nlay,
@@ -47,7 +47,6 @@ namespace rrtmgp_kernel_launcher
     }
 
 
-    template<typename Float>
     void apply_BC(
             const int ncol,
             const int nlay,
@@ -66,7 +65,6 @@ namespace rrtmgp_kernel_launcher
     }
 
 
-    template<typename Float>
     void apply_BC(
             const int ncol,
             const int nlay,
@@ -85,6 +83,7 @@ namespace rrtmgp_kernel_launcher
                 const_cast<Float*>(factor.ptr()),
                 gpt_flux.ptr());
     }
+    */
 
 
     void sw_solver_2stream(
