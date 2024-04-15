@@ -154,17 +154,64 @@ namespace rrtmgp_kernels
             Float* gpt_flux_dn);
             */
 
+    // ROBERTS REF: REMOVE COMMENTS.
+    // void rte_lw_solver_noscat(
+    //         const int& ncol, 
+    //         const int& nlay, 
+    //         const int& ngpt,
+    //         const Bool& top_at_1, 
+    //         const int& nmus,
+    //         const Float* secants, // (nmus)
+    //         const Float* weights, // (nmus)
+    //         const Float* tau,        // (ncol,nlay,  ngpt)
+    //         const Float* lay_source, // (ncol,nlay,  ngpt)
+    //         const Float* lev_source, // (ncol,nlay+1,ngpt)
+    //         const Float* sfc_emis,   // (ncol,       ngpt)
+    //         const Float* sfc_src,    // (ncol,       ngpt)
+    //         const Float* inc_flux,   // (ncol,       ngpt)
+    //         Float* flux_up,  // [out]   (ncol,nlay+1,ngpt)
+    //         Float* flux_dn,  // [out]   (ncol,nlay+1,ngpt)
+    //         const Bool& do_broadband,
+    //         Float* broadband_up,
+    //                          // [out]   (ncol,nlay+1)
+    //         Float* broadband_dn,
+    //                          // [out]   (ncol,nlay+1)
+    //         const Bool& do_jacobians,
+    //         const Float* sfc_src_jac,
+    //                                // (ncol,       ngpt)
+    //         Float* flux_up_jac,
+    //                        // [out]   (ncol,nlay+1,ngpt)
+    //         const Bool& do_rescaling,
+    //         const Float* ssa,      // (ncol,nlay,  ngpt)
+    //         const Float* g);       // (ncol,nlay,  ngpt)
+
+
     extern "C" void rte_lw_solver_noscat(
-            int* ncol, int* nlay, int* ngpt, Bool* top_at_1, int* n_quad_angs,
-            Float* secants, Float* gauss_wts_subset,
-            Float* tau,
-            Float* lay_source, Float* lev_source_inc, Float* lev_source_dec,
-            Float* sfc_emis_gpt, Float* sfc_source,
-            Float* inc_flux_diffuse,
-            Float* gpt_flux_up, Float* gpt_flux_dn,
-            Bool* do_broadband, Float* flux_up_loc, Float* flux_dn_loc,
-            Bool* do_jacobians, Float* sfc_source_jac, Float* gpt_flux_up_jac,
-            Bool* do_rescaling, Float* ssa, Float* g);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const int& n_quad_angs,
+            const Float* secants,
+            const Float* gauss_wts_subset,
+            const Float* tau,
+            const Float* lay_source,
+            const Float* lev_source_inc,
+            const Float* lev_source_dec,
+            const Float* sfc_emis_gpt,
+            const Float* sfc_source,
+            const Float* inc_flux_diffuse,
+            Float* gpt_flux_up,
+            Float* gpt_flux_dn,
+            const Bool& do_broadband,
+            Float* flux_up_loc,
+            Float* flux_dn_loc,
+            const Bool& do_jacobians,
+            const Float* sfc_source_jac,
+            Float* gpt_flux_up_jac,
+            const Bool& do_rescaling,
+            const Float* ssa,
+            const Float* g);
 
     /*
     extern "C" void apply_BC_factor(
