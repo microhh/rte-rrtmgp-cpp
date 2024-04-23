@@ -32,30 +32,48 @@
 namespace rrtmgp_kernels
 {
     extern "C" void rte_sum_broadband(
-            int* ncol, int* nlev, int* ngpt,
-            Float* spectral_flux, Float* broadband_flux);
+            int* ncol,
+            int* nlev,
+            int* ngpt,
+            Float* spectral_flux,
+            Float* broadband_flux);
 
     extern "C" void rte_net_broadband_precalc(
-            int* ncol, int* nlev,
-            Float* broadband_flux_dn, Float* broadband_flux_up,
+            int* ncol,
+            int* nlev,
+            Float* broadband_flux_dn,
+            Float* broadband_flux_up,
             Float* broadband_flux_net);
 
     extern "C" void sum_byband(
-            int* ncol, int* nlev, int* ngpt, int* nbnd,
+            int* ncol,
+            int* nlev,
+            int* ngpt,
+            int* nbnd,
             int* band_lims,
             Float* spectral_flux,
             Float* byband_flux);
 
     extern "C" void net_byband_precalc(
-            int* ncol, int* nlev, int* nbnd,
-            Float* byband_flux_dn, Float* byband_flux_up,
+            int* ncol,
+            int* nlev,
+            int* nbnd,
+            Float* byband_flux_dn,
+            Float* byband_flux_up,
             Float* byband_flux_net);
 
     extern "C" void zero_array_3D(
-            int* ni, int* nj, int* nk, Float* array);
+            int* ni,
+            int* nj,
+            int* nk,
+            Float* array);
 
     extern "C" void zero_array_4D(
-             int* ni, int* nj, int* nk, int* nl, Float* array);
+             int* ni,
+             int* nj,
+             int* nk,
+             int* nl,
+             Float* array);
 
     extern "C" void rrtmgp_interpolation(
                 int* ncol, int* nlay,
