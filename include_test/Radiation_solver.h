@@ -56,7 +56,7 @@ class Radiation_solver_longwave
                 const Array<Float,2>& lwp, const Array<Float,2>& iwp,
                 const Array<Float,2>& rel, const Array<Float,2>& rei,
                 Array<Float,3>& tau, Array<Float,3>& lay_source,
-                Array<Float,3>& lev_source_inc, Array<Float,3>& lev_source_dec, Array<Float,2>& sfc_source,
+                Array<Float,3>& lev_source, Array<Float,2>& sfc_source,
                 Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net,
                 Array<Float,3>& lw_bnd_flux_up, Array<Float,3>& lw_bnd_flux_dn, Array<Float,3>& lw_bnd_flux_net) const;
 

@@ -394,7 +394,7 @@ void Radiation_solver_longwave::solve(
         const Array<Float,2>& lwp, const Array<Float,2>& iwp,
         const Array<Float,2>& rel, const Array<Float,2>& rei,
         Array<Float,3>& tau, Array<Float,3>& lay_source,
-        Array<Float,3>& lev_source_inc, Array<Float,3>& lev_source_dec, Array<Float,2>& sfc_source,
+        Array<Float,3>& lev_source, Array<Float,2>& sfc_source,
         Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net,
         Array<Float,3>& lw_bnd_flux_up, Array<Float,3>& lw_bnd_flux_dn, Array<Float,3>& lw_bnd_flux_net) const
 {
@@ -494,11 +494,14 @@ void Radiation_solver_longwave::solve(
                 for (int ilay=1; ilay<=n_lay; ++ilay)
                     for (int icol=1; icol<=n_col_in; ++icol)
                     {
-                        tau           ({icol+col_s_in-1, ilay, igpt}) = optical_props_subset_in->get_tau()    ({icol, ilay, igpt});
-                        lay_source    ({icol+col_s_in-1, ilay, igpt}) = sources_subset_in.get_lay_source()    ({icol, ilay, igpt});
-                        lev_source_inc({icol+col_s_in-1, ilay, igpt}) = sources_subset_in.get_lev_source_inc()({icol, ilay, igpt});
-                        lev_source_dec({icol+col_s_in-1, ilay, igpt}) = sources_subset_in.get_lev_source_dec()({icol, ilay, igpt});
+                        tau       ({icol+col_s_in-1, ilay, igpt}) = optical_props_subset_in->get_tau()({icol, ilay, igpt});
+                        lay_source({icol+col_s_in-1, ilay, igpt}) = sources_subset_in.get_lay_source()({icol, ilay, igpt});
+                        lev_source({icol+col_s_in-1, ilay, igpt}) = sources_subset_in.get_lev_source()({icol, ilay, igpt});
                     }
+
+            for (int igpt=1; igpt<=n_gpt; ++igpt)
+                for (int icol=1; icol<=n_col_in; ++icol)
+                    lev_source({icol+col_s_in-1, n_lev, igpt}) = sources_subset_in.get_lev_source()({icol, n_lev, igpt});
 
             for (int igpt=1; igpt<=n_gpt; ++igpt)
                 for (int icol=1; icol<=n_col_in; ++icol)

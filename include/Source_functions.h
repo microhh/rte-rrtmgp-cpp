@@ -51,21 +51,18 @@ class Source_func_lw : public Optical_props
         Array<Float,2>& get_sfc_source()     { return sfc_source;     }
         Array<Float,2>& get_sfc_source_jac() { return sfc_source_jac; }
         Array<Float,3>& get_lay_source()     { return lay_source;     }
-        Array<Float,3>& get_lev_source_inc() { return lev_source_inc; }
-        Array<Float,3>& get_lev_source_dec() { return lev_source_dec; }
+        Array<Float,3>& get_lev_source()     { return lev_source; }
 
         const Array<Float,2>& get_sfc_source()     const { return sfc_source;     }
         const Array<Float,2>& get_sfc_source_jac() const { return sfc_source_jac; }
         const Array<Float,3>& get_lay_source()     const { return lay_source;     }
-        const Array<Float,3>& get_lev_source_inc() const { return lev_source_inc; }
-        const Array<Float,3>& get_lev_source_dec() const { return lev_source_dec; }
+        const Array<Float,3>& get_lev_source()     const { return lev_source;     }
 
     private:
         Array<Float,2> sfc_source;
         Array<Float,2> sfc_source_jac;
         Array<Float,3> lay_source;
-        Array<Float,3> lev_source_inc;
-        Array<Float,3> lev_source_dec;
+        Array<Float,3> lev_source;
 };
 
 

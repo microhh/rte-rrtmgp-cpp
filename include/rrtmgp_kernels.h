@@ -141,7 +141,7 @@ namespace rrtmgp_kernels
             Float* fmajor, int* jeta, Bool* tropo, int* jtemp, int* jpress,
             int* gpoint_bands, int* band_lims_gpt, Float* pfracin, Float* temp_ref_min,
             Float* totplnk_delta, Float* totplnk, int* gpoint_flavor,
-            Float* sfc_src, Float* lay_src, Float* lev_src, Float* lev_source_dec,
+            Float* sfc_src, Float* lay_src, Float* lev_src,
             Float* sfc_src_jac);
 
     extern "C" void rrtmgp_compute_tau_rayleigh(
@@ -214,8 +214,7 @@ namespace rrtmgp_kernels
             const Float* gauss_wts_subset,
             const Float* tau,
             const Float* lay_source,
-            const Float* lev_source_inc,
-            const Float* lev_source_dec,
+            const Float* lev_source,
             const Float* sfc_emis_gpt,
             const Float* sfc_source,
             const Float* inc_flux_diffuse,
