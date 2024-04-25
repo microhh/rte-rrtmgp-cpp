@@ -25,16 +25,15 @@ before_script:
 script:
   - cd rfmip
   - ./make_links.sh
-  - python3 stage_files.py
-  - python3 rfmip_init.py
-  - python3 rfmip_run.py
-  - python3 compare-to-reference.py --fail=7.e-4
+  - ln -s ../build/test_rte_rrtmgp .
+  - ./check_rfmip.sh
   - cd ..
   - cd allsky
   - ./make_links.sh
+  - ln -s ../build/test_rte_rrtmgp .
   - python3 allsky_init.py
   - python3 allsky_run.py
-  - python3 compare-to-reference.py
+  - python3 allsky_check.py
 
 #notifications:
 #  slack: microhh:hA8nIix9Z34cn6uG8xnz8Uiu
