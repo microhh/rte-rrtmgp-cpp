@@ -439,8 +439,14 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
 
     void compute_planck_source(
-            const int ncol, const int nlay, const int nbnd, const int ngpt,
-            const int nflav, const int neta, const int npres, const int ntemp,
+            const int ncol,
+            const int nlay,
+            const int nbnd,
+            const int ngpt,
+            const int nflav,
+            const int neta,
+            const int npres,
+            const int ntemp,
             const int nPlanckTemp,
             const Float* tlay,
             const Float* tlev,
@@ -454,13 +460,13 @@ namespace Gas_optics_rrtmgp_kernels_cuda
             const int* gpoint_bands,
             const int* band_lims_gpt,
             const Float* pfracin,
-            const Float temp_ref_min, const Float totplnk_delta,
+            const Float temp_ref_min,
+            const Float totplnk_delta,
             const Float* totplnk,
             const int* gpoint_flavor,
             Float* sfc_src,
             Float* lay_src,
-            Float* lev_src_inc,
-            Float* lev_src_dec,
+            Float* lev_src,
             Float* sfc_src_jac)
     {
         Tuner_map& tunings = Tuner::get_map();
@@ -493,7 +499,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
                     pfracin, temp_ref_min, totplnk_delta,
                     totplnk, gpoint_flavor,
                     delta_Tsurf, sfc_src, lay_src,
-                    lev_src_inc, lev_src_dec,
+                    lev_src,
                     sfc_src_jac);
             
             tunings["Planck_source_kernel"].first = grid_gpu;
@@ -516,7 +522,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
                 totplnk, gpoint_flavor,
                 delta_Tsurf,
                 sfc_src, lay_src,
-                lev_src_inc, lev_src_dec,
+                lev_src,
                 sfc_src_jac);
     }
 }

@@ -140,7 +140,7 @@ void Rte_lw_gpu::rte_lw(
             secants.ptr(), gauss_wts_subset.ptr(),
             optical_props->get_tau().ptr(),
             sources.get_lay_source().ptr(),
-            sources.get_lev_source_inc().ptr(), sources.get_lev_source_dec().ptr(),
+            sources.get_lev_source().ptr(),
             sfc_emis_gpt.ptr(), sources.get_sfc_source().ptr(),
             inc_flux_ptr,
             gpt_flux_up.ptr(), gpt_flux_dn.ptr(),

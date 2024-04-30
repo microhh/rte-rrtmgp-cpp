@@ -98,7 +98,7 @@ __global__
 void lw_solver_noscat_step_1_kernel(
         const int ncol, const int nlay, const int ngpt, const Float eps, const Bool top_at_1,
         const Float* __restrict__ D, const Float* __restrict__ weight, const Float* __restrict__ tau, const Float* __restrict__ lay_source,
-        const Float* __restrict__ lev_source_inc, const Float* __restrict__ lev_source_dec, const Float* __restrict__ sfc_emis,
+        const Float* __restrict__ lev_source, const Float* __restrict__ sfc_emis,
         const Float* __restrict__ sfc_src, Float* __restrict__ radn_up, Float* __restrict__ radn_dn,
         const Float* __restrict__ sfc_src_jac, Float* __restrict__ radn_up_jac, Float* __restrict__ tau_loc,
         Float* __restrict__ trans, Float* __restrict__ source_dn, Float* __restrict__ source_up,
@@ -118,11 +118,12 @@ void lw_solver_noscat_step_1_kernel(
 
         const Float fact = (tau_loc[idx]>0. && (tau_loc[idx]*tau_loc[idx])>eps) ? (Float(1.) - trans[idx]) / tau_loc[idx] - trans[idx] : tau_loc[idx] * (Float(.5) - Float(1.)/Float(3.)*tau_loc[idx]);
 
-        Float src_inc = (Float(1.) - trans[idx]) * lev_source_inc[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_inc[idx]);
-        Float src_dec = (Float(1.) - trans[idx]) * lev_source_dec[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_dec[idx]);
+        // CvH FIX
+        // Float src_inc = (Float(1.) - trans[idx]) * lev_source_inc[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_inc[idx]);
+        // Float src_dec = (Float(1.) - trans[idx]) * lev_source_dec[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_dec[idx]);
 
-        source_dn[idx] = top_at_1 ? src_inc : src_dec;
-        source_up[idx] = top_at_1 ? src_dec : src_inc;
+        // source_dn[idx] = top_at_1 ? src_inc : src_dec;
+        // source_up[idx] = top_at_1 ? src_dec : src_inc;
     }
 }
 
@@ -131,7 +132,7 @@ __global__
 void lw_solver_noscat_step_2_kernel(
         const int ncol, const int nlay, const int ngpt, const Float eps, const Bool top_at_1,
         const Float* __restrict__ D, const Float* __restrict__ weight, const Float* __restrict__ tau, const Float* __restrict__ lay_source,
-        const Float* __restrict__ lev_source_inc, const Float* __restrict__ lev_source_dec, const Float* __restrict__ sfc_emis,
+        const Float* __restrict__ lev_source_inc, const Float* __restrict__ sfc_emis,
         const Float* __restrict__ sfc_src, Float* __restrict__ radn_up, Float* __restrict__ radn_dn,
         const Float* __restrict__ sfc_src_jac, Float* __restrict__ radn_up_jac, Float* __restrict__ tau_loc,
         Float* __restrict__ trans, Float* __restrict__ source_dn, Float* __restrict__ source_up,
@@ -163,7 +164,7 @@ __global__
 void lw_solver_noscat_step_3_kernel(
         const int ncol, const int nlay, const int ngpt, const Float eps, const Bool top_at_1,
         const Float* __restrict__ D, const Float* __restrict__ weight, const Float* __restrict__ tau, const Float* __restrict__ lay_source,
-        const Float* __restrict__ lev_source_inc, const Float* __restrict__ lev_source_dec, const Float* __restrict__ sfc_emis,
+        const Float* __restrict__ lev_source, const Float* __restrict__ sfc_emis,
         const Float* __restrict__ sfc_src, Float* __restrict__ radn_up, Float* __restrict__ radn_dn,
         const Float* __restrict__ sfc_src_jac, Float* __restrict__ radn_up_jac, Float* __restrict__ tau_loc,
         Float* __restrict__ trans, Float* __restrict__ source_dn, Float* __restrict__ source_up,

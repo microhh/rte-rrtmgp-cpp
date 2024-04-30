@@ -1183,8 +1183,7 @@ void Gas_optics_rrtmgp_gpu::source(
     auto band_lims_gpoint = this->get_band_lims_gpoint_gpu();
 
     Array_gpu<Float,3> lay_source_t({ngpt, nlay, ncol});
-    Array_gpu<Float,3> lev_source_inc_t({ngpt, nlay, ncol});
-    Array_gpu<Float,3> lev_source_dec_t({ngpt, nlay, ncol});
+    Array_gpu<Float,3> lev_source_t({ngpt, nlay, ncol});
     Array_gpu<Float,2> sfc_source_t({ngpt, ncol});
     Array_gpu<Float,2> sfc_source_jac({ngpt, ncol});
 
@@ -1197,8 +1196,8 @@ void Gas_optics_rrtmgp_gpu::source(
             fmajor.ptr(), jeta.ptr(), tropo.ptr(), jtemp.ptr(), jpress.ptr(),
             gpoint_bands.ptr(), band_lims_gpoint.ptr(), this->planck_frac_gpu.ptr(), this->temp_ref_min,
             this->totplnk_delta, this->totplnk_gpu.ptr(), this->gpoint_flavor_gpu.ptr(),
-            sources.get_sfc_source().ptr(), sources.get_lay_source().ptr(), sources.get_lev_source_inc().ptr(), 
-            sources.get_lev_source_dec().ptr(), sources.get_sfc_source_jac().ptr());
+            sources.get_sfc_source().ptr(), sources.get_lay_source().ptr(), sources.get_lev_source().ptr(),
+            sources.get_sfc_source_jac().ptr());
 }
 
 

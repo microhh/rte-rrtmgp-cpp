@@ -51,7 +51,7 @@ namespace Rte_solver_kernels_cuda
             const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const int nmus,
             const Float* secants, const Float* weights,
             const Float* tau, const Float* lay_source,
-            const Float* lev_source_inc, const Float* lev_source_dec,
+            const Float* lev_source,
             const Float* sfc_emis, const Float* sfc_src,
             const Float* inc_flux,
             Float* flux_up, Float* flux_dn,

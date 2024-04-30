@@ -429,7 +429,7 @@ void Radiation_solver_longwave::solve_gpu(
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& rei,
         Array_gpu<Float,3>& tau, Array_gpu<Float,3>& lay_source,
-        Array_gpu<Float,3>& lev_source_inc, Array_gpu<Float,3>& lev_source_dec, Array_gpu<Float,2>& sfc_source,
+        Array_gpu<Float,3>& lev_source, Array_gpu<Float,2>& sfc_source,
         Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
         Array_gpu<Float,3>& lw_bnd_flux_up, Array_gpu<Float,3>& lw_bnd_flux_dn, Array_gpu<Float,3>& lw_bnd_flux_net)
 {
@@ -518,9 +518,9 @@ void Radiation_solver_longwave::solve_gpu(
         if (switch_output_optical)
         {
             Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lay, n_gpt, n_col_in, col_s_in, tau.ptr(), lay_source.ptr(), lev_source_inc.ptr(), lev_source_dec.ptr(),
+                    n_col, n_lay, n_gpt, n_col_in, col_s_in, tau.ptr(), lay_source.ptr(), lev_source.ptr(),
                     optical_props_subset_in->get_tau().ptr(), sources_subset_in.get_lay_source().ptr(),
-                    sources_subset_in.get_lev_source_inc().ptr(), sources_subset_in.get_lev_source_dec().ptr());
+                    sources_subset_in.get_lev_source().ptr());
 
             Subset_kernels_cuda::get_from_subset(
                     n_col, n_gpt, n_col_in, col_s_in, sfc_source.ptr(), sources_subset_in.get_sfc_source().ptr());

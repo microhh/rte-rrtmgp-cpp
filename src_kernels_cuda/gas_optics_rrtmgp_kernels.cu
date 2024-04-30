@@ -142,7 +142,7 @@ void Planck_source_kernel(
         const Float* __restrict__ totplnk, const int* __restrict__ gpoint_flavor,
         const Float delta_Tsurf,
         Float* __restrict__ sfc_src, Float* __restrict__ lay_src,
-        Float* __restrict__ lev_src_inc, Float* __restrict__ lev_src_dec,
+        Float* __restrict__ lev_src,
         Float* __restrict__ sfc_src_jac)
 {
     const int icol = blockIdx.x*blockDim.x + threadIdx.x;
@@ -193,8 +193,9 @@ void Planck_source_kernel(
             lay_src[idx] = pfrac_loc * planck_function_lay;
 
             // Level source
-            lev_src_inc[idx] = pfrac_loc * planck_function_lev1;
-            lev_src_dec[idx] = pfrac_loc * planck_function_lev2;
+            // CvH FIX!
+            // lev_src_inc[idx] = pfrac_loc * planck_function_lev1;
+            // lev_src_dec[idx] = pfrac_loc * planck_function_lev2;
 
             // Surface
             if (ilay == sfc_lay - 1) // Subtract one to correct for fortran indexing.
