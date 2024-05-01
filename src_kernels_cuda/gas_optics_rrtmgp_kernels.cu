@@ -132,8 +132,8 @@ struct Index_1d
 {
     __device__ Index_1d(T* __restrict__ data, const int n1) :
         data(data) {}
-    __device__ inline T& operator()(const int i1) { return data[i1]; }
-    __device__ inline const T& operator()(const int i1) const { return data[i1]; }
+    __device__ inline T& operator()(const int i1) { return data[i1-1]; }
+    __device__ inline const T& operator()(const int i1) const { return data[i1-1]; }
     T* data;
 };
 
@@ -144,8 +144,8 @@ struct Index_2d
 {
     __device__ Index_2d(T* __restrict__ data, const int n1, const int n2) :
         data(data), s2(n1) {}
-    __device__ inline T& operator()(const int i1, const int i2) { return data[i1 + i2*s2]; }
-    __device__ inline const T& operator()(const int i1, const int i2) const { return data[i1 + i2*s2]; }
+    __device__ inline T& operator()(const int i1, const int i2) { return data[(i1-1) + (i2-1)*s2]; }
+    __device__ inline const T& operator()(const int i1, const int i2) const { return data[(i1-1) + (i2-1)*s2]; }
     T* data;
     const int s2;
 };
@@ -156,8 +156,8 @@ struct Index_3d
 {
     __device__ Index_3d(T* __restrict__ data, const int n1, const int n2, const int n3) :
         data(data), s2(n1), s3(n1*n2) {}
-    __device__ inline T& operator()(const int i1, const int i2, const int i3) { return data[i1 + i2*s2 + i3*s3]; }
-    __device__ inline const T& operator()(const int i1, const int i2, const int i3) const { return data[i1 + i2*s2 + i3*s3]; }
+    __device__ inline T& operator()(const int i1, const int i2, const int i3) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3]; }
+    __device__ inline const T& operator()(const int i1, const int i2, const int i3) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3]; }
     T* data;
     const int s2;
     const int s3;
@@ -169,8 +169,8 @@ struct Index_4d
 {
     __device__ Index_4d(T* __restrict__ data, const int n1, const int n2, const int n3, const int n4) :
         data(data), s2(n1), s3(n1*n2), s4(n1*n2*n3) {}
-    __device__ inline T& operator()(const int i1, const int i2, const int i3, const int i4) { return data[i1 + i2*s2 + i3*s3 + i4*s4]; }
-    __device__ inline const T& operator()(const int i1, const int i2, const int i3, const int i4) const { return data[i1 + i2*s2 + i3*s3 + i4*s4]; }
+    __device__ inline T& operator()(const int i1, const int i2, const int i3, const int i4) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4]; }
+    __device__ inline const T& operator()(const int i1, const int i2, const int i3, const int i4) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4]; }
     T* data;
     const int s2;
     const int s3;
@@ -183,8 +183,8 @@ struct Index_6d
 {
     __device__ Index_6d(T* __restrict__ data, const int n1, const int n2, const int n3, const int n4, const int n5, const int n6) :
         data(data), s2(n1), s3(n1*n2), s4(n1*n2*n3), s5(n1*n2*n3*n4), s6(n1*n2*n3*n4*n5*n6) {}
-    __device__ inline T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) { return data[i1 + i2*s2 + i3*s3 + i4*s4 + i5*s5 + i6*s6]; }
-    __device__ inline const T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) const { return data[i1 + i2*s2 + i3*s3 + i4*s4 + i5*s5 + i6*s6]; }
+    __device__ inline T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4 + (i5-1)*s5 + (i6-1)*s6]; }
+    __device__ inline const T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4 + (i5-1)*s5 + (i6-1)*s6]; }
     T* data;
     const int s2;
     const int s3;

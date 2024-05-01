@@ -110,20 +110,23 @@ void lw_solver_noscat_step_1_kernel(
 
     if ( (icol < ncol) && (ilay < nlay) && (igpt < ngpt) )
     {
-        const int idx = icol + ilay*ncol + igpt*ncol*nlay;
+        const int idx_lay = icol + ilay*ncol + igpt*ncol*nlay;
+        const int idx_lev = icol + ilay*ncol + igpt*ncol*(nlay+1);
+        const int idx_lev_p = icol + (ilay+1)*ncol + igpt*ncol*(nlay+1);
+
         const int idx_D = icol + igpt*ncol;
 
-        tau_loc[idx] = tau[idx] * D[idx_D];
-        trans[idx] = exp(-tau_loc[idx]);
+        tau_loc[idx_lay] = tau[idx_lay] * D[idx_D];
+        trans[idx_lay] = exp(-tau_loc[idx_lay]);
 
-        const Float fact = (tau_loc[idx]>0. && (tau_loc[idx]*tau_loc[idx])>eps) ? (Float(1.) - trans[idx]) / tau_loc[idx] - trans[idx] : tau_loc[idx] * (Float(.5) - Float(1.)/Float(3.)*tau_loc[idx]);
+        const Float fact = ( (tau_loc[idx_lay] > Float(0.)) && (tau_loc[idx_lay]*tau_loc[idx_lay]) > eps) ?
+            (Float(1.) - trans[idx_lay]) / tau_loc[idx_lay] - trans[idx_lay] : tau_loc[idx_lay] * (Float(.5) - Float(1.)/Float(3.)*tau_loc[idx_lay]);
 
-        // CvH FIX
-        // Float src_inc = (Float(1.) - trans[idx]) * lev_source_inc[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_inc[idx]);
-        // Float src_dec = (Float(1.) - trans[idx]) * lev_source_dec[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_dec[idx]);
+        Float src_inc = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev_p] + Float(2.) * fact * (lay_source[idx_lay]-lev_source[idx_lev_p]);
+        Float src_dec = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev  ] + Float(2.) * fact * (lay_source[idx_lay]-lev_source[idx_lev  ]);
 
-        // source_dn[idx] = top_at_1 ? src_inc : src_dec;
-        // source_up[idx] = top_at_1 ? src_dec : src_inc;
+        source_dn[idx_lay] = top_at_1 ? src_inc : src_dec;
+        source_up[idx_lay] = top_at_1 ? src_dec : src_inc;
     }
 }
 
