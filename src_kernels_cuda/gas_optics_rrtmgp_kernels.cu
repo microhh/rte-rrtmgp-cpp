@@ -233,7 +233,7 @@ void Planck_source_kernel(
 
     // Input arrays
     const Index_2d tlay          (tlay_ptr, ncol, nlay);
-    const Index_2d tlev          (tlev_ptr, ncol, nlay);
+    const Index_2d tlev          (tlev_ptr, ncol, nlay+1);
     const Index_1d tsfc          (tsfc_ptr, ncol);
     const Index_6d fmajor        (fmajor_ptr, 2, 2, 2, ncol, nlay, nflav);
     const Index_4d jeta          (jeta_ptr, 2, ncol, nlay, nflav);
