@@ -119,11 +119,15 @@ void lw_solver_noscat_step_1_kernel(
         tau_loc[idx_lay] = tau[idx_lay] * D[idx_D];
         trans[idx_lay] = exp(-tau_loc[idx_lay]);
 
-        const Float fact = ( (tau_loc[idx_lay] > Float(0.)) && (tau_loc[idx_lay]*tau_loc[idx_lay]) > eps) ?
-            (Float(1.) - trans[idx_lay]) / tau_loc[idx_lay] - trans[idx_lay] : tau_loc[idx_lay] * (Float(.5) - Float(1.)/Float(3.)*tau_loc[idx_lay]);
+        const Float tau_thres = sqrt(sqrt(eps));
 
-        Float src_inc = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev_p] + Float(2.) * fact * (lay_source[idx_lay]-lev_source[idx_lev_p]);
-        Float src_dec = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev  ] + Float(2.) * fact * (lay_source[idx_lay]-lev_source[idx_lev  ]);
+        const Float fact =
+            tau_loc[idx_lay] > tau_thres ?
+            (Float(1.) - trans[idx_lay]) / tau_loc[idx_lay] - trans[idx_lay] :
+            tau_loc[idx_lay] * (Float(.5) + tau_loc[idx_lay] * ( Float(-1./3.) + tau_loc[idx_lay] * Float(1./8.) ) );
+
+        Float src_inc = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev_p] + Float(2.) * fact * (lay_source[idx_lay] - lev_source[idx_lev_p]);
+        Float src_dec = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev  ] + Float(2.) * fact * (lay_source[idx_lay] - lev_source[idx_lev  ]);
 
         source_dn[idx_lay] = top_at_1 ? src_inc : src_dec;
         source_up[idx_lay] = top_at_1 ? src_dec : src_inc;
