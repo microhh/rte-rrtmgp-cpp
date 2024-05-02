@@ -134,7 +134,7 @@ struct Index_1d
         data(data) {}
     __device__ __forceinline__ T& operator()(const int i1) { return data[i1-1]; }
     __device__ __forceinline__ const T& operator()(const int i1) const { return data[i1-1]; }
-    T* data;
+    T* __restrict__ data;
 };
 
 
@@ -145,7 +145,7 @@ struct Index_2d
         data(data), s2(n1) {}
     __device__ __forceinline__ T& operator()(const int i1, const int i2) { return data[(i1-1) + (i2-1)*s2]; }
     __device__ __forceinline__ const T& operator()(const int i1, const int i2) const { return data[(i1-1) + (i2-1)*s2]; }
-    T* data;
+    T* __restrict__ data;
     const int s2;
 };
 
@@ -157,7 +157,7 @@ struct Index_3d
         data(data), s2(n1), s3(n1*n2) {}
     __device__ __forceinline__ T& operator()(const int i1, const int i2, const int i3) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3]; }
     __device__ __forceinline__ const T& operator()(const int i1, const int i2, const int i3) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3]; }
-    T* data;
+    T* __restrict__ data;
     const int s2;
     const int s3;
 };
@@ -170,7 +170,7 @@ struct Index_4d
         data(data), s2(n1), s3(n1*n2), s4(n1*n2*n3) {}
     __device__ __forceinline__ T& operator()(const int i1, const int i2, const int i3, const int i4) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4]; }
     __device__ __forceinline__ const T& operator()(const int i1, const int i2, const int i3, const int i4) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4]; }
-    T* data;
+    T* __restrict__ data;
     const int s2;
     const int s3;
     const int s4;
@@ -184,7 +184,7 @@ struct Index_6d
         data(data), s2(n1), s3(n1*n2), s4(n1*n2*n3), s5(n1*n2*n3*n4), s6(n1*n2*n3*n4*n5) {}
     __device__ __forceinline__ T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4 + (i5-1)*s5 + (i6-1)*s6]; }
     __device__ __forceinline__ const T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4 + (i5-1)*s5 + (i6-1)*s6]; }
-    T* data;
+    T* __restrict__ data;
     const int s2;
     const int s3;
     const int s4;
@@ -231,25 +231,25 @@ void Planck_source_kernel(
     const int ilay = blockIdx.y*blockDim.y + threadIdx.y + 1;
 
     // Input arrays, use Index functor to simplify index porting from Fortran to CUDA
-    const Index_2d tlay          (tlay_ptr, ncol, nlay);
-    const Index_2d tlev          (tlev_ptr, ncol, nlay+1);
-    const Index_1d tsfc          (tsfc_ptr, ncol);
-    const Index_6d fmajor        (fmajor_ptr, 2, 2, 2, ncol, nlay, nflav);
-    const Index_4d jeta          (jeta_ptr, 2, ncol, nlay, nflav);
-    const Index_2d tropo         (tropo_ptr, ncol, nlay);
-    const Index_2d jtemp         (jtemp_ptr, ncol, nlay);
-    const Index_2d jpress        (jpress_ptr, ncol, nlay);
-    const Index_1d gpoint_bands  (gpoint_bands_ptr, ngpt);
-    const Index_2d band_lims_gpt (band_lims_gpt_ptr, 2, nbnd);
-    const Index_4d pfracin       (pfracin_ptr, ntemp, neta, npres+1, ngpt); 
-    const Index_2d totplnk       (totplnk_ptr, nPlanckTemp, nbnd);
-    const Index_2d gpoint_flavor (gpoint_flavor_ptr, 2, ngpt);
+    const Index_2d<const Float> tlay        (tlay_ptr, ncol, nlay);
+    const Index_2d<const Float> tlev        (tlev_ptr, ncol, nlay+1);
+    const Index_1d<const Float> tsfc        (tsfc_ptr, ncol);
+    const Index_6d<const Float> fmajor      (fmajor_ptr, 2, 2, 2, ncol, nlay, nflav);
+    const Index_4d<const int> jeta          (jeta_ptr, 2, ncol, nlay, nflav);
+    const Index_2d<const Bool> tropo        (tropo_ptr, ncol, nlay);
+    const Index_2d<const int> jtemp         (jtemp_ptr, ncol, nlay);
+    const Index_2d<const int> jpress        (jpress_ptr, ncol, nlay);
+    const Index_1d<const int> gpoint_bands  (gpoint_bands_ptr, ngpt);
+    const Index_2d<const int> band_lims_gpt (band_lims_gpt_ptr, 2, nbnd);
+    const Index_4d<const Float> pfracin     (pfracin_ptr, ntemp, neta, npres+1, ngpt); 
+    const Index_2d<const Float> totplnk     (totplnk_ptr, nPlanckTemp, nbnd);
+    const Index_2d<const int> gpoint_flavor (gpoint_flavor_ptr, 2, ngpt);
 
     // Output arrays
-    Index_2d sfc_src(sfc_src_ptr, ncol, ngpt);
-    Index_3d lay_src(lay_src_ptr, ncol, nlay, ngpt);
-    Index_3d lev_src(lev_src_ptr, ncol, nlay+1, ngpt);
-    Index_2d sfc_src_jac(sfc_src_jac_ptr, ncol, ngpt);
+    Index_2d<Float> sfc_src(sfc_src_ptr, ncol, ngpt);
+    Index_3d<Float> lay_src(lay_src_ptr, ncol, nlay, ngpt);
+    Index_3d<Float> lev_src(lev_src_ptr, ncol, nlay+1, ngpt);
+    Index_2d<Float> sfc_src_jac(sfc_src_jac_ptr, ncol, ngpt);
 
     if ( (icol <= ncol) && (ilay <= nlay) )
     {
