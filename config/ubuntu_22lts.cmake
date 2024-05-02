@@ -29,7 +29,7 @@ if(USECUDA)
   set(USER_CUDA_FLAGS_RELEASE "-Xptxas -O3 -DNDEBUG")
   set(USER_CUDA_FLAGS_DEBUG "-Xptxas -O0 -g -G -DCUDACHECKS")
   # add_definitions(-DRTE_RRTMGP_GPU_MEMPOOL_OWN)
-  # add_definitions(-DRTE_RRTMGP_GPU_MEMPOOL_CUDA)
+  add_definitions(-DRTE_RRTMGP_GPU_MEMPOOL_CUDA)
 endif()
 
 add_definitions(-DRTE_USE_CBOOL)
