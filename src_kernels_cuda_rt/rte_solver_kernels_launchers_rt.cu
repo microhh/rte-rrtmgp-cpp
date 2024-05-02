@@ -83,15 +83,6 @@ namespace Rte_solver_kernels_cuda_rt
         dim3 grid_gpu1d(grid_col1d, 1, 1);
         dim3 block_gpu1d(block_col1d, 1, 1);
 
-        const int block_col2d = 96;
-        const int block_lay2d = 1;
-
-        const int grid_col2d = ncol/block_col2d + (ncol%block_col2d > 0);
-        const int grid_lay2d = (nlay+1)/block_lay2d + ((nlay+1)%block_lay2d > 0);
-
-        dim3 grid_gpu2d(grid_col2d, grid_lay2d, 1);
-        dim3 block_gpu2d(block_col2d, block_lay2d, 1);
-
         const int top_level = top_at_1 ? 0 : nlay;
 
         // Step 1.
@@ -265,9 +256,6 @@ namespace Rte_solver_kernels_cuda_rt
 
         Float* r_dif = Tools_gpu::allocate_gpu<Float>(opt_size);
         Float* t_dif = Tools_gpu::allocate_gpu<Float>(opt_size);
-        Float* r_dir = nullptr;
-        Float* t_dir = nullptr;
-        Float* t_noscat = nullptr;
         Float* source_up = Tools_gpu::allocate_gpu<Float>(opt_size);
         Float* source_dn = Tools_gpu::allocate_gpu<Float>(opt_size);
         Float* source_sfc = Tools_gpu::allocate_gpu<Float>(sfc_size);
@@ -275,7 +263,7 @@ namespace Rte_solver_kernels_cuda_rt
         Float* src = Tools_gpu::allocate_gpu<Float>(flx_size);
         Float* denom = Tools_gpu::allocate_gpu<Float>(opt_size);
 
-        dim3 grid_source{ncol, 1}, block_source;
+        dim3 grid_source(ncol, 1), block_source;
 
 
         // Step 1.

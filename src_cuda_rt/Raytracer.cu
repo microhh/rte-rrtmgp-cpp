@@ -278,8 +278,6 @@ void Raytracer::trace_rays(
     Float photons_per_thread_tmp = std::max(Float(1), static_cast<Float>(photons_total) / (rt_kernel_grid * rt_kernel_block));
     Int photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
     
-    dim3 grid,block;
-    
     // with very low number of columns and photons_per_pixel, we may have too many threads firing a single photons, actually exceeding photons_per pixel
     // In that case, reduce grid and block size
     Int actual_photons_per_pixel = photons_per_thread * rt_kernel_grid * rt_kernel_block / (qrng_grid_x * qrng_grid_y);
@@ -298,8 +296,8 @@ void Raytracer::trace_rays(
         actual_photons_per_pixel = photons_per_thread * rt_kernel_grid_size * rt_kernel_block_size / (qrng_grid_x * qrng_grid_y);
     }
     
-    grid = {rt_kernel_grid_size};
-    block = {rt_kernel_block_size};
+    dim3 grid(rt_kernel_grid_size);
+    dim3 block(rt_kernel_block_size);
     
     const int mie_table_size = mie_cdf.size();
     

@@ -9,8 +9,6 @@ namespace
     using namespace Raytracer_functions;
 
     constexpr Float w_thres = 0.5;
-    //constexpr Float solar_cone_cos_half_angle = Float(0.9961947); // cos(Float(5.0) / Float(180.) * M_PI;)
-    constexpr Float solar_cone_cos_half_angle = Float(0.99904823); // cos(Float(2.5) / Float(180.) * M_PI;)
 
     struct Quasi_random_number_generator_2d
     {
@@ -112,6 +110,8 @@ namespace
         const Vector<T>& sun_direction,
         const Vector<T>& photon_dir)
     {
+        // constexpr Float solar_cone_cos_half_angle = Float(0.9961947); // cos(Float(5.0) / Float(180.) * M_PI;)
+        constexpr Float solar_cone_cos_half_angle = Float(0.99904823); // cos(Float(2.5) / Float(180.) * M_PI;)
         return dot(sun_direction, photon_dir) > solar_cone_cos_half_angle;
     }
 }
