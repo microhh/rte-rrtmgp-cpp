@@ -124,6 +124,10 @@ namespace Optical_props_kernels_cuda
 
         if (tunings.count("inc_2stream_by_2stream_bybnd_kernel") == 0)
         {
+            Float* tau_inout_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*nlay*ncol);
+            Float* ssa_inout_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*nlay*ncol);
+            Float* g_inout_tmp   = Tools_gpu::allocate_gpu<Float>(ngpt*nlay*ncol);
+
             std::tie(grid, block) = tune_kernel(
                     "inc_2stream_by_2stream_bybnd_kernel",
                     dim3(ncol, nlay, ngpt),
@@ -132,9 +136,13 @@ namespace Optical_props_kernels_cuda
                     {1, 2, 3, 4, 8, 12, 16, 24},
                     inc_2stream_by_2stream_bybnd_kernel,
                     ncol, nlay, ngpt, eps,
-                    tau_inout, ssa_inout, g_inout,
+                    tau_inout_tmp, ssa_inout_tmp, g_inout_tmp,
                     tau_in, ssa_in, g_in,
                     nbnd, band_lims_gpoint);
+
+            Tools_gpu::free_gpu<Float>(tau_inout_tmp);
+            Tools_gpu::free_gpu<Float>(ssa_inout_tmp);
+            Tools_gpu::free_gpu<Float>(g_inout_tmp);
 
             tunings["inc_2stream_by_2stream_bybnd_kernel"].first = grid;
             tunings["inc_2stream_by_2stream_bybnd_kernel"].second = block;
