@@ -248,7 +248,7 @@ void ray_tracer_kernel(
                 //     write_photon_out(&surface_down_diffuse_count[ij], weight);
 
                 // Update weights and add upward surface flux
-                const Float local_albedo = surface_albedo[0];
+                const Float local_albedo = surface_albedo[ij];
                 weight *= local_albedo;
                 write_photon_out(&surface_up_count[ij], weight);
 
