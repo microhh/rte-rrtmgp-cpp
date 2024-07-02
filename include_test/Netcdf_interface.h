@@ -264,7 +264,7 @@ inline Netcdf_file::Netcdf_file(const std::string& name, Netcdf_mode mode) :
     int nc_check_code = 0;
 
     if (mode == Netcdf_mode::Create)
-        nc_check_code = nc_create(name.c_str(), NC_NOCLOBBER | NC_NETCDF4, &ncid);
+        nc_check_code = nc_create(name.c_str(), NC_CLOBBER | NC_NETCDF4, &ncid);
     else if (mode == Netcdf_mode::Write)
         nc_check_code = nc_open(name.c_str(), NC_WRITE | NC_NETCDF4, &ncid);
     else if (mode == Netcdf_mode::Read)
