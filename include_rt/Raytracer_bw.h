@@ -96,6 +96,15 @@ class Raytracer_bw
                 const Float total_source,
                 Array_gpu<Float,3>& XYZ);
 
+        void accumulate_clouds(
+                const Vector<Float>& grid_d,
+                const Vector<int>& grid_cells,
+                const Array_gpu<Float,2>& lwp,
+                const Array_gpu<Float,2>& iwp,
+                const Camera& camera,
+                Array_gpu<Float,2>& lwp_cam,
+                Array_gpu<Float,2>& iwp_cam);
+
     private:
 
 };

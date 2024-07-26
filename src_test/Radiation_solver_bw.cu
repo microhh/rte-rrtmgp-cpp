@@ -783,6 +783,7 @@ void Radiation_solver_shortwave::solve_gpu(
         const bool switch_lu_albedo,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
+        const bool switch_cloud_cam,
         const Vector<int>& grid_cells,
         const Vector<Float>& grid_d,
         const Vector<int>& kn_grid,
@@ -801,7 +802,9 @@ void Radiation_solver_shortwave::solve_gpu(
         const Array_gpu<Float,2>& rh,
         const Aerosol_concs_gpu& aerosol_concs,
         const Camera& camera,
-        Array_gpu<Float,3>& XYZ)
+        Array_gpu<Float,3>& XYZ,
+        Array_gpu<Float,2>& lwp_cam,
+        Array_gpu<Float,2>& iwp_cam)
 
 {
     const int n_col = p_lay.dim(1);
@@ -1053,6 +1056,18 @@ void Radiation_solver_shortwave::solve_gpu(
         }
         previous_band = band;
     }
+    
+    if (switch_cloud_cam)
+    {
+        raytracer.accumulate_clouds(
+                grid_d,
+                grid_cells,
+                lwp,
+                iwp,
+                camera,
+                lwp_cam,
+                iwp_cam);
+    }
 }
 
 void Radiation_solver_shortwave::solve_gpu_bb(
@@ -1062,6 +1077,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
         const bool switch_lu_albedo,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
+        const bool switch_cloud_cam,
         const Vector<int>& grid_cells,
         const Vector<Float>& grid_d,
         const Vector<int>& kn_grid,
@@ -1080,7 +1096,9 @@ void Radiation_solver_shortwave::solve_gpu_bb(
         const Array_gpu<Float,2>& rh,
         const Aerosol_concs_gpu& aerosol_concs,
         const Camera& camera,
-        Array_gpu<Float,2>& radiance)
+        Array_gpu<Float,2>& radiance,
+        Array_gpu<Float,2>& lwp_cam,
+        Array_gpu<Float,2>& iwp_cam)
 
 {
     const int n_col = p_lay.dim(1);
@@ -1283,5 +1301,17 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                 radiance);
 
         previous_band = band;
+    }
+
+    if (switch_cloud_cam)
+    {
+        raytracer.accumulate_clouds(
+                grid_d,
+                grid_cells,
+                lwp,
+                iwp,
+                camera,
+                lwp_cam,
+                iwp_cam);
     }
 }

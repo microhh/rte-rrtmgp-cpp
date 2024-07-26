@@ -157,6 +157,7 @@ class Radiation_solver_shortwave
                 const bool switch_lu_albedo,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
+                const bool switch_cloud_cam,
                 const Vector<int>& grid_cells,
                 const Vector<Float>& grid_d,
                 const Vector<int>& kn_grid,
@@ -175,7 +176,9 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,2>& rh,
                 const Aerosol_concs_gpu& aerosol_concs,
                 const Camera& camera,
-                Array_gpu<Float,3>& XYZ);
+                Array_gpu<Float,3>& XYZ,
+                Array_gpu<Float,2>& lwp_cam,
+                Array_gpu<Float,2>& iwp_cam);
         #endif
 
         #ifdef __CUDACC__
@@ -186,6 +189,7 @@ class Radiation_solver_shortwave
                 const bool switch_lu_albedo,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
+                const bool switch_cloud_cam,
                 const Vector<int>& grid_cells,
                 const Vector<Float>& grid_d,
                 const Vector<int>& kn_grid,
@@ -204,7 +208,9 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,2>& rh,
                 const Aerosol_concs_gpu& aerosol_concs,
                 const Camera& camera,
-                Array_gpu<Float,2>& radiance);
+                Array_gpu<Float,2>& radiance,
+                Array_gpu<Float,2>& lwp_cam,
+                Array_gpu<Float,2>& iwp_cam);
 
         int get_n_gpt_gpu() const { return this->kdist_gpu->get_ngpt(); };
         int get_n_bnd_gpu() const { return this->kdist_gpu->get_nband(); };

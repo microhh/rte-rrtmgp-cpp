@@ -116,4 +116,16 @@ void ray_tracer_kernel_bw(
         const Float* __restrict__ mie_phase,
         const Float* __restrict__ mie_phase_ang,
         const int mie_table_size);
+            
+__global__
+void accumulate_clouds_kernel(
+    const Float* __restrict__ lwp, 
+    const Float* __restrict__ iwp, 
+    const Vector<Float> grid_d,
+    const Vector<Float> grid_size,
+    const Vector<int> grid_cells,
+    Float* __restrict__ lwp_cam, 
+    Float* __restrict__ iwp_cam, 
+    const Camera camera);
+
 #endif

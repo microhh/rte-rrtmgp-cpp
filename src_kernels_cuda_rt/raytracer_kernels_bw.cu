@@ -738,4 +738,89 @@ void ray_tracer_kernel_bw(
         }
     }
 }
+    __global__
+    void accumulate_clouds_kernel(
+            const Float* __restrict__ lwp, 
+            const Float* __restrict__ iwp, 
+            const Vector<Float> grid_d,
+            const Vector<Float> grid_size,
+            const Vector<int> grid_cells,
+            Float* __restrict__ lwp_cam, 
+            Float* __restrict__ iwp_cam, 
+            const Camera camera)
+    {
+        const int pix = blockDim.x * blockIdx.x + threadIdx.x;
+        const Float s_eps = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
+        Vector<Float> direction; 
+        Vector<Float> position;
+
+        if (pix < camera.nx * camera.ny)
+        {
+            Float lwp_sum = 0;
+            Float iwp_sum = 0;
+
+            //const int pix = n * pixels_per_thread + ipix;
+            const Float i = (Float(pix % camera.nx) + Float(0.5))/ Float(camera.nx);
+            const Float j = (Float(pix / camera.nx) + Float(0.5))/ Float(camera.ny);
+
+            position = camera.position;
+
+            if (camera.fisheye)
+            {
+                const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
+                const Float photon_azimuth = j * Float(2.) * M_PI;
+                const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
+
+                direction = {dot(camera.mx,  dir_tmp), dot(camera.my,  dir_tmp), dot(camera.mz,  dir_tmp) * Float(-1)};
+            }
+            else
+            {
+                direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
+            }
+            
+            while (position.z < grid_size.z - s_eps)
+            {
+                const int i = float_to_int(position.x, grid_d.x, grid_cells.x);
+                const int j = float_to_int(position.y, grid_d.y, grid_cells.y);
+                const int k = float_to_int(position.z, grid_d.z, grid_cells.z);
+                const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
+                
+                const Float sx = abs((direction.x > 0) ? ((i+1) * grid_d.x - position.x)/direction.x : (i*grid_d.x - position.x)/direction.x);
+                const Float sy = abs((direction.y > 0) ? ((j+1) * grid_d.y - position.y)/direction.y : (j*grid_d.y - position.y)/direction.y);
+                const Float sz = abs((direction.z > 0) ? ((k+1) * grid_d.z - position.z)/direction.z : (k*grid_d.z - position.z)/direction.z);
+                const Float s_min = min(sx, min(sy, sz));
+                
+                lwp_sum += s_min * lwp[ijk];
+                iwp_sum += s_min * iwp[ijk];
+
+                position = position + direction * s_min;
+
+                position.x += direction.x >= 0 ? s_eps : -s_eps;
+                position.y += direction.y >= 0 ? s_eps : -s_eps;
+                position.z += direction.z >= 0 ? s_eps : -s_eps;
+                        
+                // Cyclic boundary condition in x.
+                position.x = fmod(position.x, grid_size.x);
+                if (position.x < Float(0.))
+                    position.x += grid_size.x;
+
+                // Cyclic boundary condition in y.
+                position.y = fmod(position.y, grid_size.y);
+                if (position.y < Float(0.))
+                    position.y += grid_size.y;
+
+            }
+            
+            // divide out initial layer thicknes, equivalent to first converting lwp (kg/m2) to lwc (kg/m3) 
+            lwp_cam[pix] = lwp_sum / grid_d.z;
+            iwp_cam[pix] = iwp_sum / grid_d.z;
+
+        }
+
+
+
+
+    }
+
+
 

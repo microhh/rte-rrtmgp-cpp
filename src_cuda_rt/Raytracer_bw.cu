@@ -660,4 +660,47 @@ void Raytracer_bw::trace_rays_bb(
             flux_camera.ptr());
 
 }
+void Raytracer_bw::accumulate_clouds(
+        const Vector<Float>& grid_d,
+        const Vector<int>& grid_cells,
+        const Array_gpu<Float,2>& lwp,
+        const Array_gpu<Float,2>& iwp,
+        const Camera& camera,
+        Array_gpu<Float,2>& lwp_cam,
+        Array_gpu<Float,2>& iwp_cam)
+{
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, lwp_cam.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, iwp_cam.ptr());
+    
+    const int n_pix = camera.nx * camera.ny;
+    const int n_block = std::min(n_pix, 512);
+    const int n_grid = std::ceil(Float(n_pix)/n_block);
 
+    dim3 grid(n_grid);
+    dim3 block(n_block);
+
+    // domain sizes
+    const Vector<Float> grid_size = grid_d * grid_cells;
+    
+    accumulate_clouds_kernel<<<grid, block>>>(
+        lwp.ptr(),
+        iwp.ptr(),
+        grid_d,
+        grid_size,
+        grid_cells,
+        lwp_cam.ptr(),
+        iwp_cam.ptr(),
+        camera);
+
+}
+
+
+            
+            
+            
+            
+            
+            
+            
+            
+            

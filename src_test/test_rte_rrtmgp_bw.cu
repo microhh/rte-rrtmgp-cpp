@@ -248,7 +248,8 @@ void solve_radiation(int argc, char** argv)
         {"broadband"        , { false, "Compute broadband fluxes"                    }},
         {"profiling"        , { false, "Perform additional profiling run."           }},
         {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties" }}};
+        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties" }},
+        {"cloud-cam"        , { false, "accumulate cloud water & ice paths for each camera pixel" }}};
     int photons_per_pixel = 1;
 
     if (parse_command_line_options(command_line_options, photons_per_pixel, argc, argv))
@@ -268,6 +269,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_options.at("profiling"        ).first;
     const bool switch_delta_cloud       = command_line_options.at("delta-cloud"      ).first;
     const bool switch_delta_aerosol     = command_line_options.at("delta-aerosol"    ).first;
+    const bool switch_cloud_cam         = command_line_options.at("cloud-cam"          ).first;
 
     if (switch_longwave)
     {
@@ -378,14 +380,17 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> rel;
     Array<Float,2> rei;
 
-    if (switch_cloud_optics)
+    if (switch_cloud_optics || switch_cloud_cam)
     {
         lwp.set_dims({n_col, n_lay});
         lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
 
         iwp.set_dims({n_col, n_lay});
         iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
-
+    }
+    
+    if (switch_cloud_optics)
+    {
         rel.set_dims({n_col, n_lay});
         rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
 
@@ -397,6 +402,7 @@ void solve_radiation(int argc, char** argv)
         rel.set_dims({n_col, n_lay});
         rel.fill(Float(0.));
     }
+
     Array<Float,2> rh;
     Aerosol_concs aerosol_concs;
 
@@ -417,6 +423,8 @@ void solve_radiation(int argc, char** argv)
         read_and_set_aer("aermr10", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
         read_and_set_aer("aermr11", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
     }
+
+
 
     ////// CREATE THE OUTPUT FILE //////
     // Create the general dimensions and arrays.
@@ -687,6 +695,16 @@ void solve_radiation(int argc, char** argv)
             if (switch_cloud_mie)
                 rad_sw.load_mie_tables("mie_lut_visualisation.nc", switch_broadband);
         }
+        
+        Array_gpu<Float,2> lwp_cam;
+        Array_gpu<Float,2> iwp_cam;
+
+        if (switch_cloud_cam)
+        {
+            lwp_cam.set_dims({camera.nx, camera.ny});
+            iwp_cam.set_dims({camera.nx, camera.ny});
+        }
+        
         // Solve the radiation.
         Status::print_message("Solving the shortwave radiation.");
 
@@ -727,6 +745,7 @@ void solve_radiation(int argc, char** argv)
                     switch_lu_albedo,
                     switch_delta_cloud,
                     switch_delta_aerosol,
+                    switch_cloud_cam,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -745,7 +764,9 @@ void solve_radiation(int argc, char** argv)
                     rh_gpu,
                     aerosol_concs,
                     camera,
-                    radiance);
+                    radiance,
+                    lwp_cam,
+                    iwp_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -796,6 +817,7 @@ void solve_radiation(int argc, char** argv)
                     switch_lu_albedo,
                     switch_delta_cloud,
                     switch_delta_aerosol,
+                    switch_cloud_cam,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -814,7 +836,9 @@ void solve_radiation(int argc, char** argv)
                     rh_gpu,
                     aerosol_concs,
                     camera,
-                    XYZ);
+                    XYZ,
+                    lwp_cam,
+                    iwp_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -888,6 +912,24 @@ void solve_radiation(int argc, char** argv)
             
             nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
         }
+        
+        if (switch_cloud_cam)
+        {
+            Array<Float,2> lwp_cam_cpu(lwp_cam);
+            Array<Float,2> iwp_cam_cpu(iwp_cam);
+            
+            auto nc_var_liq = output_nc.add_variable<Float>("lwp_cam", {"y","x"});
+            nc_var_liq.insert(lwp_cam_cpu.v(), {0, 0});
+            nc_var_liq.add_attribute("long_name", "accumulated liquid water path");
+            
+            auto nc_var_ice = output_nc.add_variable<Float>("iwp_cam", {"y","x"});
+            nc_var_ice.insert(iwp_cam_cpu.v(), {0, 0});
+            nc_var_ice.add_attribute("long_name", "accumulated ice water path");
+
+
+        }
+
+
         auto nc_mu0 = output_nc.add_variable<Float>("sza");
         nc_mu0.insert(acos(mu0({1}))/M_PI * Float(180.), {0});
 
