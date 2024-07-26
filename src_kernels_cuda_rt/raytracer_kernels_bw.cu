@@ -778,7 +778,7 @@ void ray_tracer_kernel_bw(
                 direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
             }
             
-            while (position.z < grid_size.z - s_eps)
+            while ((position.z < grid_size.z - s_eps) && (position.z > s_eps))
             {
                 const int i = float_to_int(position.x, grid_d.x, grid_cells.x);
                 const int j = float_to_int(position.y, grid_d.y, grid_cells.y);
