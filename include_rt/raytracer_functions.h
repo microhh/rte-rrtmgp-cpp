@@ -20,6 +20,8 @@ namespace Raytracer_functions
     template<typename T> static inline __host__ __device__
     Vector<T> operator-(const Vector<T> v1, const Vector<T> v2) { return Vector<T>{v1.x-v2.x, v1.y-v2.y, v1.z-v2.z}; }
     template<typename T> static inline __host__ __device__
+    Vector<T> operator-(const Vector<T> v, const Float s) { return Vector<T>{v.x-s, v.y-s, v.z-s}; }
+    template<typename T> static inline __host__ __device__
     Vector<T> operator+(const Vector<T> v, const Float s) { return Vector<T>{s+v.x, s+v.y, s+v.z}; }
     template<typename T> static inline __host__ __device__
     Vector<T> operator+(const Vector<T> v1, const Vector<T> v2) { return Vector<T>{v1.x+v2.x, v1.y+v2.y, v1.z+v2.z}; }

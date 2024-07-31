@@ -778,7 +778,14 @@ void ray_tracer_kernel_bw(
                 direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
             }
             
-            while ((position.z < grid_size.z - s_eps) && (position.z > s_eps))
+            // first bring photon to top of dynamical domain
+            if ((position.z >= (grid_size.z - s_eps)) && (direction.z < Float(0.)))
+            {
+                const Float s = abs((position.z - grid_size.z)/direction.z);
+                position = position + direction * s - s_eps;
+            }
+
+            while ((position.z <= grid_size.z - s_eps) && (position.z > s_eps))
             {
                 const int i = float_to_int(position.x, grid_d.x, grid_cells.x);
                 const int j = float_to_int(position.y, grid_d.y, grid_cells.y);
