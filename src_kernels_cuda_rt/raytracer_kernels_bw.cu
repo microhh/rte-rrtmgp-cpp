@@ -795,7 +795,7 @@ void ray_tracer_kernel_bw(
                     position.y += grid_size.y;
             }
 
-            while ((position.z <= grid_size.z - s_eps) && (position.z > s_eps))
+            while ((position.z <= grid_size.z - s_eps) && (position.z >= s_eps))
             {
                 const int i = float_to_int(position.x, grid_d.x, grid_cells.x);
                 const int j = float_to_int(position.y, grid_d.y, grid_cells.y);
