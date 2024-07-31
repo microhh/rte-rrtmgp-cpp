@@ -783,6 +783,16 @@ void ray_tracer_kernel_bw(
             {
                 const Float s = abs((position.z - grid_size.z)/direction.z);
                 position = position + direction * s - s_eps;
+                
+                // Cyclic boundary condition in x.
+                position.x = fmod(position.x, grid_size.x);
+                if (position.x < Float(0.))
+                    position.x += grid_size.x;
+
+                // Cyclic boundary condition in y.
+                position.y = fmod(position.y, grid_size.y);
+                if (position.y < Float(0.))
+                    position.y += grid_size.y;
             }
 
             while ((position.z <= grid_size.z - s_eps) && (position.z > s_eps))
