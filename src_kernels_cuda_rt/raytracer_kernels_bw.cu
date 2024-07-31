@@ -763,7 +763,7 @@ void ray_tracer_kernel_bw(
             const Float i = (Float(pix % camera.nx) + Float(0.5))/ Float(camera.nx);
             const Float j = (Float(pix / camera.nx) + Float(0.5))/ Float(camera.ny);
 
-            position = camera.position;
+            position = camera.position + s_eps;
 
             if (camera.fisheye)
             {
