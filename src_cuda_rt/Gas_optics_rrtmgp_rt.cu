@@ -831,33 +831,38 @@ void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
     const int minor_start_lower = first_last_minor_lower({1, igpt});
     const int minor_end_lower   = first_last_minor_lower({2, igpt});
 
-    for (int imnr=minor_start_lower+1; imnr<=minor_end_lower+1; ++imnr)
+    if (minor_start_lower >= 0)
     {
-        const int minor_gas = idx_minor_lower({imnr});
-        add_if_not_in_vector(gases, minor_gas);
-
-        if ( (minor_scales_with_density_lower({imnr})) && (idx_minor_scaling_lower({imnr}) > 0))
+        for (int imnr=minor_start_lower+1; imnr<=minor_end_lower+1; ++imnr)
         {
-            const int scale_gas = idx_minor_scaling_lower({imnr});
-            add_if_not_in_vector(gases, scale_gas);
+            const int minor_gas = idx_minor_lower({imnr});
+            add_if_not_in_vector(gases, minor_gas);
+
+            if ( (minor_scales_with_density_lower({imnr})) && (idx_minor_scaling_lower({imnr}) > 0))
+            {
+                const int scale_gas = idx_minor_scaling_lower({imnr});
+                add_if_not_in_vector(gases, scale_gas);
+            }
         }
     }
 
     const int minor_start_upper = first_last_minor_upper({1, igpt});
     const int minor_end_upper   = first_last_minor_upper({2, igpt});
 
-    for (int imnr=minor_start_upper+1; imnr<=minor_end_upper+1; ++imnr)
+    if (minor_start_upper >= 0)
     {
-        const int minor_gas = idx_minor_upper({imnr});
-        add_if_not_in_vector(gases, minor_gas);
-
-        if ( (minor_scales_with_density_upper({imnr})) && (idx_minor_scaling_upper({imnr}) > 0))
+        for (int imnr=minor_start_upper+1; imnr<=minor_end_upper+1; ++imnr)
         {
-            const int scale_gas = idx_minor_scaling_upper({imnr});
-            add_if_not_in_vector(gases, scale_gas);
+            const int minor_gas = idx_minor_upper({imnr});
+            add_if_not_in_vector(gases, minor_gas);
+
+            if ( (minor_scales_with_density_upper({imnr})) && (idx_minor_scaling_upper({imnr}) > 0))
+            {
+                const int scale_gas = idx_minor_scaling_upper({imnr});
+                add_if_not_in_vector(gases, scale_gas);
+            }
         }
     }
-
 }
 
 __global__

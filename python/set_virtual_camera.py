@@ -61,11 +61,12 @@ if args['radiance']:
     cam["roll"][:]  = 0
     cam["fisheye"][:]= 1
     cam["f_zoom"][:]= 1
+    cam["fov"][:] = 80
     cam["px"][:] = 0
     cam["py"][:] = 0
     cam["pz"][:] = 0
-    cam["nx"][:] = 1024
-    cam["ny"][:] = 1024
+    cam["nx"][:] = 256
+    cam["ny"][:] = 256
 
 # example imagery settings
 if args['image']:
@@ -73,12 +74,13 @@ if args['image']:
     cam["pitch"][:] = 0
     cam["roll"][:]  = 0
     cam["fisheye"][:]= 0
+    cam["f_zoom"][:]= 1
     cam["fov"][:] = 80
     cam["px"][:] = 0.
     cam["py"][:] = 0.
     cam["pz"][:] = 500.
-    cam["nx"][:] = 1024
-    cam["ny"][:] = 1024
+    cam["nx"][:] = 256
+    cam["ny"][:] = 256
 
 for var in camera_variables:
     if not args[var] is None:
