@@ -806,7 +806,8 @@ void Radiation_solver_shortwave::solve_gpu(
         Array_gpu<Float,3>& XYZ,
         Array_gpu<Float,2>& liwp_cam,
         Array_gpu<Float,2>& tauc_cam,
-        Array_gpu<Float,2>& dist_cam)
+        Array_gpu<Float,2>& dist_cam,
+        Array_gpu<Float,2>& zen_cam)
 
 {
     const int n_col = p_lay.dim(1);
@@ -1081,7 +1082,8 @@ void Radiation_solver_shortwave::solve_gpu(
                 camera,
                 liwp_cam,
                 tauc_cam,
-                dist_cam);
+                dist_cam,
+                zen_cam);
     }
 }
 
@@ -1115,7 +1117,8 @@ void Radiation_solver_shortwave::solve_gpu_bb(
         Array_gpu<Float,2>& radiance,
         Array_gpu<Float,2>& liwp_cam,
         Array_gpu<Float,2>& tauc_cam,
-        Array_gpu<Float,2>& dist_cam)
+        Array_gpu<Float,2>& dist_cam,
+        Array_gpu<Float,2>& zen_cam)
 {
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
@@ -1341,6 +1344,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                 camera,
                 liwp_cam,
                 tauc_cam,
-                dist_cam);
+                dist_cam,
+                zen_cam);
     }
 }

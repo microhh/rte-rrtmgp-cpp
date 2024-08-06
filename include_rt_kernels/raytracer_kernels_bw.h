@@ -128,6 +128,7 @@ void accumulate_clouds_kernel(
     Float* __restrict__ liwp_cam, 
     Float* __restrict__ tauc_cam, 
     Float* __restrict__ dist_cam, 
+    Float* __restrict__ zen_cam, 
     const Camera camera);
 
 #endif

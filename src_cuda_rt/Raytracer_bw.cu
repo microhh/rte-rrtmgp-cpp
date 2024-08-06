@@ -669,7 +669,8 @@ void Raytracer_bw::accumulate_clouds(
         const Camera& camera,
         Array_gpu<Float,2>& liwp_cam,
         Array_gpu<Float,2>& tauc_cam,
-        Array_gpu<Float,2>& dist_cam)
+        Array_gpu<Float,2>& dist_cam,
+        Array_gpu<Float,2>& zen_cam)
 {
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, liwp_cam.ptr());
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, tauc_cam.ptr());
@@ -695,6 +696,7 @@ void Raytracer_bw::accumulate_clouds(
         liwp_cam.ptr(),
         tauc_cam.ptr(),
         dist_cam.ptr(),
+        zen_cam.ptr(),
         camera);
 
 }

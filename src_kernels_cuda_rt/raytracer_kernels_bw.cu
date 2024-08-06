@@ -749,13 +749,14 @@ void ray_tracer_kernel_bw(
             Float* __restrict__ liwp_cam, 
             Float* __restrict__ tauc_cam, 
             Float* __restrict__ dist_cam, 
+            Float* __restrict__ zen_cam, 
             const Camera camera)
     {
         const int pix = blockDim.x * blockIdx.x + threadIdx.x;
         const Float s_eps = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
         Vector<Float> direction; 
         Vector<Float> position;
-
+    
         if (pix < camera.nx * camera.ny)
         {
             Float liwp_sum = 0;
@@ -841,7 +842,7 @@ void ray_tracer_kernel_bw(
             liwp_cam[pix] = liwp_sum / grid_d.z;
             tauc_cam[pix] = tauc_sum / grid_d.z;
             dist_cam[pix] = reached_cloud ? dist : Float(-1) ;
-
+            zen_cam[pix] = acos(direction.z);
         }
 
 

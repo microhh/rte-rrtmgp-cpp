@@ -105,7 +105,8 @@ class Raytracer_bw
                 const Camera& camera,
                 Array_gpu<Float,2>& liwp_cam,
                 Array_gpu<Float,2>& tauc_cam,
-                Array_gpu<Float,2>& dist_cam);
+                Array_gpu<Float,2>& dist_cam,
+                Array_gpu<Float,2>& zen_cam);
 
     private:
 

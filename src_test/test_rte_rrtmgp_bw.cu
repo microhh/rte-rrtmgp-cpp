@@ -697,12 +697,14 @@ void solve_radiation(int argc, char** argv)
         Array_gpu<Float,2> liwp_cam;
         Array_gpu<Float,2> tauc_cam;
         Array_gpu<Float,2> dist_cam;
+        Array_gpu<Float,2> zen_cam;
 
         if (switch_cloud_cam)
         {
             liwp_cam.set_dims({camera.nx, camera.ny});
             tauc_cam.set_dims({camera.nx, camera.ny});
             dist_cam.set_dims({camera.nx, camera.ny});
+            zen_cam.set_dims({camera.nx, camera.ny});
         }
         
         // Solve the radiation.
@@ -768,7 +770,8 @@ void solve_radiation(int argc, char** argv)
                     radiance,
                     liwp_cam,
                     tauc_cam,
-                    dist_cam);
+                    dist_cam,
+                    zen_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -842,7 +845,8 @@ void solve_radiation(int argc, char** argv)
                     XYZ,
                     liwp_cam,
                     tauc_cam,
-                    dist_cam);
+                    dist_cam,
+                    zen_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -925,6 +929,7 @@ void solve_radiation(int argc, char** argv)
             Array<Float,2> liwp_cam_cpu(liwp_cam);
             Array<Float,2> tauc_cam_cpu(tauc_cam);
             Array<Float,2> dist_cam_cpu(dist_cam);
+            Array<Float,2> zen_cam_cpu(zen_cam);
             
             auto nc_var_liwp = output_nc.add_variable<float>("liq_ice_wp_cam", {"y","x"});
             nc_var_liwp.insert(liwp_cam_cpu.v(), {0, 0});
@@ -937,6 +942,10 @@ void solve_radiation(int argc, char** argv)
             auto nc_var_dist = output_nc.add_variable<float>("dist_cld_cam", {"y","x"});
             nc_var_dist.insert(dist_cam_cpu.v(), {0, 0});
             nc_var_dist.add_attribute("long_name", "distance to first cloudy cell");
+            
+            auto nc_var_csza = output_nc.add_variable<float>("zen_cam", {"y","x"});
+            nc_var_csza.insert(zen_cam_cpu.v(), {0, 0});
+            nc_var_csza.add_attribute("long_name", "zenith angle of camera pixel");
         }
 
         auto nc_mu0 = output_nc.add_variable<Float>("sza");
