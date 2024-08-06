@@ -270,6 +270,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_cloud       = command_line_options.at("delta-cloud"      ).first;
     const bool switch_delta_aerosol     = command_line_options.at("delta-aerosol"    ).first;
     const bool switch_cloud_cam         = command_line_options.at("cloud-cam"          ).first;
+    const bool switch_raytracing        = command_line_options.at("raytracing"         ).first;
 
     if (switch_longwave)
     {
@@ -746,6 +747,7 @@ void solve_radiation(int argc, char** argv)
                     switch_delta_cloud,
                     switch_delta_aerosol,
                     switch_cloud_cam,
+                    switch_raytracing,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -818,6 +820,7 @@ void solve_radiation(int argc, char** argv)
                     switch_delta_cloud,
                     switch_delta_aerosol,
                     switch_cloud_cam,
+                    switch_raytracing,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -883,36 +886,39 @@ void solve_radiation(int argc, char** argv)
         // Store the output.
         Status::print_message("Storing the shortwave output.");
 
-        if (switch_broadband)
+        if (switch_raytracing)
         {
-            Array<Float,2> radiance_cpu(radiance);
-            output_nc.add_dimension("gpt_sw", n_gpt_sw);
-            output_nc.add_dimension("band_sw", n_bnd_sw);
+            if (switch_broadband)
+            {
+                Array<Float,2> radiance_cpu(radiance);
+                output_nc.add_dimension("gpt_sw", n_gpt_sw);
+                output_nc.add_dimension("band_sw", n_bnd_sw);
 
-            auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
-            nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
+                auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
+                nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
 
-            auto nc_var = output_nc.add_variable<Float>("radiance", {"y","x"});
-            nc_var.insert(radiance_cpu.v(), {0, 0});
-            nc_var.add_attribute("long_name", "shortwave radiance");
-            nc_var.add_attribute("units", "W m-2 sr-1");
+                auto nc_var = output_nc.add_variable<Float>("radiance", {"y","x"});
+                nc_var.insert(radiance_cpu.v(), {0, 0});
+                nc_var.add_attribute("long_name", "shortwave radiance");
+                nc_var.add_attribute("units", "W m-2 sr-1");
+            }
+            else
+            {
+                Array<Float,3> xyz_cpu(XYZ);
+                output_nc.add_dimension("gpt_sw", n_gpt_sw);
+                output_nc.add_dimension("band_sw", n_bnd_sw);
+                output_nc.add_dimension("n",3);
+
+                auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
+                nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
+
+                auto nc_xyz = output_nc.add_variable<Float>("XYZ", {"n","y","x"});
+                nc_xyz.insert(xyz_cpu.v(), {0, 0, 0});
+                
+                nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
+            }
         }
-        else
-        {
-            Array<Float,3> xyz_cpu(XYZ);
-            output_nc.add_dimension("gpt_sw", n_gpt_sw);
-            output_nc.add_dimension("band_sw", n_bnd_sw);
-            output_nc.add_dimension("n",3);
 
-            auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
-            nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
-
-            auto nc_xyz = output_nc.add_variable<Float>("XYZ", {"n","y","x"});
-            nc_xyz.insert(xyz_cpu.v(), {0, 0, 0});
-            
-            nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
-        }
-        
         if (switch_cloud_cam)
         {
             Array<Float,2> lwp_cam_cpu(lwp_cam);
