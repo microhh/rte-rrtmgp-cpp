@@ -804,8 +804,9 @@ void Radiation_solver_shortwave::solve_gpu(
         const Aerosol_concs_gpu& aerosol_concs,
         const Camera& camera,
         Array_gpu<Float,3>& XYZ,
-        Array_gpu<Float,2>& lwp_cam,
-        Array_gpu<Float,2>& iwp_cam)
+        Array_gpu<Float,2>& liwp_cam,
+        Array_gpu<Float,2>& tauc_cam,
+        Array_gpu<Float,2>& dist_cam)
 
 {
     const int n_col = p_lay.dim(1);
@@ -1063,14 +1064,24 @@ void Radiation_solver_shortwave::solve_gpu(
     
     if (switch_cloud_cam)
     {
+        cloud_optics_gpu->cloud_optics(
+                11, // 441-615 nm band
+                lwp,
+                iwp,
+                rel,
+                rei,
+                *cloud_optical_props);
+        
         raytracer.accumulate_clouds(
                 grid_d,
                 grid_cells,
                 lwp,
                 iwp,
+                dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(), 
                 camera,
-                lwp_cam,
-                iwp_cam);
+                liwp_cam,
+                tauc_cam,
+                dist_cam);
     }
 }
 
@@ -1102,9 +1113,9 @@ void Radiation_solver_shortwave::solve_gpu_bb(
         const Aerosol_concs_gpu& aerosol_concs,
         const Camera& camera,
         Array_gpu<Float,2>& radiance,
-        Array_gpu<Float,2>& lwp_cam,
-        Array_gpu<Float,2>& iwp_cam)
-
+        Array_gpu<Float,2>& liwp_cam,
+        Array_gpu<Float,2>& tauc_cam,
+        Array_gpu<Float,2>& dist_cam)
 {
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
@@ -1309,17 +1320,27 @@ void Radiation_solver_shortwave::solve_gpu_bb(
 
             previous_band = band;
         }
+    }
 
-        if (switch_cloud_cam)
-        {
-            raytracer.accumulate_clouds(
-                    grid_d,
-                    grid_cells,
-                    lwp,
-                    iwp,
-                    camera,
-                    lwp_cam,
-                    iwp_cam);
-        }
+    if (switch_cloud_cam)
+    {
+        cloud_optics_gpu->cloud_optics(
+                11, // 441-615 nm band
+                lwp,
+                iwp,
+                rel,
+                rei,
+                *cloud_optical_props);
+        
+        raytracer.accumulate_clouds(
+                grid_d,
+                grid_cells,
+                lwp,
+                iwp,
+                dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(), 
+                camera,
+                liwp_cam,
+                tauc_cam,
+                dist_cam);
     }
 }

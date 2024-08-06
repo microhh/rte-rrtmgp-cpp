@@ -238,7 +238,7 @@ void solve_radiation(int argc, char** argv)
         {"shortwave"        , { true,  "Enable computation of shortwave radiation."  }},
         {"longwave"         , { false, "Enable computation of longwave radiation."   }},
         {"fluxes"           , { true,  "Enable computation of fluxes."               }},
-        {"raytracing"       , { false, "Use raytracing for flux computation."        }},
+        {"raytracing"       , { true,  "Use raytracing for flux computation."        }},
         {"cloud-optics"     , { false, "Enable cloud optics."                        }},
         {"cloud-mie"        , { false, "mie cloud droplet scattering."               }},
         {"aerosol-optics"   , { false, "Enable aerosol optics."                      }},
@@ -388,10 +388,7 @@ void solve_radiation(int argc, char** argv)
 
         iwp.set_dims({n_col, n_lay});
         iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
-    }
-    
-    if (switch_cloud_optics)
-    {
+        
         rel.set_dims({n_col, n_lay});
         rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
 
@@ -697,13 +694,15 @@ void solve_radiation(int argc, char** argv)
                 rad_sw.load_mie_tables("mie_lut_visualisation.nc", switch_broadband);
         }
         
-        Array_gpu<Float,2> lwp_cam;
-        Array_gpu<Float,2> iwp_cam;
+        Array_gpu<Float,2> liwp_cam;
+        Array_gpu<Float,2> tauc_cam;
+        Array_gpu<Float,2> dist_cam;
 
         if (switch_cloud_cam)
         {
-            lwp_cam.set_dims({camera.nx, camera.ny});
-            iwp_cam.set_dims({camera.nx, camera.ny});
+            liwp_cam.set_dims({camera.nx, camera.ny});
+            tauc_cam.set_dims({camera.nx, camera.ny});
+            dist_cam.set_dims({camera.nx, camera.ny});
         }
         
         // Solve the radiation.
@@ -767,8 +766,9 @@ void solve_radiation(int argc, char** argv)
                     aerosol_concs,
                     camera,
                     radiance,
-                    lwp_cam,
-                    iwp_cam);
+                    liwp_cam,
+                    tauc_cam,
+                    dist_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -840,8 +840,9 @@ void solve_radiation(int argc, char** argv)
                     aerosol_concs,
                     camera,
                     XYZ,
-                    lwp_cam,
-                    iwp_cam);
+                    liwp_cam,
+                    tauc_cam,
+                    dist_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -921,20 +922,22 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_cloud_cam)
         {
-            Array<Float,2> lwp_cam_cpu(lwp_cam);
-            Array<Float,2> iwp_cam_cpu(iwp_cam);
+            Array<Float,2> liwp_cam_cpu(liwp_cam);
+            Array<Float,2> tauc_cam_cpu(tauc_cam);
+            Array<Float,2> dist_cam_cpu(dist_cam);
             
-            auto nc_var_liq = output_nc.add_variable<Float>("lwp_cam", {"y","x"});
-            nc_var_liq.insert(lwp_cam_cpu.v(), {0, 0});
-            nc_var_liq.add_attribute("long_name", "accumulated liquid water path");
+            auto nc_var_liwp = output_nc.add_variable<float>("liq_ice_wp_cam", {"y","x"});
+            nc_var_liwp.insert(liwp_cam_cpu.v(), {0, 0});
+            nc_var_liwp.add_attribute("long_name", "accumulated liquid+ice water path");
             
-            auto nc_var_ice = output_nc.add_variable<Float>("iwp_cam", {"y","x"});
-            nc_var_ice.insert(iwp_cam_cpu.v(), {0, 0});
-            nc_var_ice.add_attribute("long_name", "accumulated ice water path");
-
-
+            auto nc_var_tauc = output_nc.add_variable<float>("tau_cld_cam", {"y","x"});
+            nc_var_tauc.insert(tauc_cam_cpu.v(), {0, 0});
+            nc_var_tauc.add_attribute("long_name", "accumulated cloud optical depth (441-615nm band)");
+            
+            auto nc_var_dist = output_nc.add_variable<float>("dist_cld_cam", {"y","x"});
+            nc_var_dist.insert(dist_cam_cpu.v(), {0, 0});
+            nc_var_dist.add_attribute("long_name", "distance to first cloudy cell");
         }
-
 
         auto nc_mu0 = output_nc.add_variable<Float>("sza");
         nc_mu0.insert(acos(mu0({1}))/M_PI * Float(180.), {0});

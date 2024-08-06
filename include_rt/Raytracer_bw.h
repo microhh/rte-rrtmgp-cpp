@@ -101,9 +101,11 @@ class Raytracer_bw
                 const Vector<int>& grid_cells,
                 const Array_gpu<Float,2>& lwp,
                 const Array_gpu<Float,2>& iwp,
+                const Array_gpu<Float,2>& tau_cloud,
                 const Camera& camera,
-                Array_gpu<Float,2>& lwp_cam,
-                Array_gpu<Float,2>& iwp_cam);
+                Array_gpu<Float,2>& liwp_cam,
+                Array_gpu<Float,2>& tauc_cam,
+                Array_gpu<Float,2>& dist_cam);
 
     private:
 

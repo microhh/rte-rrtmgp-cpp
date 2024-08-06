@@ -121,11 +121,13 @@ __global__
 void accumulate_clouds_kernel(
     const Float* __restrict__ lwp, 
     const Float* __restrict__ iwp, 
+    const Float* __restrict__ tau_cloud,
     const Vector<Float> grid_d,
     const Vector<Float> grid_size,
     const Vector<int> grid_cells,
-    Float* __restrict__ lwp_cam, 
-    Float* __restrict__ iwp_cam, 
+    Float* __restrict__ liwp_cam, 
+    Float* __restrict__ tauc_cam, 
+    Float* __restrict__ dist_cam, 
     const Camera camera);
 
 #endif

@@ -742,11 +742,13 @@ void ray_tracer_kernel_bw(
     void accumulate_clouds_kernel(
             const Float* __restrict__ lwp, 
             const Float* __restrict__ iwp, 
+            const Float* __restrict__ tau_cloud, 
             const Vector<Float> grid_d,
             const Vector<Float> grid_size,
             const Vector<int> grid_cells,
-            Float* __restrict__ lwp_cam, 
-            Float* __restrict__ iwp_cam, 
+            Float* __restrict__ liwp_cam, 
+            Float* __restrict__ tauc_cam, 
+            Float* __restrict__ dist_cam, 
             const Camera camera)
     {
         const int pix = blockDim.x * blockIdx.x + threadIdx.x;
@@ -756,8 +758,10 @@ void ray_tracer_kernel_bw(
 
         if (pix < camera.nx * camera.ny)
         {
-            Float lwp_sum = 0;
-            Float iwp_sum = 0;
+            Float liwp_sum = 0;
+            Float tauc_sum = 0;
+            Float dist = 0;
+            bool reached_cloud = false;
 
             //const int pix = n * pixels_per_thread + ipix;
             const Float i = (Float(pix % camera.nx) + Float(0.5))/ Float(camera.nx);
@@ -807,9 +811,14 @@ void ray_tracer_kernel_bw(
                 const Float sz = abs((direction.z > 0) ? ((k+1) * grid_d.z - position.z)/direction.z : (k*grid_d.z - position.z)/direction.z);
                 const Float s_min = min(sx, min(sy, sz));
                 
-                lwp_sum += s_min * lwp[ijk];
-                iwp_sum += s_min * iwp[ijk];
-
+                liwp_sum += s_min * (lwp[ijk] + iwp[ijk]);
+                tauc_sum += s_min * tau_cloud[ijk];
+                if (!reached_cloud)
+                {
+                    dist += s_min;
+                    reached_cloud = tau_cloud[ijk] > 0;
+                }
+                
                 position = position + direction * s_min;
 
                 position.x += direction.x >= 0 ? s_eps : -s_eps;
@@ -828,9 +837,10 @@ void ray_tracer_kernel_bw(
 
             }
             
-            // divide out initial layer thicknes, equivalent to first converting lwp (kg/m2) to lwc (kg/m3) 
-            lwp_cam[pix] = lwp_sum / grid_d.z;
-            iwp_cam[pix] = iwp_sum / grid_d.z;
+            // divide out initial layer thicknes, equivalent to first converting lwp (g/m2) to lwc (g/m3) or optical depth to k_ext(1/m)
+            liwp_cam[pix] = liwp_sum / grid_d.z;
+            tauc_cam[pix] = tauc_sum / grid_d.z;
+            dist_cam[pix] = reached_cloud ? dist : Float(-1) ;
 
         }
 

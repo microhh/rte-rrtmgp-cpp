@@ -178,8 +178,9 @@ class Radiation_solver_shortwave
                 const Aerosol_concs_gpu& aerosol_concs,
                 const Camera& camera,
                 Array_gpu<Float,3>& XYZ,
-                Array_gpu<Float,2>& lwp_cam,
-                Array_gpu<Float,2>& iwp_cam);
+                Array_gpu<Float,2>& liwp_cam,
+                Array_gpu<Float,2>& tauc_cam,
+                Array_gpu<Float,2>& dist_cam);
         #endif
 
         #ifdef __CUDACC__
@@ -211,8 +212,9 @@ class Radiation_solver_shortwave
                 const Aerosol_concs_gpu& aerosol_concs,
                 const Camera& camera,
                 Array_gpu<Float,2>& radiance,
-                Array_gpu<Float,2>& lwp_cam,
-                Array_gpu<Float,2>& iwp_cam);
+                Array_gpu<Float,2>& liwp_cam,
+                Array_gpu<Float,2>& tauc_cam,
+                Array_gpu<Float,2>& dist_cam);
 
         int get_n_gpt_gpu() const { return this->kdist_gpu->get_ngpt(); };
         int get_n_bnd_gpu() const { return this->kdist_gpu->get_nband(); };

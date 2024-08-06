@@ -665,12 +665,15 @@ void Raytracer_bw::accumulate_clouds(
         const Vector<int>& grid_cells,
         const Array_gpu<Float,2>& lwp,
         const Array_gpu<Float,2>& iwp,
+        const Array_gpu<Float,2>& tau_cloud,
         const Camera& camera,
-        Array_gpu<Float,2>& lwp_cam,
-        Array_gpu<Float,2>& iwp_cam)
+        Array_gpu<Float,2>& liwp_cam,
+        Array_gpu<Float,2>& tauc_cam,
+        Array_gpu<Float,2>& dist_cam)
 {
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, lwp_cam.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, iwp_cam.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, liwp_cam.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, tauc_cam.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, dist_cam.ptr());
     
     const int n_pix = camera.nx * camera.ny;
     const int n_block = std::min(n_pix, 512);
@@ -685,11 +688,13 @@ void Raytracer_bw::accumulate_clouds(
     accumulate_clouds_kernel<<<grid, block>>>(
         lwp.ptr(),
         iwp.ptr(),
+        tau_cloud.ptr(),
         grid_d,
         grid_size,
         grid_cells,
-        lwp_cam.ptr(),
-        iwp_cam.ptr(),
+        liwp_cam.ptr(),
+        tauc_cam.ptr(),
+        dist_cam.ptr(),
         camera);
 
 }
