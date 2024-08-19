@@ -733,31 +733,39 @@ Radiation_solver_shortwave::Radiation_solver_shortwave(
 }
 
 void Radiation_solver_shortwave::load_mie_tables(
-        const std::string& file_name_mie,
-        const bool switch_broadband)
+        const std::string& file_name_mie_bb,
+        const std::string& file_name_mie_im,
+        const bool switch_broadband,
+        const bool switch_image)
 {
-    Netcdf_file mie_nc(file_name_mie, Netcdf_mode::Read);
-    const int n_bnd_sw = this->get_n_bnd_gpu();
-    const int n_re  = mie_nc.get_dimension_size("r_eff");
-    const int n_mie = mie_nc.get_dimension_size("n_ang");
-
     if (switch_broadband)
     {
-        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, 1, n_mie}), {n_mie, 1, n_bnd_sw});
-        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, 1, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
-
-        Array<Float,4> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, 1, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
+        Netcdf_file mie_nc(file_name_mie_bb, Netcdf_mode::Read);
+        const int n_bnd_sw = this->get_n_bnd_gpu();
+        const int n_re  = mie_nc.get_dimension_size("r_eff");
+        const int n_mie = mie_nc.get_dimension_size("n_ang");
+        
+        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie}), {n_mie, 1, n_bnd_sw});
+        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
+        
+        Array<Float,4> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
         Array<Float,1> mie_phase_ang(mie_nc.get_variable<Float>("phase_angle", {n_mie}), {n_mie});
 
-        this->mie_cdfs = mie_cdf;
-        this->mie_angs = mie_ang;
+        this->mie_cdfs_bb = mie_cdf;
+        this->mie_angs_bb = mie_ang;
 
-        this->mie_phase = mie_phase;
-        this->mie_phase_angs = mie_phase_ang;
+        this->mie_phase_bb = mie_phase;
+        this->mie_phase_angs_bb = mie_phase_ang;
     }
-    else
+    
+    if (switch_image)
     {
+        Netcdf_file mie_nc(file_name_mie_im, Netcdf_mode::Read);
+        const int n_bnd_sw = this->get_n_bnd_gpu();
+        const int n_re  = mie_nc.get_dimension_size("r_eff");
+        const int n_mie = mie_nc.get_dimension_size("n_ang");
         const int n_sub = mie_nc.get_dimension_size("sub_band");
+        
         Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_sub, n_mie}), {n_mie, n_sub, n_bnd_sw});
         Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_sub, n_re, n_mie}), {n_mie, n_re, n_sub, n_bnd_sw});
 
@@ -1126,9 +1134,9 @@ void Radiation_solver_shortwave::solve_gpu_bb(
     const int n_gpt = this->kdist_gpu->get_ngpt();
     const int n_bnd = this->kdist_gpu->get_nband();
 
-    const int n_mie = (switch_cloud_mie) ? this->mie_angs.dim(1) : 0;
-    const int n_re = (switch_cloud_mie) ? this->mie_angs.dim(2) : 0;
-
+    const int n_mie = (switch_cloud_mie) ? this->mie_angs_bb.dim(1) : 0;
+    const int n_re = (switch_cloud_mie) ? this->mie_angs_bb.dim(2) : 0;
+    
     const int cam_nx = radiance.dim(1);
     const int cam_ny = radiance.dim(2);
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
@@ -1285,9 +1293,9 @@ void Radiation_solver_shortwave::solve_gpu_bb(
 
             if (switch_cloud_mie)
             {
-                mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {1,1}, {band, band} }});
-                mie_angs_sub = mie_angs.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
-                mie_phase_sub = mie_phase.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
+                mie_cdfs_sub = mie_cdfs_bb.subset({{ {1, n_mie}, {1,1}, {band, band} }});
+                mie_angs_sub = mie_angs_bb.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
+                mie_phase_sub = mie_phase_bb.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
             }
 
             raytracer.trace_rays_bb(
@@ -1298,7 +1306,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                     mie_cdfs_sub,
                     mie_angs_sub,
                     mie_phase_sub,
-                    mie_phase_angs,
+                    mie_phase_angs_bb,
                     rel,
                     dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
                     dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
