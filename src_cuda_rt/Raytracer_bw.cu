@@ -655,7 +655,7 @@ void Raytracer_bw::trace_rays_bb(
     count_to_flux_2d<<<grid_cam, block_cam>>>(
             camera, photons_per_pixel,
             toa_src,
-            Float(1.),
+            sun_solid_angle_reciprocal,
             camera_count.ptr(),
             flux_camera.ptr());
 

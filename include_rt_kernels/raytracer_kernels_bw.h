@@ -25,6 +25,11 @@ constexpr int bw_kernel_grid = 256;
 #endif
 constexpr Float k_null_gas_min = Float(1.e-3);
 
+// sun has a half angle of .266 degrees
+constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
+constexpr Float sun_solid_angle = Float(6.799910294339209e-05); // 2.*M_PI*(1-cos_half_angle);
+constexpr Float sun_solid_angle_reciprocal = Float(14706.07635563193); 
+
 
 struct Grid_knull
 {
