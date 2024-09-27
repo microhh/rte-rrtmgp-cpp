@@ -150,12 +150,10 @@ namespace
             const int idx = icol_x + icol_y*grid_cells.x + z_tod*grid_cells.y*grid_cells.x;
             
             const Float kext_tot = tau_tot_sum / grid_d.z;
-            const Float kext_cld = tau_cld_sum / grid_d.z;
-            const Float kext_aer = tau_aer_sum / grid_d.z;
             
             const Float ksca_cld = tausca_cld_sum / grid_d.z;
             const Float ksca_aer = tausca_aer_sum / grid_d.z;
-            const Float ksca_gas = tausca_tot_sum / grid_d.z - - ksca_cld - ksca_aer;
+            const Float ksca_gas = tausca_tot_sum / grid_d.z - ksca_cld - ksca_aer;
             k_ext[idx] = kext_tot;
 
             scat_asy[idx].k_sca_gas = ksca_gas;
@@ -230,6 +228,7 @@ Raytracer::Raytracer()
 
 void Raytracer::trace_rays(
         const int igpt,
+        const bool switch_independent_column,
         const Int photons_per_pixel,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
@@ -375,6 +374,7 @@ void Raytracer::trace_rays(
     
     const int qrng_gpt_offset = (igpt-1) * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
     ray_tracer_kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
+            switch_independent_column,
             photons_per_thread,
             qrng_grid_x,
             qrng_grid_y,

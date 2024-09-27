@@ -224,17 +224,18 @@ void solve_radiation(int argc, char** argv)
     ////// FLOW CONTROL SWITCHES //////
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_switches {
-        {"shortwave"        , { true,  "Enable computation of shortwave radiation."}},
-        {"longwave"         , { false, "Enable computation of longwave radiation." }},
-        {"fluxes"           , { true,  "Enable computation of fluxes."             }},
-        {"raytracing"       , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
-        {"cloud-optics"     , { false, "Enable cloud optics."                      }},
-        {"cloud-mie"        , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
-        {"aerosol-optics"   , { false, "Enable aerosol optics."                    }},
-        {"single-gpt"       , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
-        {"profiling"        , { false, "Perform additional profiling run."         }},
-        {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties"   }} };  
+        {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
+        {"longwave"          , { false, "Enable computation of longwave radiation." }},
+        {"fluxes"            , { true,  "Enable computation of fluxes."             }},
+        {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
+        {"independent-column", { false, "run raytracer in independent column mode"}},
+        {"cloud-optics"      , { false, "Enable cloud optics."                      }},
+        {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
+        {"aerosol-optics"    , { false, "Enable aerosol optics."                    }},
+        {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
+        {"profiling"         , { false, "Perform additional profiling run."         }},
+        {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
+        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }} };  
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
@@ -243,17 +244,18 @@ void solve_radiation(int argc, char** argv)
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
 
-    const bool switch_shortwave         = command_line_switches.at("shortwave"        ).first;
-    const bool switch_longwave          = command_line_switches.at("longwave"         ).first;
-    const bool switch_fluxes            = command_line_switches.at("fluxes"           ).first;
-    const bool switch_raytracing        = command_line_switches.at("raytracing"       ).first;
-    const bool switch_cloud_optics      = command_line_switches.at("cloud-optics"     ).first;
-    const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"        ).first;
-    const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"   ).first;
-    const bool switch_single_gpt        = command_line_switches.at("single-gpt"       ).first;
-    const bool switch_profiling         = command_line_switches.at("profiling"        ).first;
-    const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"      ).first;
-    const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"    ).first;
+    const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
+    const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
+    const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
+    const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
+    const bool switch_independent_column= command_line_switches.at("independent-column").first;
+    const bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
+    const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
+    const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
+    const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
+    const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
+    const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
+    const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
 
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
@@ -762,6 +764,7 @@ void solve_radiation(int argc, char** argv)
             rad_sw.solve_gpu(
                     switch_fluxes,
                     switch_raytracing,
+                    switch_independent_column,
                     switch_cloud_optics,
                     switch_cloud_mie,
                     switch_aerosol_optics,
