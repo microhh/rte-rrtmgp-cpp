@@ -42,48 +42,6 @@
 
 namespace
 {
-    __global__
-    void compute_tod_flux_kernel(
-            const int ncol, const int nlay, const int col_per_thread, const Float* __restrict__ flux_dn, const Float* __restrict__ flux_dn_dir, Float* __restrict__ tod_dir_diff)
-    {
-        const int i = blockIdx.x*blockDim.x + threadIdx.x;
-        Float flx_dir = 0;
-        Float flx_tot = 0;
-        for (int icol = i*col_per_thread; icol < (i+1)*col_per_thread; ++icol)
-        {
-            if ( ( icol < ncol)  )
-            {
-                const int idx = icol + nlay*ncol;
-                flx_dir += flux_dn_dir[idx];
-                flx_tot += flux_dn[idx];
-            }
-        }
-        atomicAdd(&tod_dir_diff[0], flx_dir);
-        atomicAdd(&tod_dir_diff[1], flx_tot - flx_dir);
-    }
-
-    void compute_tod_flux(
-            const int ncol, const int nlay, const Array_gpu<Float,2>& flux_dn, const Array_gpu<Float,2>& flux_dn_dir, Array<Float,1>& tod_dir_diff)
-    {
-        const int col_per_thread = 32;
-        const int nthread = int(ncol/col_per_thread) + 1;
-        const int block_col = 16;
-        const int grid_col  = nthread/block_col + (nthread%block_col > 0);
-
-        dim3 grid_gpu(grid_col, 1);
-        dim3 block_gpu(block_col, 1);
-
-        Array_gpu<Float,1> tod_dir_diff_g({2});
-        tod_dir_diff_g.fill(Float(0.));
-
-        compute_tod_flux_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, col_per_thread, flux_dn.ptr(), flux_dn_dir.ptr(), tod_dir_diff_g.ptr());
-        Array<Float,1> tod_dir_diff_c(tod_dir_diff_g);
-
-        tod_dir_diff({1}) = tod_dir_diff_c({1}) / Float(ncol);
-        tod_dir_diff({2}) = tod_dir_diff_c({2}) / Float(ncol);
-    }
-
     std::vector<std::string> get_variable_string(
             const std::string& var_name,
             std::vector<int> i_count,
@@ -610,7 +568,6 @@ void Radiation_solver_shortwave::solve_gpu(
         const bool switch_single_gpt,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
-        const bool switch_clear_sky_tod,
         const int single_gpt,
         const Int ray_count,
         const Vector<int> grid_cells,
@@ -770,29 +727,6 @@ void Radiation_solver_shortwave::solve_gpu(
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_g().ptr());
         }
         
-        Array<Float,1> tod_dir_diff({2});
-       
-        if (switch_fluxes && switch_raytracing && switch_clear_sky_tod)
-        {
-            // If switch_clear_sky_tod, compute TOD irradiance for ray tracer with clear-sky atmosphere, otherwise compute TOD irradiance after cloud optics
-            std::unique_ptr<Fluxes_broadband_rt> fluxes =
-                    std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, n_lev);
-
-            rte_sw.rte_sw(
-                    optical_props,
-                    top_at_1,
-                    mu0,
-                    toa_src,
-                    sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
-                    sfc_alb_dif.subset({{ {band, band}, {1, n_col}}}),
-                    Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
-                    (*fluxes).get_flux_up(),
-                    (*fluxes).get_flux_dn(),
-                    (*fluxes).get_flux_dn_dir());
-
-            compute_tod_flux(n_col, grid_cells.z, (*fluxes).get_flux_dn(), (*fluxes).get_flux_dn_dir(), tod_dir_diff);
-        }
-        
         if (switch_cloud_optics)
         {
             if (band > previous_band)
@@ -855,9 +789,6 @@ void Radiation_solver_shortwave::solve_gpu(
                 Float zenith_angle = std::acos(mu0({1}));
                 Float azimuth_angle = azi({1}); // sun approximately from south
 
-                if (!switch_clear_sky_tod)
-                    compute_tod_flux(n_col, grid_cells.z, (*fluxes).get_flux_dn(), (*fluxes).get_flux_dn_dir(), tod_dir_diff);
-
                 if (switch_cloud_mie)
                 {
                     mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {band, band} }});
@@ -884,8 +815,8 @@ void Radiation_solver_shortwave::solve_gpu(
                         sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
                         zenith_angle,
                         azimuth_angle,
-                        tod_dir_diff({1}),
-                        tod_dir_diff({2}),
+                        toa_src({1}) * mu0({1}),
+                        Float(0.),
                         (*fluxes).get_flux_tod_dn(),
                         (*fluxes).get_flux_tod_up(),
                         (*fluxes).get_flux_sfc_dir(),
