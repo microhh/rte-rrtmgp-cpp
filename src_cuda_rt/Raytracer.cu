@@ -124,11 +124,9 @@ namespace
             Float tau_tot_sum = Float(0.);
             Float tausca_tot_sum = Float(0.);
 
-            Float tau_cld_sum = Float(0.);
             Float tausca_cld_sum = Float(0.);
             Float tauscag_cld_sum = Float(0.);
 
-            Float tau_aer_sum = Float(0.);
             Float tausca_aer_sum = Float(0.);
             Float tauscag_aer_sum = Float(0.);
             
@@ -138,11 +136,9 @@ namespace
                 tau_tot_sum += tau_tot[idx];
                 tausca_tot_sum += tau_tot[idx] * ssa_tot[idx];
                 
-                tau_cld_sum += tau_cld[idx];
                 tausca_cld_sum += tau_cld[idx] * ssa_cld[idx];
                 tauscag_cld_sum += tau_cld[idx] * ssa_cld[idx] * asy_cld[idx];
                 
-                tau_aer_sum += tau_aer[idx];
                 tausca_aer_sum += tau_aer[idx] * ssa_aer[idx];
                 tauscag_aer_sum += tau_aer[idx] * ssa_aer[idx] * asy_aer[idx];
             }
