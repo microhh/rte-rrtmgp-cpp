@@ -1,1 +1,0 @@
-../rte-rrtmgp/examples/compare-to-reference.py

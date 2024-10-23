@@ -62,7 +62,7 @@ namespace Rte_solver_kernels_cuda
             const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const int nmus,
             const Float* secants, const Float* weights,
             const Float* tau, const Float* lay_source,
-            const Float* lev_source_inc, const Float* lev_source_dec,
+            const Float* lev_source,
             const Float* sfc_emis, const Float* sfc_src,
             const Float* inc_flux,
             Float* flux_up, Float* flux_dn,
@@ -117,7 +117,7 @@ namespace Rte_solver_kernels_cuda
                     lw_solver_noscat_step_1_kernel,
                     ncol, nlay, ngpt, eps, top_at_1,
                     secants, weights, tau, lay_source,
-                    lev_source_inc, lev_source_dec,
+                    lev_source,
                     sfc_emis, sfc_src, flux_up_tmp, flux_dn_tmp, sfc_src_jac,
                     flux_up_jac_tmp, tau_loc, trans,
                     source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
@@ -139,7 +139,7 @@ namespace Rte_solver_kernels_cuda
         lw_solver_noscat_step_1_kernel<<<grid_1, block_1>>>(
                 ncol, nlay, ngpt, eps, top_at_1,
                 secants, weights, tau, lay_source,
-                lev_source_inc, lev_source_dec,
+                lev_source,
                 sfc_emis, sfc_src, flux_up, flux_dn, sfc_src_jac,
                 flux_up_jac, tau_loc, trans,
                 source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
@@ -161,7 +161,7 @@ namespace Rte_solver_kernels_cuda
                     lw_solver_noscat_step_2_kernel,
                     ncol, nlay, ngpt, eps, top_at_1,
                     secants, weights, tau, lay_source,
-                    lev_source_inc, lev_source_dec,
+                    lev_source,
                     sfc_emis, sfc_src, flux_up_tmp, flux_dn_tmp, sfc_src_jac,
                     flux_up_jac_tmp, tau_loc, trans,
                     source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
@@ -183,7 +183,7 @@ namespace Rte_solver_kernels_cuda
         lw_solver_noscat_step_2_kernel<<<grid_2, block_2>>>(
                 ncol, nlay, ngpt, eps, top_at_1,
                 secants, weights, tau, lay_source,
-                lev_source_inc, lev_source_dec,
+                lev_source,
                 sfc_emis, sfc_src, flux_up, flux_dn, sfc_src_jac,
                 flux_up_jac, tau_loc, trans,
                 source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
@@ -205,7 +205,7 @@ namespace Rte_solver_kernels_cuda
                     lw_solver_noscat_step_3_kernel,
                     ncol, nlay, ngpt, eps, top_at_1,
                     secants, weights, tau, lay_source,
-                    lev_source_inc, lev_source_dec,
+                    lev_source,
                     sfc_emis, sfc_src, flux_up_tmp, flux_dn_tmp, sfc_src_jac,
                     flux_up_jac_tmp, tau_loc, trans,
                     source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
@@ -227,7 +227,7 @@ namespace Rte_solver_kernels_cuda
         lw_solver_noscat_step_3_kernel<<<grid_3, block_3>>>(
                 ncol, nlay, ngpt, eps, top_at_1,
                 secants, weights, tau, lay_source,
-                lev_source_inc, lev_source_dec,
+                lev_source,
                 sfc_emis, sfc_src, flux_up, flux_dn, sfc_src_jac,
                 flux_up_jac, tau_loc, trans,
                 source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);

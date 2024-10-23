@@ -98,7 +98,7 @@ __global__
 void lw_solver_noscat_step_1_kernel(
         const int ncol, const int nlay, const int ngpt, const Float eps, const Bool top_at_1,
         const Float* __restrict__ D, const Float* __restrict__ weight, const Float* __restrict__ tau, const Float* __restrict__ lay_source,
-        const Float* __restrict__ lev_source_inc, const Float* __restrict__ lev_source_dec, const Float* __restrict__ sfc_emis,
+        const Float* __restrict__ lev_source, const Float* __restrict__ sfc_emis,
         const Float* __restrict__ sfc_src, Float* __restrict__ radn_up, Float* __restrict__ radn_dn,
         const Float* __restrict__ sfc_src_jac, Float* __restrict__ radn_up_jac, Float* __restrict__ tau_loc,
         Float* __restrict__ trans, Float* __restrict__ source_dn, Float* __restrict__ source_up,
@@ -110,19 +110,27 @@ void lw_solver_noscat_step_1_kernel(
 
     if ( (icol < ncol) && (ilay < nlay) && (igpt < ngpt) )
     {
-        const int idx = icol + ilay*ncol + igpt*ncol*nlay;
+        const int idx_lay = icol + ilay*ncol + igpt*ncol*nlay;
+        const int idx_lev = icol + ilay*ncol + igpt*ncol*(nlay+1);
+        const int idx_lev_p = icol + (ilay+1)*ncol + igpt*ncol*(nlay+1);
+
         const int idx_D = icol + igpt*ncol;
 
-        tau_loc[idx] = tau[idx] * D[idx_D];
-        trans[idx] = exp(-tau_loc[idx]);
+        tau_loc[idx_lay] = tau[idx_lay] * D[idx_D];
+        trans[idx_lay] = exp(-tau_loc[idx_lay]);
 
-        const Float fact = (tau_loc[idx]>0. && (tau_loc[idx]*tau_loc[idx])>eps) ? (Float(1.) - trans[idx]) / tau_loc[idx] - trans[idx] : tau_loc[idx] * (Float(.5) - Float(1.)/Float(3.)*tau_loc[idx]);
+        const Float tau_thres = sqrt(sqrt(eps));
 
-        Float src_inc = (Float(1.) - trans[idx]) * lev_source_inc[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_inc[idx]);
-        Float src_dec = (Float(1.) - trans[idx]) * lev_source_dec[idx] + Float(2.) * fact * (lay_source[idx]-lev_source_dec[idx]);
+        const Float fact =
+            tau_loc[idx_lay] > tau_thres ?
+            (Float(1.) - trans[idx_lay]) / tau_loc[idx_lay] - trans[idx_lay] :
+            tau_loc[idx_lay] * (Float(.5) + tau_loc[idx_lay] * ( Float(-1./3.) + tau_loc[idx_lay] * Float(1./8.) ) );
 
-        source_dn[idx] = top_at_1 ? src_inc : src_dec;
-        source_up[idx] = top_at_1 ? src_dec : src_inc;
+        Float src_inc = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev_p] + Float(2.) * fact * (lay_source[idx_lay] - lev_source[idx_lev_p]);
+        Float src_dec = (Float(1.) - trans[idx_lay]) * lev_source[idx_lev  ] + Float(2.) * fact * (lay_source[idx_lay] - lev_source[idx_lev  ]);
+
+        source_dn[idx_lay] = top_at_1 ? src_inc : src_dec;
+        source_up[idx_lay] = top_at_1 ? src_dec : src_inc;
     }
 }
 
@@ -131,7 +139,7 @@ __global__
 void lw_solver_noscat_step_2_kernel(
         const int ncol, const int nlay, const int ngpt, const Float eps, const Bool top_at_1,
         const Float* __restrict__ D, const Float* __restrict__ weight, const Float* __restrict__ tau, const Float* __restrict__ lay_source,
-        const Float* __restrict__ lev_source_inc, const Float* __restrict__ lev_source_dec, const Float* __restrict__ sfc_emis,
+        const Float* __restrict__ lev_source_inc, const Float* __restrict__ sfc_emis,
         const Float* __restrict__ sfc_src, Float* __restrict__ radn_up, Float* __restrict__ radn_dn,
         const Float* __restrict__ sfc_src_jac, Float* __restrict__ radn_up_jac, Float* __restrict__ tau_loc,
         Float* __restrict__ trans, Float* __restrict__ source_dn, Float* __restrict__ source_up,
@@ -163,7 +171,7 @@ __global__
 void lw_solver_noscat_step_3_kernel(
         const int ncol, const int nlay, const int ngpt, const Float eps, const Bool top_at_1,
         const Float* __restrict__ D, const Float* __restrict__ weight, const Float* __restrict__ tau, const Float* __restrict__ lay_source,
-        const Float* __restrict__ lev_source_inc, const Float* __restrict__ lev_source_dec, const Float* __restrict__ sfc_emis,
+        const Float* __restrict__ lev_source, const Float* __restrict__ sfc_emis,
         const Float* __restrict__ sfc_src, Float* __restrict__ radn_up, Float* __restrict__ radn_dn,
         const Float* __restrict__ sfc_src_jac, Float* __restrict__ radn_up_jac, Float* __restrict__ tau_loc,
         Float* __restrict__ trans, Float* __restrict__ source_dn, Float* __restrict__ source_up,

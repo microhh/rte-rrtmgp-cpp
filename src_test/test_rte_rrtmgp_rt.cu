@@ -224,18 +224,18 @@ void solve_radiation(int argc, char** argv)
     ////// FLOW CONTROL SWITCHES //////
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_switches {
-        {"shortwave"        , { true,  "Enable computation of shortwave radiation."}},
-        {"longwave"         , { false, "Enable computation of longwave radiation." }},
-        {"fluxes"           , { true,  "Enable computation of fluxes."             }},
-        {"raytracing"       , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
-        {"cloud-optics"     , { false, "Enable cloud optics."                      }},
-        {"cloud-mie"        , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
-        {"aerosol-optics"   , { false, "Enable aerosol optics."                    }},
-        {"single-gpt"       , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
-        {"profiling"        , { false, "Perform additional profiling run."         }},
-        {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties"   }},  
-        {"clear-sky-tod"    , { false, "compute ray tracing TOD irradiance from clear-sky (no clouds) 2-stream computations"   }} };
+        {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
+        {"longwave"          , { false, "Enable computation of longwave radiation." }},
+        {"fluxes"            , { true,  "Enable computation of fluxes."             }},
+        {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
+        {"independent-column", { false, "run raytracer in independent column mode"}},
+        {"cloud-optics"      , { false, "Enable cloud optics."                      }},
+        {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
+        {"aerosol-optics"    , { false, "Enable aerosol optics."                    }},
+        {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
+        {"profiling"         , { false, "Perform additional profiling run."         }},
+        {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
+        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }} };  
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
@@ -244,18 +244,18 @@ void solve_radiation(int argc, char** argv)
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
 
-    const bool switch_shortwave         = command_line_switches.at("shortwave"        ).first;
-    const bool switch_longwave          = command_line_switches.at("longwave"         ).first;
-    const bool switch_fluxes            = command_line_switches.at("fluxes"           ).first;
-    const bool switch_raytracing        = command_line_switches.at("raytracing"       ).first;
-    const bool switch_cloud_optics      = command_line_switches.at("cloud-optics"     ).first;
-    const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"        ).first;
-    const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"   ).first;
-    const bool switch_single_gpt        = command_line_switches.at("single-gpt"       ).first;
-    const bool switch_profiling         = command_line_switches.at("profiling"        ).first;
-    const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"      ).first;
-    const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"    ).first;
-    const bool switch_clear_sky_tod     = command_line_switches.at("clear-sky-tod"    ).first;
+    const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
+    const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
+    const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
+    const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
+    const bool switch_independent_column= command_line_switches.at("independent-column").first;
+    const bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
+    const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
+    const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
+    const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
+    const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
+    const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
+    const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
 
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
@@ -288,14 +288,18 @@ void solve_radiation(int argc, char** argv)
     const int n_col = n_col_x * n_col_y;
     const int n_lay = input_nc.get_dimension_size("lay");
     const int n_lev = input_nc.get_dimension_size("lev");
-    const int n_z = input_nc.get_dimension_size("z");
+    
+    const int n_z_in = input_nc.get_dimension_size("z");
+    
+    // number of vertical levels in the raytrace grid. We add 1 layer on top, in which we add integrated optical properties between TOD and TOA
+    const int n_z = n_z_in + 1;
 
     Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {n_col_x}), {n_col_x});
     Array<Float,1> grid_xh(input_nc.get_variable<Float>("xh", {n_col_x+1}), {n_col_x+1});
     Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {n_col_y}), {n_col_y});
     Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
-    Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z}), {n_z});
-
+    Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z_in}), {n_z_in});
+    
     const Vector<int> grid_cells = {n_col_x, n_col_y, n_z};
     const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), grid_z({2}) - grid_z({1})};
     const Vector<int> kn_grid = {input_nc.get_variable<int>("ngrid_x"),
@@ -394,7 +398,7 @@ void solve_radiation(int argc, char** argv)
     output_nc.add_dimension("lev", n_lev);
     output_nc.add_dimension("pair", 2);
 
-    output_nc.add_dimension("z", n_z);
+    output_nc.add_dimension("z", n_z_in);
     auto nc_x = output_nc.add_variable<Float>("x", {"x"});
     auto nc_y = output_nc.add_variable<Float>("y", {"y"});
     auto nc_z = output_nc.add_variable<Float>("z", {"z"});
@@ -760,13 +764,13 @@ void solve_radiation(int argc, char** argv)
             rad_sw.solve_gpu(
                     switch_fluxes,
                     switch_raytracing,
+                    switch_independent_column,
                     switch_cloud_optics,
                     switch_cloud_mie,
                     switch_aerosol_optics,
                     switch_single_gpt,
                     switch_delta_cloud,
                     switch_delta_aerosol,
-                    switch_clear_sky_tod,
                     single_gpt,
                     photons_per_pixel,
                     grid_cells,
@@ -931,9 +935,10 @@ void solve_radiation(int argc, char** argv)
                 nc_rt_flux_sfc_dir.insert(rt_flux_sfc_dir_cpu.v(), {0,0});
                 nc_rt_flux_sfc_dif.insert(rt_flux_sfc_dif_cpu.v(), {0,0});
                 nc_rt_flux_sfc_up .insert(rt_flux_sfc_up_cpu .v(), {0,0});
+
                 nc_rt_flux_abs_dir.insert(rt_flux_abs_dir_cpu.v(), {0,0,0});
                 nc_rt_flux_abs_dif.insert(rt_flux_abs_dif_cpu.v(), {0,0,0});
-            
+ 
                 nc_rt_flux_tod_up.add_attribute("long_name","Upwelling shortwave top-of-domain fluxes (Monte Carlo ray tracer)");
                 nc_rt_flux_tod_up.add_attribute("units","W m-2");
                 

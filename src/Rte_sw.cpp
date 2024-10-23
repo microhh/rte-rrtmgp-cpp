@@ -30,66 +30,105 @@
 
 namespace rrtmgp_kernel_launcher
 {
-    template<typename Float>
+    /*
     void apply_BC(
-            int ncol, int nlay, int ngpt,
-            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
+            Array<Float,3>& gpt_flux_dn)
     {
         rrtmgp_kernels::apply_BC_0(
-                &ncol, &nlay, &ngpt,
-                &top_at_1, gpt_flux_dn.ptr());
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                gpt_flux_dn.ptr());
     }
 
-    template<typename Float>
+
     void apply_BC(
-            int ncol, int nlay, int ngpt, Bool top_at_1,
-            const Array<Float,2>& inc_flux, Array<Float,3>& gpt_flux_dn)
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
+            const Array<Float,2>& inc_flux,
+            Array<Float,3>& gpt_flux_dn)
     {
         rrtmgp_kernels::apply_BC_gpt(
-                &ncol, &nlay, &ngpt, &top_at_1,
-                const_cast<Float*>(inc_flux.ptr()), gpt_flux_dn.ptr());
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                const_cast<Float*>(inc_flux.ptr()),
+                gpt_flux_dn.ptr());
     }
 
-    template<typename Float>
+
     void apply_BC(
-            int ncol, int nlay, int ngpt, Bool top_at_1,
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
             const Array<Float,2>& inc_flux,
             const Array<Float,1>& factor,
             Array<Float,3>& gpt_flux)
     {
         rrtmgp_kernels::apply_BC_factor(
-                &ncol, &nlay, &ngpt,
-                &top_at_1,
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
                 const_cast<Float*>(inc_flux.ptr()),
                 const_cast<Float*>(factor.ptr()),
                 gpt_flux.ptr());
     }
+    */
 
-    template<typename Float>
+
     void sw_solver_2stream(
-            int ncol, int nlay, int ngpt, Bool top_at_1,
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
             const Array<Float,3>& tau,
             const Array<Float,3>& ssa,
             const Array<Float,3>& g,
             const Array<Float,2>& mu0,
-            const Array<Float,2>& sfc_alb_dir_gpt, const Array<Float,2>& sfc_alb_dif_gpt,
+            const Array<Float,2>& sfc_alb_dir_gpt,
+            const Array<Float,2>& sfc_alb_dif_gpt,
             const Array<Float,2>& inc_flux,
-            Array<Float,3>& gpt_flux_up, Array<Float,3>& gpt_flux_dn, Array<Float,3>& gpt_flux_dir,
-            Bool has_dif_bc, const Array<Float,2>& inc_flux_dif,
-            Bool do_broadband, Array<Float,3>& flux_up_loc, Array<Float,3>& flux_dn_loc, Array<Float,3>& flux_dir_loc)
+            Array<Float,3>& gpt_flux_up,
+            Array<Float,3>& gpt_flux_dn,
+            Array<Float,3>& gpt_flux_dir,
+            const Bool has_dif_bc,
+            const Array<Float,2>& inc_flux_dif,
+            const Bool do_broadband,
+            Array<Float,3>& flux_up_loc,
+            Array<Float,3>& flux_dn_loc,
+            Array<Float,3>& flux_dir_loc)
     {
         rrtmgp_kernels::rte_sw_solver_2stream(
-                &ncol, &nlay, &ngpt, &top_at_1,
-                const_cast<Float*>(tau.ptr()),
-                const_cast<Float*>(ssa.ptr()),
-                const_cast<Float*>(g  .ptr()),
-                const_cast<Float*>(mu0.ptr()),
-                const_cast<Float*>(sfc_alb_dir_gpt.ptr()),
-                const_cast<Float*>(sfc_alb_dif_gpt.ptr()),
-                const_cast<Float*>(inc_flux.ptr()),
-                gpt_flux_up.ptr(), gpt_flux_dn.ptr(), gpt_flux_dir.ptr(),
-                &has_dif_bc, const_cast<Float*>(inc_flux_dif.ptr()),
-                &do_broadband, flux_up_loc.ptr(), flux_dn_loc.ptr(), flux_dir_loc.ptr());
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                tau.ptr(),
+                ssa.ptr(),
+                g  .ptr(),
+                mu0.ptr(),
+                sfc_alb_dir_gpt.ptr(),
+                sfc_alb_dif_gpt.ptr(),
+                inc_flux.ptr(),
+                gpt_flux_up.ptr(),
+                gpt_flux_dn.ptr(),
+                gpt_flux_dir.ptr(),
+                has_dif_bc,
+                inc_flux_dif.ptr(),
+                do_broadband,
+                flux_up_loc.ptr(),
+                flux_dn_loc.ptr(),
+                flux_dir_loc.ptr());
     }
 }
 

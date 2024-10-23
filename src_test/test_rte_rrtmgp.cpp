@@ -327,17 +327,15 @@ void solve_radiation(int argc, char** argv)
         // Create output arrays.
         Array<Float,3> lw_tau;
         Array<Float,3> lay_source;
-        Array<Float,3> lev_source_inc;
-        Array<Float,3> lev_source_dec;
+        Array<Float,3> lev_source;
         Array<Float,2> sfc_source;
 
         if (switch_output_optical)
         {
-            lw_tau        .set_dims({n_col, n_lay, n_gpt_lw});
-            lay_source    .set_dims({n_col, n_lay, n_gpt_lw});
-            lev_source_inc.set_dims({n_col, n_lay, n_gpt_lw});
-            lev_source_dec.set_dims({n_col, n_lay, n_gpt_lw});
-            sfc_source    .set_dims({n_col, n_gpt_lw});
+            lw_tau    .set_dims({n_col, n_lay, n_gpt_lw});
+            lay_source.set_dims({n_col, n_lay, n_gpt_lw});
+            lev_source.set_dims({n_col, n_lev, n_gpt_lw});
+            sfc_source.set_dims({n_col, n_gpt_lw});
         }
 
         Array<Float,2> lw_flux_up;
@@ -380,7 +378,7 @@ void solve_radiation(int argc, char** argv)
                 t_sfc, emis_sfc,
                 lwp, iwp,
                 rel, rei,
-                lw_tau, lay_source, lev_source_inc, lev_source_dec, sfc_source,
+                lw_tau, lay_source, lev_source, sfc_source,
                 lw_flux_up, lw_flux_dn, lw_flux_net,
                 lw_bnd_flux_up, lw_bnd_flux_dn, lw_bnd_flux_net);
 
@@ -407,15 +405,13 @@ void solve_radiation(int argc, char** argv)
             auto nc_lw_tau = output_nc.add_variable<Float>("lw_tau", {"gpt_lw", "lay", "y", "x"});
             nc_lw_tau.insert(lw_tau.v(), {0, 0, 0, 0});
 
-            auto nc_lay_source     = output_nc.add_variable<Float>("lay_source"    , {"gpt_lw", "lay", "y", "x"});
-            auto nc_lev_source_inc = output_nc.add_variable<Float>("lev_source_inc", {"gpt_lw", "lay", "y", "x"});
-            auto nc_lev_source_dec = output_nc.add_variable<Float>("lev_source_dec", {"gpt_lw", "lay", "y", "x"});
+            auto nc_lay_source = output_nc.add_variable<Float>("lay_source", {"gpt_lw", "lay", "y", "x"});
+            auto nc_lev_source = output_nc.add_variable<Float>("lev_source", {"gpt_lw", "lev", "y", "x"});
 
             auto nc_sfc_source = output_nc.add_variable<Float>("sfc_source", {"gpt_lw", "y", "x"});
 
-            nc_lay_source.insert    (lay_source.v()    , {0, 0, 0, 0});
-            nc_lev_source_inc.insert(lev_source_inc.v(), {0, 0, 0, 0});
-            nc_lev_source_dec.insert(lev_source_dec.v(), {0, 0, 0, 0});
+            nc_lay_source.insert(lay_source.v(), {0, 0, 0, 0});
+            nc_lev_source.insert(lev_source.v(), {0, 0, 0, 0});
 
             nc_sfc_source.insert(sfc_source.v(), {0, 0, 0});
         }

@@ -32,30 +32,48 @@
 namespace rrtmgp_kernels
 {
     extern "C" void rte_sum_broadband(
-            int* ncol, int* nlev, int* ngpt,
-            Float* spectral_flux, Float* broadband_flux);
+            int* ncol,
+            int* nlev,
+            int* ngpt,
+            Float* spectral_flux,
+            Float* broadband_flux);
 
     extern "C" void rte_net_broadband_precalc(
-            int* ncol, int* nlev,
-            Float* broadband_flux_dn, Float* broadband_flux_up,
+            int* ncol,
+            int* nlev,
+            Float* broadband_flux_dn,
+            Float* broadband_flux_up,
             Float* broadband_flux_net);
 
     extern "C" void sum_byband(
-            int* ncol, int* nlev, int* ngpt, int* nbnd,
+            int* ncol,
+            int* nlev,
+            int* ngpt,
+            int* nbnd,
             int* band_lims,
             Float* spectral_flux,
             Float* byband_flux);
 
     extern "C" void net_byband_precalc(
-            int* ncol, int* nlev, int* nbnd,
-            Float* byband_flux_dn, Float* byband_flux_up,
+            int* ncol,
+            int* nlev,
+            int* nbnd,
+            Float* byband_flux_dn,
+            Float* byband_flux_up,
             Float* byband_flux_net);
 
     extern "C" void zero_array_3D(
-            int* ni, int* nj, int* nk, Float* array);
+            int* ni,
+            int* nj,
+            int* nk,
+            Float* array);
 
     extern "C" void zero_array_4D(
-             int* ni, int* nj, int* nk, int* nl, Float* array);
+             int* ni,
+             int* nj,
+             int* nk,
+             int* nl,
+             Float* array);
 
     extern "C" void rrtmgp_interpolation(
                 int* ncol, int* nlay,
@@ -123,7 +141,7 @@ namespace rrtmgp_kernels
             Float* fmajor, int* jeta, Bool* tropo, int* jtemp, int* jpress,
             int* gpoint_bands, int* band_lims_gpt, Float* pfracin, Float* temp_ref_min,
             Float* totplnk_delta, Float* totplnk, int* gpoint_flavor,
-            Float* sfc_src, Float* lay_src, Float* lev_src, Float* lev_source_dec,
+            Float* sfc_src, Float* lay_src, Float* lev_src,
             Float* sfc_src_jac);
 
     extern "C" void rrtmgp_compute_tau_rayleigh(
@@ -137,42 +155,113 @@ namespace rrtmgp_kernels
             Bool* tropo, int* jtemp,
             Float* tau_rayleigh);
 
+    /*
     extern "C" void apply_BC_0(
-            int* ncol, int* nlay, int* ngpt,
-            Bool* top_at_1, Float* gpt_flux_dn);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            Float* gpt_flux_dn);
 
     extern "C" void apply_BC_gpt(
-            int* ncol, int* nlay, int* ngpt,
-            Bool* top_at_1, Float* inc_flux, Float* gpt_flux_dn);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const Float* inc_flux,
+            Float* gpt_flux_dn);
+            */
+
+    // ROBERTS REF: REMOVE COMMENTS.
+    // void rte_lw_solver_noscat(
+    //         const int& ncol, 
+    //         const int& nlay, 
+    //         const int& ngpt,
+    //         const Bool& top_at_1, 
+    //         const int& nmus,
+    //         const Float* secants, // (nmus)
+    //         const Float* weights, // (nmus)
+    //         const Float* tau,        // (ncol,nlay,  ngpt)
+    //         const Float* lay_source, // (ncol,nlay,  ngpt)
+    //         const Float* lev_source, // (ncol,nlay+1,ngpt)
+    //         const Float* sfc_emis,   // (ncol,       ngpt)
+    //         const Float* sfc_src,    // (ncol,       ngpt)
+    //         const Float* inc_flux,   // (ncol,       ngpt)
+    //         Float* flux_up,  // [out]   (ncol,nlay+1,ngpt)
+    //         Float* flux_dn,  // [out]   (ncol,nlay+1,ngpt)
+    //         const Bool& do_broadband,
+    //         Float* broadband_up,
+    //                          // [out]   (ncol,nlay+1)
+    //         Float* broadband_dn,
+    //                          // [out]   (ncol,nlay+1)
+    //         const Bool& do_jacobians,
+    //         const Float* sfc_src_jac,
+    //                                // (ncol,       ngpt)
+    //         Float* flux_up_jac,
+    //                        // [out]   (ncol,nlay+1,ngpt)
+    //         const Bool& do_rescaling,
+    //         const Float* ssa,      // (ncol,nlay,  ngpt)
+    //         const Float* g);       // (ncol,nlay,  ngpt)
+
 
     extern "C" void rte_lw_solver_noscat(
-            int* ncol, int* nlay, int* ngpt, Bool* top_at_1, int* n_quad_angs,
-            Float* secants, Float* gauss_wts_subset,
-            Float* tau,
-            Float* lay_source, Float* lev_source_inc, Float* lev_source_dec,
-            Float* sfc_emis_gpt, Float* sfc_source,
-            Float* inc_flux_diffuse,
-            Float* gpt_flux_up, Float* gpt_flux_dn,
-            Bool* do_broadband, Float* flux_up_loc, Float* flux_dn_loc,
-            Bool* do_jacobians, Float* sfc_source_jac, Float* gpt_flux_up_jac,
-            Bool* do_rescaling, Float* ssa, Float* g);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const int& n_quad_angs,
+            const Float* secants,
+            const Float* gauss_wts_subset,
+            const Float* tau,
+            const Float* lay_source,
+            const Float* lev_source,
+            const Float* sfc_emis_gpt,
+            const Float* sfc_source,
+            const Float* inc_flux_diffuse,
+            Float* gpt_flux_up,
+            Float* gpt_flux_dn,
+            const Bool& do_broadband,
+            Float* flux_up_loc,
+            Float* flux_dn_loc,
+            const Bool& do_jacobians,
+            const Float* sfc_source_jac,
+            Float* gpt_flux_up_jac,
+            const Bool& do_rescaling,
+            const Float* ssa,
+            const Float* g);
 
+    /*
     extern "C" void apply_BC_factor(
-            int* ncol, int* nlay, int* ngpt,
-            Bool* top_at_1, Float* inc_flux,
-            Float* factor, Float* flux_dn);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const Float* inc_flux,
+            const Float* factor,
+            Float* flux_dn);
+            */
 
     extern "C" void rte_sw_solver_2stream(
-            int* ncol, int* nlay, int* ngpt, Bool* top_at_1,
-            Float* tau,
-            Float* ssa,
-            Float* g,
-            Float* mu0,
-            Float* sfc_alb_dir_gpt, Float* sfc_alb_dif_gpt,
-            Float* inc_flux_dir,
-            Float* gpt_flux_up, Float* gpt_flux_dn, Float* gpt_flux_dir,
-            Bool* has_dif_bc, Float* inc_flux_dif,
-            Bool* do_broadband, Float* flux_up_loc, Float* flux_dn_loc, Float* flux_dir_loc);
+            const int& ncol,
+            const int& nlay,
+            const int& ngpt,
+            const Bool& top_at_1,
+            const Float* tau,
+            const Float* ssa,
+            const Float* g,
+            const Float* mu0,
+            const Float* sfc_alb_dir_gpt,
+            const Float* sfc_alb_dif_gpt,
+            const Float* inc_flux_dir,
+            Float* gpt_flux_up,
+            Float* gpt_flux_dn,
+            Float* gpt_flux_dir,
+            const Bool& has_dif_bc,
+            const Float* inc_flux_dif,
+            const Bool& do_broadband,
+            Float* flux_up_loc,
+            Float* flux_dn_loc,
+            Float* flux_dir_loc);
 
     extern "C" void rte_increment_2stream_by_2stream(
             int* ncol, int* nlev, int* ngpt,

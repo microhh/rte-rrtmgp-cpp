@@ -9,8 +9,6 @@ namespace
     using namespace Raytracer_functions;
 
     constexpr Float w_thres = 0.5;
-    //constexpr Float solar_cone_cos_half_angle = Float(0.9961947); // cos(Float(5.0) / Float(180.) * M_PI;)
-    constexpr Float solar_cone_cos_half_angle = Float(0.99904823); // cos(Float(2.5) / Float(180.) * M_PI;)
 
     struct Quasi_random_number_generator_2d
     {
@@ -112,6 +110,8 @@ namespace
         const Vector<T>& sun_direction,
         const Vector<T>& photon_dir)
     {
+        // constexpr Float solar_cone_cos_half_angle = Float(0.9961947); // cos(Float(5.0) / Float(180.) * M_PI;)
+        constexpr Float solar_cone_cos_half_angle = Float(0.99904823); // cos(Float(2.5) / Float(180.) * M_PI;)
         return dot(sun_direction, photon_dir) > solar_cone_cos_half_angle;
     }
 }
@@ -119,6 +119,7 @@ namespace
 
 __global__
 void ray_tracer_kernel(
+        const Bool independent_column,
         const Int photons_to_shoot,
         const Int qrng_grid_x,
         const Int qrng_grid_y,
@@ -199,7 +200,7 @@ void ray_tracer_kernel(
             const Float sx = abs((photon.direction.x > 0) ? ((i_n+1) * kn_grid_d.x - photon.position.x)/photon.direction.x : (i_n*kn_grid_d.x - photon.position.x)/photon.direction.x);
             const Float sy = abs((photon.direction.y > 0) ? ((j_n+1) * kn_grid_d.y - photon.position.y)/photon.direction.y : (j_n*kn_grid_d.y - photon.position.y)/photon.direction.y);
             const Float sz = abs((photon.direction.z > 0) ? ((k_n+1) * kn_grid_d.z - photon.position.z)/photon.direction.z : (k_n*kn_grid_d.z - photon.position.z)/photon.direction.z);
-            d_max = min(sx, min(sy, sz));
+            d_max = independent_column ? sz : min(sx, min(sy, sz));
             const int ijk_n = i_n + j_n*kn_grid.x + k_n*kn_grid.x*kn_grid.y;
             k_ext_null = k_null_grid[ijk_n];
         }
@@ -213,12 +214,16 @@ void ray_tracer_kernel(
 
         if (dn >= d_max)
         {
-            const Float dx = photon.direction.x * (s_min + d_max);
-            const Float dy = photon.direction.y * (s_min + d_max);
-            const Float dz = photon.direction.z * (s_min + d_max);
+            if (!independent_column)
+            {
+                const Float dx = photon.direction.x * (s_min + d_max);
+                const Float dy = photon.direction.y * (s_min + d_max);
 
-            photon.position.x += dx;
-            photon.position.y += dy;
+                photon.position.x += dx;
+                photon.position.y += dy;
+            }
+            
+            const Float dz = photon.direction.z * (s_min + d_max);
             photon.position.z += dz;
 
             // surface hit
@@ -248,7 +253,7 @@ void ray_tracer_kernel(
                 //     write_photon_out(&surface_down_diffuse_count[ij], weight);
 
                 // Update weights and add upward surface flux
-                const Float local_albedo = surface_albedo[0];
+                const Float local_albedo = surface_albedo[ij];
                 weight *= local_albedo;
                 write_photon_out(&surface_up_count[ij], weight);
 
@@ -309,20 +314,22 @@ void ray_tracer_kernel(
             // regular cell crossing: adjust tau and apply periodic BC
             else
             {
-                photon.position.x += photon.direction.x>0 ? s_min : -s_min;
-                photon.position.y += photon.direction.y>0 ? s_min : -s_min;
                 photon.position.z += photon.direction.z>0 ? s_min : -s_min;
+                if (!independent_column)
+                {
+                    photon.position.x += photon.direction.x>0 ? s_min : -s_min;
+                    photon.position.y += photon.direction.y>0 ? s_min : -s_min;
 
-                // Cyclic boundary condition in x.
-                photon.position.x = fmod(photon.position.x, grid_size.x);
-                if (photon.position.x < Float(0.))
-                    photon.position.x += grid_size.x;
+                    // Cyclic boundary condition in x.
+                    photon.position.x = fmod(photon.position.x, grid_size.x);
+                    if (photon.position.x < Float(0.))
+                        photon.position.x += grid_size.x;
 
-                // Cyclic boundary condition in y.
-                photon.position.y = fmod(photon.position.y, grid_size.y);
-                if (photon.position.y < Float(0.))
-                    photon.position.y += grid_size.y;
-
+                    // Cyclic boundary condition in y.
+                    photon.position.y = fmod(photon.position.y, grid_size.y);
+                    if (photon.position.y < Float(0.))
+                        photon.position.y += grid_size.y;
+                }
                 tau -= d_max * k_ext_null;
                 d_max = Float(0.);
                 transition = true;
@@ -330,13 +337,17 @@ void ray_tracer_kernel(
         }
         else
         {
-            Float dx = photon.direction.x * dn;
-            Float dy = photon.direction.y * dn;
             Float dz = photon.direction.z * dn;
-
-            photon.position.x = (dx > 0) ? min(photon.position.x + dx, (i_n+1) * kn_grid_d.x - s_min) : max(photon.position.x + dx, (i_n) * kn_grid_d.x + s_min);
-            photon.position.y = (dy > 0) ? min(photon.position.y + dy, (j_n+1) * kn_grid_d.y - s_min) : max(photon.position.y + dy, (j_n) * kn_grid_d.y + s_min);
             photon.position.z = (dz > 0) ? min(photon.position.z + dz, (k_n+1) * kn_grid_d.z - s_min) : max(photon.position.z + dz, (k_n) * kn_grid_d.z + s_min);
+           
+            if (!independent_column)
+            {
+                Float dx = photon.direction.x * dn;
+                Float dy = photon.direction.y * dn;
+
+                photon.position.x = (dx > 0) ? min(photon.position.x + dx, (i_n+1) * kn_grid_d.x - s_min) : max(photon.position.x + dx, (i_n) * kn_grid_d.x + s_min);
+                photon.position.y = (dy > 0) ? min(photon.position.y + dy, (j_n+1) * kn_grid_d.y - s_min) : max(photon.position.y + dy, (j_n) * kn_grid_d.y + s_min);
+            }
 
             // Calculate the 3D index.
             const int i = float_to_int(photon.position.x, grid_d.x, grid_cells.x);

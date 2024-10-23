@@ -238,17 +238,19 @@ void solve_radiation(int argc, char** argv)
         {"shortwave"        , { true,  "Enable computation of shortwave radiation."  }},
         {"longwave"         , { false, "Enable computation of longwave radiation."   }},
         {"fluxes"           , { true,  "Enable computation of fluxes."               }},
-        {"raytracing"       , { false, "Use raytracing for flux computation."        }},
+        {"raytracing"       , { true,  "Use raytracing for flux computation."        }},
         {"cloud-optics"     , { false, "Enable cloud optics."                        }},
         {"cloud-mie"        , { false, "mie cloud droplet scattering."               }},
         {"aerosol-optics"   , { false, "Enable aerosol optics."                      }},
         {"output-optical"   , { false, "Enable output of optical properties."        }},
         {"output-bnd-fluxes", { false, "Enable output of band fluxes."               }},
         {"lu-albedo"        , { false, "Compute spectral albedo from land use map"   }},
-        {"broadband"        , { false, "Compute broadband fluxes"                    }},
+        {"image"            , { true,  "Compute XYZ values to generate RGB images"   }},
+        {"broadband"        , { false, "Compute broadband radiances"                 }},
         {"profiling"        , { false, "Perform additional profiling run."           }},
         {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties" }}};
+        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties" }},
+        {"cloud-cam"        , { false, "accumulate cloud water & ice paths for each camera pixel" }}};
     int photons_per_pixel = 1;
 
     if (parse_command_line_options(command_line_options, photons_per_pixel, argc, argv))
@@ -264,10 +266,13 @@ void solve_radiation(int argc, char** argv)
     const bool switch_output_optical    = command_line_options.at("output-optical"   ).first;
     const bool switch_output_bnd_fluxes = command_line_options.at("output-bnd-fluxes").first;
     const bool switch_lu_albedo         = command_line_options.at("lu-albedo"        ).first;
+    const bool switch_image             = command_line_options.at("image"            ).first;
     const bool switch_broadband         = command_line_options.at("broadband"        ).first;
     const bool switch_profiling         = command_line_options.at("profiling"        ).first;
     const bool switch_delta_cloud       = command_line_options.at("delta-cloud"      ).first;
     const bool switch_delta_aerosol     = command_line_options.at("delta-aerosol"    ).first;
+    const bool switch_cloud_cam         = command_line_options.at("cloud-cam"        ).first;
+    const bool switch_raytracing        = command_line_options.at("raytracing"       ).first;
 
     if (switch_longwave)
     {
@@ -378,14 +383,14 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> rel;
     Array<Float,2> rei;
 
-    if (switch_cloud_optics)
+    if (switch_cloud_optics || switch_cloud_cam)
     {
         lwp.set_dims({n_col, n_lay});
         lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
 
         iwp.set_dims({n_col, n_lay});
         iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
-
+        
         rel.set_dims({n_col, n_lay});
         rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
 
@@ -397,6 +402,7 @@ void solve_radiation(int argc, char** argv)
         rel.set_dims({n_col, n_lay});
         rel.fill(Float(0.));
     }
+
     Array<Float,2> rh;
     Aerosol_concs aerosol_concs;
 
@@ -417,6 +423,8 @@ void solve_radiation(int argc, char** argv)
         read_and_set_aer("aermr10", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
         read_and_set_aer("aermr11", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
     }
+
+
 
     ////// CREATE THE OUTPUT FILE //////
     // Create the general dimensions and arrays.
@@ -676,17 +684,29 @@ void solve_radiation(int argc, char** argv)
         if (switch_broadband)
         {
             radiance.set_dims({camera.nx, camera.ny});
-
-            if (switch_cloud_mie)
-                rad_sw.load_mie_tables("mie_lut_broadband.nc", switch_broadband);
         }
-        else
+        if (switch_image)
         {
             XYZ.set_dims({camera.nx, camera.ny, 3});
-
-            if (switch_cloud_mie)
-                rad_sw.load_mie_tables("mie_lut_visualisation.nc", switch_broadband);
         }
+        
+        if (switch_cloud_mie)
+            rad_sw.load_mie_tables("mie_lut_broadband.nc", "mie_lut_visualisation.nc", switch_broadband, switch_image);
+        
+        
+        Array_gpu<Float,2> liwp_cam;
+        Array_gpu<Float,2> tauc_cam;
+        Array_gpu<Float,2> dist_cam;
+        Array_gpu<Float,2> zen_cam;
+
+        if (switch_cloud_cam)
+        {
+            liwp_cam.set_dims({camera.nx, camera.ny});
+            tauc_cam.set_dims({camera.nx, camera.ny});
+            dist_cam.set_dims({camera.nx, camera.ny});
+            zen_cam.set_dims({camera.nx, camera.ny});
+        }
+        
         // Solve the radiation.
         Status::print_message("Solving the shortwave radiation.");
 
@@ -727,6 +747,8 @@ void solve_radiation(int argc, char** argv)
                     switch_lu_albedo,
                     switch_delta_cloud,
                     switch_delta_aerosol,
+                    switch_cloud_cam,
+                    switch_raytracing,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -745,7 +767,11 @@ void solve_radiation(int argc, char** argv)
                     rh_gpu,
                     aerosol_concs,
                     camera,
-                    radiance);
+                    radiance,
+                    liwp_cam,
+                    tauc_cam,
+                    dist_cam,
+                    zen_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -755,7 +781,7 @@ void solve_radiation(int argc, char** argv)
             cudaEventDestroy(start);
             cudaEventDestroy(stop);
 
-            Status::print_message("Duration shortwave solver: " + std::to_string(duration) + " (ms)");
+            Status::print_message("Duration shortwave solver (broadband version): " + std::to_string(duration) + " (ms)");
         };
 
         auto run_solver = [&](const bool tune_step)
@@ -796,6 +822,8 @@ void solve_radiation(int argc, char** argv)
                     switch_lu_albedo,
                     switch_delta_cloud,
                     switch_delta_aerosol,
+                    switch_cloud_cam,
+                    switch_raytracing,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -814,7 +842,11 @@ void solve_radiation(int argc, char** argv)
                     rh_gpu,
                     aerosol_concs,
                     camera,
-                    XYZ);
+                    XYZ,
+                    liwp_cam,
+                    tauc_cam,
+                    dist_cam,
+                    zen_cam);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -824,7 +856,7 @@ void solve_radiation(int argc, char** argv)
             cudaEventDestroy(start);
             cudaEventDestroy(stop);
 
-            Status::print_message("Duration shortwave solver: " + std::to_string(duration) + " (ms)");
+            Status::print_message("Duration shortwave solver (image version): " + std::to_string(duration) + " (ms)");
         };
 
         if (switch_broadband)
@@ -839,7 +871,7 @@ void solve_radiation(int argc, char** argv)
                cudaProfilerStop();
             }
         }
-        else
+        if (switch_image)
         {
             // tune step
             run_solver(true);
@@ -859,35 +891,59 @@ void solve_radiation(int argc, char** argv)
         // Store the output.
         Status::print_message("Storing the shortwave output.");
 
-        if (switch_broadband)
+        if (switch_raytracing)
         {
-            Array<Float,2> radiance_cpu(radiance);
             output_nc.add_dimension("gpt_sw", n_gpt_sw);
             output_nc.add_dimension("band_sw", n_bnd_sw);
 
             auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
             nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
-
-            auto nc_var = output_nc.add_variable<Float>("radiance", {"y","x"});
-            nc_var.insert(radiance_cpu.v(), {0, 0});
-            nc_var.add_attribute("long_name", "shortwave radiance");
-            nc_var.add_attribute("units", "W m-2 sr-1");
-        }
-        else
-        {
-            Array<Float,3> xyz_cpu(XYZ);
-            output_nc.add_dimension("gpt_sw", n_gpt_sw);
-            output_nc.add_dimension("band_sw", n_bnd_sw);
-            output_nc.add_dimension("n",3);
-
-            auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
-            nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
-
-            auto nc_xyz = output_nc.add_variable<Float>("XYZ", {"n","y","x"});
-            nc_xyz.insert(xyz_cpu.v(), {0, 0, 0});
             
-            nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
+            if (switch_broadband)
+            {
+                Array<Float,2> radiance_cpu(radiance);
+
+                auto nc_var = output_nc.add_variable<Float>("radiance", {"y","x"});
+                nc_var.insert(radiance_cpu.v(), {0, 0});
+                nc_var.add_attribute("long_name", "shortwave radiance");
+                nc_var.add_attribute("units", "W m-2 sr-1");
+            }
+            if (switch_image)
+            {
+                Array<Float,3> xyz_cpu(XYZ);
+                output_nc.add_dimension("n",3);
+
+                auto nc_xyz = output_nc.add_variable<Float>("XYZ", {"n","y","x"});
+                nc_xyz.insert(xyz_cpu.v(), {0, 0, 0});
+                
+                nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
+            }
         }
+
+        if (switch_cloud_cam)
+        {
+            Array<Float,2> liwp_cam_cpu(liwp_cam);
+            Array<Float,2> tauc_cam_cpu(tauc_cam);
+            Array<Float,2> dist_cam_cpu(dist_cam);
+            Array<Float,2> zen_cam_cpu(zen_cam);
+            
+            auto nc_var_liwp = output_nc.add_variable<Float>("liq_ice_wp_cam", {"y","x"});
+            nc_var_liwp.insert(liwp_cam_cpu.v(), {0, 0});
+            nc_var_liwp.add_attribute("long_name", "accumulated liquid+ice water path");
+            
+            auto nc_var_tauc = output_nc.add_variable<Float>("tau_cld_cam", {"y","x"});
+            nc_var_tauc.insert(tauc_cam_cpu.v(), {0, 0});
+            nc_var_tauc.add_attribute("long_name", "accumulated cloud optical depth (441-615nm band)");
+            
+            auto nc_var_dist = output_nc.add_variable<Float>("dist_cld_cam", {"y","x"});
+            nc_var_dist.insert(dist_cam_cpu.v(), {0, 0});
+            nc_var_dist.add_attribute("long_name", "distance to first cloudy cell");
+            
+            auto nc_var_csza = output_nc.add_variable<Float>("zen_cam", {"y","x"});
+            nc_var_csza.insert(zen_cam_cpu.v(), {0, 0});
+            nc_var_csza.add_attribute("long_name", "zenith angle of camera pixel");
+        }
+
         auto nc_mu0 = output_nc.add_variable<Float>("sza");
         nc_mu0.insert(acos(mu0({1}))/M_PI * Float(180.), {0});
 

@@ -128,8 +128,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
             const int* gpoint_flavor,
             Float* sfc_src,
             Float* lay_src,
-            Float* lev_src_inc,
-            Float* lev_src_dec,
+            Float* lev_src,
             Float* sfc_src_jac);
 }
 #endif

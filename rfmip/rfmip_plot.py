@@ -7,7 +7,7 @@ expt = 0
 site = 0
 
 nc_file_run = nc.Dataset('rld_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
-nc_file_ref = nc.Dataset('reference/rld_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
+nc_file_ref = nc.Dataset('../rrtmgp-data/examples/rfmip-clear-sky/reference/rld_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
 shape_rld = nc_file_run.variables['rld'][:].shape
 rld_run_2d = nc_file_run.variables['rld'][:, :, :].reshape( (shape_rld[0]*shape_rld[1], shape_rld[2]) ).transpose()
@@ -29,7 +29,7 @@ plt.tight_layout()
 
 
 nc_file_run = nc.Dataset('rlu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
-nc_file_ref = nc.Dataset('reference/rlu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
+nc_file_ref = nc.Dataset('../rrtmgp-data/examples/rfmip-clear-sky/reference/rlu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
 shape_rlu = nc_file_run.variables['rlu'][:].shape
 rlu_run_2d = nc_file_run.variables['rlu'][:, :, :].reshape( (shape_rlu[0]*shape_rlu[1], shape_rlu[2]) ).transpose()
@@ -51,7 +51,7 @@ plt.tight_layout()
 
 
 nc_file_run = nc.Dataset('rsd_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
-nc_file_ref = nc.Dataset('reference/rsd_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
+nc_file_ref = nc.Dataset('../rrtmgp-data/examples/rfmip-clear-sky/reference/rsd_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
 shape_rsd = nc_file_run.variables['rsd'][:].shape
 rsd_run_2d = nc_file_run.variables['rsd'][:, :, :].reshape( (shape_rsd[0]*shape_rsd[1], shape_rsd[2]) ).transpose()
@@ -73,7 +73,7 @@ plt.tight_layout()
 
 
 nc_file_run = nc.Dataset('rsu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
-nc_file_ref = nc.Dataset('reference/rsu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
+nc_file_ref = nc.Dataset('../rrtmgp-data/examples/rfmip-clear-sky/reference/rsu_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc', mode='r')
 
 shape_rsu = nc_file_run.variables['rsu'][:].shape
 rsu_run_2d = nc_file_run.variables['rsu'][:, :, :].reshape( (shape_rsu[0]*shape_rsu[1], shape_rsu[2]) ).transpose()

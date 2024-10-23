@@ -4,4 +4,6 @@ ln -sf ../rrtmgp-data/rrtmgp-clouds-lw.nc cloud_coefficients_lw.nc
 ln -sf ../rrtmgp-data/rrtmgp-gas-sw-g224.nc coefficients_sw.nc
 ln -sf ../rrtmgp-data/rrtmgp-gas-lw-g256.nc coefficients_lw.nc
 ln -sf ../rte-rrtmgp/examples/compare-to-reference.py
+ln -sf ../rrtmgp-data/examples/rfmip-clear-sky/inputs/multiple*.nc .
+cp ../rrtmgp-data/examples/rfmip-clear-sky/inputs/r*.nc .
 echo "Don't forget to link your executable as 'test_rte_rrtmgp'"

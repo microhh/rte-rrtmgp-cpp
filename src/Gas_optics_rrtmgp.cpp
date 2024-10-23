@@ -1064,7 +1064,7 @@ namespace rrtmgp_kernel_launcher
             const Array<Float,6>& fmajor, const Array<int,4>& jeta, const Array<Bool,2>& tropo, const Array<int,2>& jtemp, const Array<int,2>& jpress,
             const Array<int,1>& gpoint_bands, const Array<int,2>& band_lims_gpt, const Array<Float,4>& pfracin, Float temp_ref_min,
             Float totplnk_delta, const Array<Float,2>& totplnk, const Array<int,2>& gpoint_flavor,
-            Array<Float,2>& sfc_src, Array<Float,3>& lay_src, Array<Float,3>& lev_src_inc, Array<Float,3>& lev_src_dec,
+            Array<Float,2>& sfc_src, Array<Float,3>& lay_src, Array<Float,3>& lev_src,
             Array<Float,2>& sfc_src_jac)
     {
         rrtmgp_kernels::rrtmgp_compute_Planck_source(
@@ -1081,7 +1081,7 @@ namespace rrtmgp_kernel_launcher
                 const_cast<int*>(jpress.ptr()),
                 const_cast<int*>(gpoint_bands.ptr()), const_cast<int*>(band_lims_gpt.ptr()), const_cast<Float*>(pfracin.ptr()), &temp_ref_min,
                 &totplnk_delta, const_cast<Float*>(totplnk.ptr()), const_cast<int*>(gpoint_flavor.ptr()),
-                sfc_src.ptr(), lay_src.ptr(), lev_src_inc.ptr(), lev_src_dec.ptr(),
+                sfc_src.ptr(), lay_src.ptr(), lev_src.ptr(),
                 sfc_src_jac.ptr());
     }
 }
@@ -1339,7 +1339,7 @@ void Gas_optics_rrtmgp::source(
             fmajor, jeta, tropo, jtemp, jpress,
             gpoint_bands, band_lims_gpoint, this->planck_frac, this->temp_ref_min,
             this->totplnk_delta, this->totplnk, this->gpoint_flavor,
-            sources.get_sfc_source(), sources.get_lay_source(), sources.get_lev_source_inc(), sources.get_lev_source_dec(),
+            sources.get_sfc_source(), sources.get_lay_source(), sources.get_lev_source(),
             sources.get_sfc_source_jac());
 }
 

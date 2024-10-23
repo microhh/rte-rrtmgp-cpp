@@ -56,27 +56,6 @@ namespace
     }
 }
 
-//    template<typename Float>
-//    void apply_BC(
-//            int ncol, int nlay, int ngpt,
-//            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
-//    {
-//        rrtmgp_kernels::apply_BC_0(
-//                &ncol, &nlay, &ngpt,
-//                &top_at_1, gpt_flux_dn.ptr());
-//    }
-//
-//    template<typename Float>
-//    void apply_BC(
-//            int ncol, int nlay, int ngpt,
-//            Bool top_at_1, const Array<Float,2>& inc_flux,
-//            Array<Float,3>& gpt_flux_dn)
-//    {
-//        rrtmgp_kernels::apply_BC_gpt(
-//                &ncol, &nlay, &ngpt,
-//                &top_at_1, const_cast<Float*>(inc_flux.ptr()), gpt_flux_dn.ptr());
-//    }
-
 
 void Rte_lw_gpu::rte_lw(
         const std::unique_ptr<Optical_props_arry_gpu>& optical_props,
@@ -134,13 +113,13 @@ void Rte_lw_gpu::rte_lw(
 
     // pass null ptr if size of inc_flux is zero
     const Float* inc_flux_ptr = (inc_flux.size() == 0) ? nullptr : inc_flux.ptr();
-    
+
     Rte_solver_kernels_cuda::lw_solver_noscat(
             ncol, nlay, ngpt, top_at_1, n_quad_angs,
             secants.ptr(), gauss_wts_subset.ptr(),
             optical_props->get_tau().ptr(),
             sources.get_lay_source().ptr(),
-            sources.get_lev_source_inc().ptr(), sources.get_lev_source_dec().ptr(),
+            sources.get_lev_source().ptr(),
             sfc_emis_gpt.ptr(), sources.get_sfc_source().ptr(),
             inc_flux_ptr,
             gpt_flux_up.ptr(), gpt_flux_dn.ptr(),

@@ -31,58 +31,94 @@
 
 namespace rrtmgp_kernel_launcher
 {
-    template<typename Float>
+    /*
     void apply_BC(
-            int ncol, int nlay, int ngpt,
-            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
+            Array<Float,3>& gpt_flux_dn)
     {
         rrtmgp_kernels::apply_BC_0(
-                &ncol, &nlay, &ngpt,
-                &top_at_1, gpt_flux_dn.ptr());
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                gpt_flux_dn.ptr());
     }
 
-    template<typename Float>
+
     void apply_BC(
-            int ncol, int nlay, int ngpt,
-            Bool top_at_1, const Array<Float,2>& inc_flux,
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
+            const Array<Float,2>& inc_flux,
             Array<Float,3>& gpt_flux_dn)
     {
         rrtmgp_kernels::apply_BC_gpt(
-                &ncol, &nlay, &ngpt,
-                &top_at_1, const_cast<Float*>(inc_flux.ptr()), gpt_flux_dn.ptr());
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                inc_flux.ptr(),
+                gpt_flux_dn.ptr());
     }
+    */
+
 
     template<typename Float>
     void lw_solver_noscat_GaussQuad(
-            int ncol, int nlay, int ngpt, Bool top_at_1, int n_quad_angs,
+            const int ncol,
+            const int nlay,
+            const int ngpt,
+            const Bool top_at_1,
+            const int n_quad_angs,
             const Array<Float,3>& secants,
             const Array<Float,2>& gauss_wts_subset,
             const Array<Float,3>& tau,
             const Array<Float,3>& lay_source,
-            const Array<Float,3>& lev_source_inc, const Array<Float,3>& lev_source_dec,
-            const Array<Float,2>& sfc_emis_gpt, const Array<Float,2>& sfc_source,
+            const Array<Float,3>& lev_source,
+            const Array<Float,2>& sfc_emis_gpt,
+            const Array<Float,2>& sfc_source,
             const Array<Float,2>& inc_flux_diffuse,
-            Array<Float,3>& gpt_flux_up, Array<Float,3>& gpt_flux_dn,
-            Bool do_broadband, Array<Float,3>& flux_up_loc, Array<Float,3>& flux_dn_loc,
-            Bool do_jacobians, const Array<Float,2>& sfc_source_jac, Array<Float,3>& gpt_flux_up_jac,
-            Bool do_rescaling, const Array<Float,3>& ssa, const Array<Float,3>& g)
+            Array<Float,3>& gpt_flux_up,
+            Array<Float,3>& gpt_flux_dn,
+            const Bool do_broadband,
+            Array<Float,3>& flux_up_loc,
+            Array<Float,3>& flux_dn_loc,
+            const Bool do_jacobians,
+            const Array<Float,2>& sfc_source_jac,
+            Array<Float,3>& gpt_flux_up_jac,
+            const Bool do_rescaling,
+            const Array<Float,3>& ssa,
+            const Array<Float,3>& g)
     {
         rrtmgp_kernels::rte_lw_solver_noscat(
-                &ncol, &nlay, &ngpt, &top_at_1, &n_quad_angs,
-                const_cast<Float*>(secants.ptr()),
-                const_cast<Float*>(gauss_wts_subset.ptr()),
-                const_cast<Float*>(tau.ptr()),
-                const_cast<Float*>(lay_source.ptr()),
-                const_cast<Float*>(lev_source_inc.ptr()),
-                const_cast<Float*>(lev_source_dec.ptr()),
-                const_cast<Float*>(sfc_emis_gpt.ptr()),
-                const_cast<Float*>(sfc_source.ptr()),
-                const_cast<Float*>(inc_flux_diffuse.ptr()),
+                ncol,
+                nlay,
+                ngpt,
+                top_at_1,
+                n_quad_angs,
+                secants.ptr(),
+                gauss_wts_subset.ptr(),
+                tau.ptr(),
+                lay_source.ptr(),
+                lev_source.ptr(),
+                sfc_emis_gpt.ptr(),
+                sfc_source.ptr(),
+                inc_flux_diffuse.ptr(),
                 gpt_flux_up.ptr(),
                 gpt_flux_dn.ptr(),
-                &do_broadband, flux_up_loc.ptr(), flux_dn_loc.ptr(),
-                &do_jacobians, const_cast<Float*>(sfc_source_jac.ptr()), gpt_flux_up_jac.ptr(),
-                &do_rescaling, const_cast<Float*>(ssa.ptr()), const_cast<Float*>(g.ptr()));
+                do_broadband,
+                flux_up_loc.ptr(),
+                flux_dn_loc.ptr(),
+                do_jacobians,
+                sfc_source_jac.ptr(),
+                gpt_flux_up_jac.ptr(),
+                do_rescaling,
+                ssa.ptr(),
+                g.ptr());
     }
 }
 
@@ -149,7 +185,7 @@ void Rte_lw::rte_lw(
             secants, gauss_wts_subset,
             optical_props->get_tau(),
             sources.get_lay_source(),
-            sources.get_lev_source_inc(), sources.get_lev_source_dec(),
+            sources.get_lev_source(),
             sfc_emis_gpt, sources.get_sfc_source(),
             inc_flux,
             gpt_flux_up, gpt_flux_dn,

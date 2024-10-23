@@ -35,8 +35,7 @@ Source_func_lw::Source_func_lw(
     sfc_source({n_col, optical_props.get_ngpt()}),
     sfc_source_jac({n_col, optical_props.get_ngpt()}),
     lay_source({n_col, n_lay, optical_props.get_ngpt()}),
-    lev_source_inc({n_col, n_lay, optical_props.get_ngpt()}),
-    lev_source_dec({n_col, n_lay, optical_props.get_ngpt()})
+    lev_source({n_col, n_lay+1, optical_props.get_ngpt()})
 {}
 
 
@@ -52,10 +51,15 @@ void Source_func_lw::set_subset(
         for (int ilay=1; ilay<=lay_source.dim(2); ++ilay)
             for (int icol=col_s; icol<=col_e; ++icol)
             {
-                lay_source    ({icol, ilay, igpt}) = sources_sub.get_lay_source()    ({icol-col_s+1, ilay, igpt});
-                lev_source_inc({icol, ilay, igpt}) = sources_sub.get_lev_source_inc()({icol-col_s+1, ilay, igpt});
-                lev_source_dec({icol, ilay, igpt}) = sources_sub.get_lev_source_dec()({icol-col_s+1, ilay, igpt});
+                lay_source({icol, ilay, igpt}) = sources_sub.get_lay_source()({icol-col_s+1, ilay, igpt});
+                lev_source({icol, ilay, igpt}) = sources_sub.get_lev_source()({icol-col_s+1, ilay, igpt});
             }
+
+    const int nlev = lev_source.dim(2);
+
+    for (int igpt=1; igpt<=lay_source.dim(3); ++igpt)
+        for (int icol=col_s; icol<=col_e; ++icol)
+            lev_source({icol, nlev, igpt}) = sources_sub.get_lev_source()({icol-col_s+1, nlev, igpt});
 }
 
 
@@ -71,8 +75,13 @@ void Source_func_lw::get_subset(
         for (int ilay=1; ilay<=lay_source.dim(2); ++ilay)
             for (int icol=col_s; icol<=col_e; ++icol)
             {
-                lay_source    ({icol-col_s+1, ilay, igpt}) = sources_sub.get_lay_source()    ({icol, ilay, igpt});
-                lev_source_inc({icol-col_s+1, ilay, igpt}) = sources_sub.get_lev_source_inc()({icol, ilay, igpt});
-                lev_source_dec({icol-col_s+1, ilay, igpt}) = sources_sub.get_lev_source_dec()({icol, ilay, igpt});
+                lay_source({icol-col_s+1, ilay, igpt}) = sources_sub.get_lay_source()({icol, ilay, igpt});
+                lev_source({icol-col_s+1, ilay, igpt}) = sources_sub.get_lev_source()({icol, ilay, igpt});
             }
+
+    const int nlev = lev_source.dim(2);
+
+    for (int igpt=1; igpt<=lay_source.dim(3); ++igpt)
+        for (int icol=col_s; icol<=col_e; ++icol)
+            lev_source({icol-col_s+1, nlev, igpt}) = sources_sub.get_lev_source()({icol, nlev, igpt});
 }

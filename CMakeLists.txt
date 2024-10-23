@@ -115,4 +115,3 @@ if(USECUDA)
   add_subdirectory(src_cuda_rt)
 endif()
 add_subdirectory(src_test)
-

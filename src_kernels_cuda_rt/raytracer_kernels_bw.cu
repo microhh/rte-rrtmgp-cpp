@@ -12,10 +12,6 @@ namespace
 
     constexpr Float w_thres = 0.5;
 
-    // sun has a half angle of .266 degrees
-    constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
-    constexpr Float solid_angle = Float(6.799910294339209e-05); // 2.*M_PI*(1-cos_half_angle);
-
     enum class Phase_kind {Lambertian, Specular, Rayleigh, HG, Mie};
 
     template<typename T> __device__
@@ -246,7 +242,7 @@ namespace
     inline Float probability_from_sun(
             Photon photon,
             const Vector<Float>& sun_direction,
-            const Float solid_angle, const Float g,
+            const Float sun_solid_angle, const Float g,
             const Float* __restrict__ mie_phase_ang,
             const Float* __restrict__ mie_phase,
             const Float r_eff,
@@ -257,20 +253,20 @@ namespace
         const Float cos_angle = dot(photon.direction, sun_direction);
         if (kind == Phase_kind::HG)
         {
-            return henyey_phase(g, cos_angle) * solid_angle;
+            return henyey_phase(g, cos_angle) * sun_solid_angle;
         }
         else if (kind == Phase_kind::Mie)
         {
-            // return interpolate_mie_phase_table(mie_phase_ang, mie_phase, max(0.05, acos(cos_angle)), r_eff, mie_table_size) * solid_angle;
-            return mie_interpolate_phase_table(mie_phase_ang, mie_phase, acos(cos_angle), r_eff, mie_table_size) * solid_angle;
+            // return interpolate_mie_phase_table(mie_phase_ang, mie_phase, max(0.05, acos(cos_angle)), r_eff, mie_table_size) * sun_solid_angle;
+            return mie_interpolate_phase_table(mie_phase_ang, mie_phase, acos(cos_angle), r_eff, mie_table_size) * sun_solid_angle;
         }
         else if (kind == Phase_kind::Rayleigh)
         {
-            return rayleigh_phase(cos_angle) * solid_angle;
+            return rayleigh_phase(cos_angle) * sun_solid_angle;
         }
         else if (kind == Phase_kind::Lambertian)
         {
-            return lambertian_phase() * solid_angle;
+            return lambertian_phase() * sun_solid_angle;
         }
         else if (kind == Phase_kind::Specular)
         {
@@ -466,7 +462,7 @@ void ray_tracer_kernel_bw(
 
                         // direct contribution
                         const Phase_kind kind = (scatter_type==0) ? Phase_kind::Rayleigh : Phase_kind::HG;
-                        const Float p_sun = probability_from_sun(photon, sun_direction, solid_angle, g, mie_phase_ang_shared, mie_phase, Float(0.), 0, surface_normal, kind);
+                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, Float(0.), 0, surface_normal, kind);
                         const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
                                                     bg_tau_cum, z_lev_bg, bg_idx,
@@ -554,7 +550,7 @@ void ray_tracer_kernel_bw(
                                                                                 : Phase_kind::Lambertian;
 
                         // SUN SCATTERING GOES HERE
-                        const Float p_sun = probability_from_sun(photon, sun_direction, solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, Float(0.), 0,
+                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, Float(0.), 0,
                                                                  surface_normal, surface_kind);
                         const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
@@ -693,7 +689,7 @@ void ray_tracer_kernel_bw(
                                                                         ? Phase_kind::Mie
                                                                         : Phase_kind::HG
                                                                 : Phase_kind::HG;
-                            const Float p_sun = probability_from_sun(photon, sun_direction, solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff[ijk], mie_table_size,
+                            const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff[ijk], mie_table_size,
                                                                      surface_normal, kind);
                             const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                         k_null_grid,k_ext,
@@ -738,4 +734,117 @@ void ray_tracer_kernel_bw(
         }
     }
 }
+    __global__
+    void accumulate_clouds_kernel(
+            const Float* __restrict__ lwp, 
+            const Float* __restrict__ iwp, 
+            const Float* __restrict__ tau_cloud, 
+            const Vector<Float> grid_d,
+            const Vector<Float> grid_size,
+            const Vector<int> grid_cells,
+            Float* __restrict__ liwp_cam, 
+            Float* __restrict__ tauc_cam, 
+            Float* __restrict__ dist_cam, 
+            Float* __restrict__ zen_cam, 
+            const Camera camera)
+    {
+        const int pix = blockDim.x * blockIdx.x + threadIdx.x;
+        const Float s_eps = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
+        Vector<Float> direction; 
+        Vector<Float> position;
+    
+        if (pix < camera.nx * camera.ny)
+        {
+            Float liwp_sum = 0;
+            Float tauc_sum = 0;
+            Float dist = 0;
+            bool reached_cloud = false;
+
+            //const int pix = n * pixels_per_thread + ipix;
+            const Float i = (Float(pix % camera.nx) + Float(0.5))/ Float(camera.nx);
+            const Float j = (Float(pix / camera.nx) + Float(0.5))/ Float(camera.ny);
+
+            position = camera.position + s_eps;
+
+            if (camera.fisheye)
+            {
+                const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
+                const Float photon_azimuth = j * Float(2.) * M_PI;
+                const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
+
+                direction = {dot(camera.mx,  dir_tmp), dot(camera.my,  dir_tmp), dot(camera.mz,  dir_tmp) * Float(-1)};
+            }
+            else
+            {
+                direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
+            }
+            
+            // first bring photon to top of dynamical domain
+            if ((position.z >= (grid_size.z - s_eps)) && (direction.z < Float(0.)))
+            {
+                const Float s = abs((position.z - grid_size.z)/direction.z);
+                position = position + direction * s - s_eps;
+                
+                // Cyclic boundary condition in x.
+                position.x = fmod(position.x, grid_size.x);
+                if (position.x < Float(0.))
+                    position.x += grid_size.x;
+
+                // Cyclic boundary condition in y.
+                position.y = fmod(position.y, grid_size.y);
+                if (position.y < Float(0.))
+                    position.y += grid_size.y;
+            }
+
+            while ((position.z <= grid_size.z - s_eps) && (position.z >= s_eps))
+            {
+                const int i = float_to_int(position.x, grid_d.x, grid_cells.x);
+                const int j = float_to_int(position.y, grid_d.y, grid_cells.y);
+                const int k = float_to_int(position.z, grid_d.z, grid_cells.z);
+                const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
+                
+                const Float sx = abs((direction.x > 0) ? ((i+1) * grid_d.x - position.x)/direction.x : (i*grid_d.x - position.x)/direction.x);
+                const Float sy = abs((direction.y > 0) ? ((j+1) * grid_d.y - position.y)/direction.y : (j*grid_d.y - position.y)/direction.y);
+                const Float sz = abs((direction.z > 0) ? ((k+1) * grid_d.z - position.z)/direction.z : (k*grid_d.z - position.z)/direction.z);
+                const Float s_min = min(sx, min(sy, sz));
+                
+                liwp_sum += s_min * (lwp[ijk] + iwp[ijk]);
+                tauc_sum += s_min * tau_cloud[ijk];
+                if (!reached_cloud)
+                {
+                    dist += s_min;
+                    reached_cloud = tau_cloud[ijk] > 0;
+                }
+                
+                position = position + direction * s_min;
+
+                position.x += direction.x >= 0 ? s_eps : -s_eps;
+                position.y += direction.y >= 0 ? s_eps : -s_eps;
+                position.z += direction.z >= 0 ? s_eps : -s_eps;
+                        
+                // Cyclic boundary condition in x.
+                position.x = fmod(position.x, grid_size.x);
+                if (position.x < Float(0.))
+                    position.x += grid_size.x;
+
+                // Cyclic boundary condition in y.
+                position.y = fmod(position.y, grid_size.y);
+                if (position.y < Float(0.))
+                    position.y += grid_size.y;
+
+            }
+            
+            // divide out initial layer thicknes, equivalent to first converting lwp (g/m2) to lwc (g/m3) or optical depth to k_ext(1/m)
+            liwp_cam[pix] = liwp_sum / grid_d.z;
+            tauc_cam[pix] = tauc_sum / grid_d.z;
+            dist_cam[pix] = reached_cloud ? dist : Float(-1) ;
+            zen_cam[pix] = acos(direction.z);
+        }
+
+
+
+
+    }
+
+
 

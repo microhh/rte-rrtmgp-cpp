@@ -1,9 +1,10 @@
 __device__
-Float interpolate1D(const Float val,
-                 const Float offset,
-                 const Float delta,
-                 const int len,
-                 const Float* __restrict__ table)
+Float interpolate1D(
+        const Float val,
+        const Float offset,
+        const Float delta,
+        const int len,
+        const Float* __restrict__ table)
 {
     Float val0 = (val - offset)/delta;
     Float frac = val0 - int(val0);
@@ -126,87 +127,188 @@ void zero_array_kernel(
 }
 
 
+template<typename T>
+struct Index_1d
+{
+    __device__ Index_1d(T* __restrict__ data, const int n1) :
+        data(data) {}
+    __device__ __forceinline__ T& operator()(const int i1) { return data[i1-1]; }
+    __device__ __forceinline__ const T& operator()(const int i1) const { return data[i1-1]; }
+    T* __restrict__ data;
+};
+
+
+template<typename T>
+struct Index_2d
+{
+    __device__ Index_2d(T* __restrict__ data, const int n1, const int n2) :
+        data(data), s2(n1) {}
+    __device__ __forceinline__ T& operator()(const int i1, const int i2) { return data[(i1-1) + (i2-1)*s2]; }
+    __device__ __forceinline__ const T& operator()(const int i1, const int i2) const { return data[(i1-1) + (i2-1)*s2]; }
+    T* __restrict__ data;
+    const int s2;
+};
+
+
+template<typename T>
+struct Index_3d
+{
+    __device__ Index_3d(T* __restrict__ data, const int n1, const int n2, const int n3) :
+        data(data), s2(n1), s3(n1*n2) {}
+    __device__ __forceinline__ T& operator()(const int i1, const int i2, const int i3) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3]; }
+    __device__ __forceinline__ const T& operator()(const int i1, const int i2, const int i3) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3]; }
+    T* __restrict__ data;
+    const int s2;
+    const int s3;
+};
+
+
+template<typename T>
+struct Index_4d
+{
+    __device__ Index_4d(T* __restrict__ data, const int n1, const int n2, const int n3, const int n4) :
+        data(data), s2(n1), s3(n1*n2), s4(n1*n2*n3) {}
+    __device__ __forceinline__ T& operator()(const int i1, const int i2, const int i3, const int i4) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4]; }
+    __device__ __forceinline__ const T& operator()(const int i1, const int i2, const int i3, const int i4) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4]; }
+    T* __restrict__ data;
+    const int s2;
+    const int s3;
+    const int s4;
+};
+
+
+template<typename T>
+struct Index_6d
+{
+    __device__ Index_6d(T* __restrict__ data, const int n1, const int n2, const int n3, const int n4, const int n5, const int n6) :
+        data(data), s2(n1), s3(n1*n2), s4(n1*n2*n3), s5(n1*n2*n3*n4), s6(n1*n2*n3*n4*n5) {}
+    __device__ __forceinline__ T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4 + (i5-1)*s5 + (i6-1)*s6]; }
+    __device__ __forceinline__ const T& operator()(const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) const { return data[(i1-1) + (i2-1)*s2 + (i3-1)*s3 + (i4-1)*s4 + (i5-1)*s5 + (i6-1)*s6]; }
+    T* __restrict__ data;
+    const int s2;
+    const int s3;
+    const int s4;
+    const int s5;
+    const int s6;
+};
+
+
 __global__
 void Planck_source_kernel(
-        const int ncol, const int nlay, const int nband, const int ngpt,
-        const int nflav, const int neta, const int npres, const int ntemp,
+        const int ncol,
+        const int nlay,
+        const int nbnd,
+        const int ngpt,
+        const int nflav,
+        const int neta,
+        const int npres,
+        const int ntemp,
         const int nPlanckTemp,
-        const Float* __restrict__ tlay, const Float* __restrict__ tlev,
-        const Float* __restrict__ tsfc,
+        const Float* __restrict__ tlay_ptr,
+        const Float* __restrict__ tlev_ptr,
+        const Float* __restrict__ tsfc_ptr,
         const int sfc_lay,
-        const Float* __restrict__ fmajor, const int* __restrict__ jeta,
-        const Bool* __restrict__ tropo, const int* __restrict__ jtemp,
-        const int* __restrict__ jpress, const int* __restrict__ gpoint_bands,
-        const int* __restrict__ band_lims_gpt, const Float* __restrict__ pfracin,
-        const Float temp_ref_min, const Float totplnk_delta,
-        const Float* __restrict__ totplnk, const int* __restrict__ gpoint_flavor,
+        const Float* __restrict__ fmajor_ptr,
+        const int* __restrict__ jeta_ptr,
+        const Bool* __restrict__ tropo_ptr,
+        const int* __restrict__ jtemp_ptr,
+        const int* __restrict__ jpress_ptr,
+        const int* __restrict__ gpoint_bands_ptr,
+        const int* __restrict__ band_lims_gpt_ptr,
+        const Float* __restrict__ pfracin_ptr,
+        const Float temp_ref_min,
+        const Float totplnk_delta,
+        const Float* __restrict__ totplnk_ptr,
+        const int* __restrict__ gpoint_flavor_ptr,
         const Float delta_Tsurf,
-        Float* __restrict__ sfc_src, Float* __restrict__ lay_src,
-        Float* __restrict__ lev_src_inc, Float* __restrict__ lev_src_dec,
-        Float* __restrict__ sfc_src_jac)
+        Float* __restrict__ sfc_src_ptr,
+        Float* __restrict__ lay_src_ptr,
+        Float* __restrict__ lev_src_ptr,
+        Float* __restrict__ sfc_src_jac_ptr)
 {
-    const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-    const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
+    // THIS KERNEL USES FORTRAN INDEXING TO AVOID MISTAKES.
+    const int icol = blockIdx.x*blockDim.x + threadIdx.x + 1;
+    const int ilay = blockIdx.y*blockDim.y + threadIdx.y + 1;
+    const int igpt = blockIdx.z*blockDim.z + threadIdx.z + 1;
 
-    if ( (icol < ncol) && (ilay < nlay) )
+    // Input arrays, use Index functor to simplify index porting from Fortran to CUDA
+    const Index_2d<const Float> tlay        (tlay_ptr, ncol, nlay);
+    const Index_2d<const Float> tlev        (tlev_ptr, ncol, nlay+1);
+    const Index_1d<const Float> tsfc        (tsfc_ptr, ncol);
+    const Index_6d<const Float> fmajor      (fmajor_ptr, 2, 2, 2, ncol, nlay, nflav);
+    const Index_4d<const int> jeta          (jeta_ptr, 2, ncol, nlay, nflav);
+    const Index_2d<const Bool> tropo        (tropo_ptr, ncol, nlay);
+    const Index_2d<const int> jtemp         (jtemp_ptr, ncol, nlay);
+    const Index_2d<const int> jpress        (jpress_ptr, ncol, nlay);
+    const Index_1d<const int> gpoint_bands  (gpoint_bands_ptr, ngpt);
+    const Index_2d<const int> band_lims_gpt (band_lims_gpt_ptr, 2, nbnd);
+    const Index_4d<const Float> pfracin     (pfracin_ptr, ntemp, neta, npres+1, ngpt); 
+    const Index_2d<const Float> totplnk     (totplnk_ptr, nPlanckTemp, nbnd);
+    const Index_2d<const int> gpoint_flavor (gpoint_flavor_ptr, 2, ngpt);
+
+    // Output arrays
+    Index_2d<Float> sfc_src(sfc_src_ptr, ncol, ngpt);
+    Index_3d<Float> lay_src(lay_src_ptr, ncol, nlay, ngpt);
+    Index_3d<Float> lev_src(lev_src_ptr, ncol, nlay+1, ngpt);
+    Index_2d<Float> sfc_src_jac(sfc_src_jac_ptr, ncol, ngpt);
+
+    if ( (icol <= ncol) && (ilay <= nlay) && (igpt <= ngpt) )
     {
-        for (int igpt=0; igpt<ngpt; ++igpt)
+        const int ibnd = gpoint_bands(igpt);
+        const int itropo = (tropo(icol, ilay) == Bool(true)) ? 1 : 2;
+        const int iflav = gpoint_flavor(itropo, igpt);
+
+        // 3D interp.
+        const Float pfrac =
+              ( fmajor(1, 1, 1, icol, ilay, iflav) * pfracin(jtemp(icol, ilay), jeta(1, icol, ilay, iflav)  , jpress(icol, ilay)-1 + itropo, igpt)
+              + fmajor(2, 1, 1, icol, ilay, iflav) * pfracin(jtemp(icol, ilay), jeta(1, icol, ilay, iflav)+1, jpress(icol, ilay)-1 + itropo, igpt)
+              + fmajor(1, 2, 1, icol, ilay, iflav) * pfracin(jtemp(icol, ilay), jeta(1, icol, ilay, iflav)  , jpress(icol, ilay)   + itropo, igpt)
+              + fmajor(2, 2, 1, icol, ilay, iflav) * pfracin(jtemp(icol, ilay), jeta(1, icol, ilay, iflav)+1, jpress(icol, ilay)   + itropo, igpt) )
+
+            + ( fmajor(1, 1, 2, icol, ilay, iflav) * pfracin(jtemp(icol, ilay)+1, jeta(2, icol, ilay, iflav)  , jpress(icol, ilay)-1 + itropo, igpt)
+              + fmajor(2, 1, 2, icol, ilay, iflav) * pfracin(jtemp(icol, ilay)+1, jeta(2, icol, ilay, iflav)+1, jpress(icol, ilay)-1 + itropo, igpt)
+              + fmajor(1, 2, 2, icol, ilay, iflav) * pfracin(jtemp(icol, ilay)+1, jeta(2, icol, ilay, iflav)  , jpress(icol, ilay)   + itropo, igpt)
+              + fmajor(2, 2, 2, icol, ilay, iflav) * pfracin(jtemp(icol, ilay)+1, jeta(2, icol, ilay, iflav)+1, jpress(icol, ilay)   + itropo, igpt) );
+
+        Float planck_function_1 = interpolate1D(tlay(icol, ilay), temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk(1, ibnd));
+        lay_src(icol, ilay, igpt) = pfrac * planck_function_1;
+
+        planck_function_1 = interpolate1D(tlev(icol, ilay), temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk(1, ibnd));
+        if (ilay == 1)
         {
-            const int ibnd = gpoint_bands[igpt]-1;
-            const int idx_collay = icol + ilay * ncol;
-            const int itropo = !tropo[idx_collay];
-            const int iflav = gpoint_flavor[itropo + 2*igpt] - 1;
+            lev_src(icol, ilay, igpt) = pfrac * planck_function_1;
+        }
+        else
+        {
+            const int itropo = (tropo(icol, ilay-1) == Bool(true)) ? 1 : 2;
+            const int iflav = gpoint_flavor(itropo, igpt);
 
-            const int idx_fcl3 = 2 * 2 * 2 * (icol + ilay*ncol + iflav*ncol*nlay);
-            const int idx_fcl1 = 2 *         (icol + ilay*ncol + iflav*ncol*nlay);
+            const Float pfrac_m1 =
+                  ( fmajor(1, 1, 1, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1), jeta(1, icol, ilay-1, iflav)  , jpress(icol, ilay-1)-1 + itropo, igpt)
+                  + fmajor(2, 1, 1, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1), jeta(1, icol, ilay-1, iflav)+1, jpress(icol, ilay-1)-1 + itropo, igpt)
+                  + fmajor(1, 2, 1, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1), jeta(1, icol, ilay-1, iflav)  , jpress(icol, ilay-1)   + itropo, igpt)
+                  + fmajor(2, 2, 1, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1), jeta(1, icol, ilay-1, iflav)+1, jpress(icol, ilay-1)   + itropo, igpt) )
 
-            const int j0 = jeta[idx_fcl1+0];
-            const int j1 = jeta[idx_fcl1+1];
-            const int jtemp_idx = jtemp[idx_collay];
-            const int jpress_idx = jpress[idx_collay]+itropo;
+                + ( fmajor(1, 1, 2, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1)+1, jeta(2, icol, ilay-1, iflav)  , jpress(icol, ilay-1)-1 + itropo, igpt)
+                  + fmajor(2, 1, 2, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1)+1, jeta(2, icol, ilay-1, iflav)+1, jpress(icol, ilay-1)-1 + itropo, igpt)
+                  + fmajor(1, 2, 2, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1)+1, jeta(2, icol, ilay-1, iflav)  , jpress(icol, ilay-1)   + itropo, igpt)
+                  + fmajor(2, 2, 2, icol, ilay-1, iflav) * pfracin(jtemp(icol, ilay-1)+1, jeta(2, icol, ilay-1, iflav)+1, jpress(icol, ilay-1)   + itropo, igpt) );
 
-            // compute layer source irradiances.
-            const int idx_tmp = icol + ilay*ncol;
-            const Float planck_function_lay = interpolate1D(tlay[idx_tmp], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
+            lev_src(icol, ilay, igpt) = sqrt(pfrac * pfrac_m1) * planck_function_1;
+        }
 
-            // compute level source irradiances.
-            const int idx_tmp1 = icol + (ilay+1)*ncol;
-            const int idx_tmp2 = icol + ilay*ncol;
-            const Float planck_function_lev1 = interpolate1D(tlev[idx_tmp1], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
-            const Float planck_function_lev2 = interpolate1D(tlev[idx_tmp2], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
+        if (ilay == nlay)
+        {
+            planck_function_1 = interpolate1D(tlev(icol, ilay+1), temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk(1, ibnd));
+            lev_src(icol, ilay+1, igpt) = pfrac * planck_function_1;
+        }
 
-            const int idx = icol + ilay*ncol + igpt*ncol*nlay;
-            const int idx_sfc = icol + igpt*ncol;
-
-            const Float pfrac_loc =
-                  (fmajor[idx_fcl3+0] * pfracin[(jtemp_idx-1) + (j0-1)*ntemp + (jpress_idx-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
-                   fmajor[idx_fcl3+1] * pfracin[(jtemp_idx-1) +  j0   *ntemp + (jpress_idx-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
-                   fmajor[idx_fcl3+2] * pfracin[(jtemp_idx-1) + (j0-1)*ntemp + jpress_idx    *ntemp*neta + igpt*ntemp*neta*(npres+1)] +
-                   fmajor[idx_fcl3+3] * pfracin[(jtemp_idx-1) +  j0   *ntemp + jpress_idx    *ntemp*neta + igpt*ntemp*neta*(npres+1)])
-
-                + (fmajor[idx_fcl3+4] * pfracin[jtemp_idx + (j1-1)*ntemp + (jpress_idx-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
-                   fmajor[idx_fcl3+5] * pfracin[jtemp_idx +  j1   *ntemp + (jpress_idx-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
-                   fmajor[idx_fcl3+6] * pfracin[jtemp_idx + (j1-1)*ntemp + jpress_idx    *ntemp*neta + igpt*ntemp*neta*(npres+1)] +
-                   fmajor[idx_fcl3+7] * pfracin[jtemp_idx +  j1   *ntemp + jpress_idx    *ntemp*neta + igpt*ntemp*neta*(npres+1)]);
-
-            // Layer source
-            lay_src[idx] = pfrac_loc * planck_function_lay;
-
-            // Level source
-            lev_src_inc[idx] = pfrac_loc * planck_function_lev1;
-            lev_src_dec[idx] = pfrac_loc * planck_function_lev2;
-
-            // Surface
-            if (ilay == sfc_lay - 1) // Subtract one to correct for fortran indexing.
-            {
-                const Float planck_function_sfc1 = interpolate1D(
-                        tsfc[icol], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
-                const Float planck_function_sfc2 = interpolate1D(
-                        tsfc[icol] + delta_Tsurf, temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
-
-                sfc_src[idx_sfc] = pfrac_loc * planck_function_sfc1;
-                sfc_src_jac[idx_sfc] = pfrac_loc * (planck_function_sfc2 - planck_function_sfc1);
-            }
+        if (ilay == sfc_lay)
+        {
+                        planck_function_1 = interpolate1D(tsfc(icol)              , temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk(1, ibnd));
+            const Float planck_function_2 = interpolate1D(tsfc(icol) + delta_Tsurf, temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk(1, ibnd));
+            sfc_src    (icol, igpt) = pfrac * planck_function_1;
+            sfc_src_jac(icol, igpt) = pfrac * (planck_function_2 - planck_function_1);
         }
     }
 }
