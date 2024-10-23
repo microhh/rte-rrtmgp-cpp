@@ -927,19 +927,19 @@ void solve_radiation(int argc, char** argv)
             Array<Float,2> dist_cam_cpu(dist_cam);
             Array<Float,2> zen_cam_cpu(zen_cam);
             
-            auto nc_var_liwp = output_nc.add_variable<float>("liq_ice_wp_cam", {"y","x"});
+            auto nc_var_liwp = output_nc.add_variable<Float>("liq_ice_wp_cam", {"y","x"});
             nc_var_liwp.insert(liwp_cam_cpu.v(), {0, 0});
             nc_var_liwp.add_attribute("long_name", "accumulated liquid+ice water path");
             
-            auto nc_var_tauc = output_nc.add_variable<float>("tau_cld_cam", {"y","x"});
+            auto nc_var_tauc = output_nc.add_variable<Float>("tau_cld_cam", {"y","x"});
             nc_var_tauc.insert(tauc_cam_cpu.v(), {0, 0});
             nc_var_tauc.add_attribute("long_name", "accumulated cloud optical depth (441-615nm band)");
             
-            auto nc_var_dist = output_nc.add_variable<float>("dist_cld_cam", {"y","x"});
+            auto nc_var_dist = output_nc.add_variable<Float>("dist_cld_cam", {"y","x"});
             nc_var_dist.insert(dist_cam_cpu.v(), {0, 0});
             nc_var_dist.add_attribute("long_name", "distance to first cloudy cell");
             
-            auto nc_var_csza = output_nc.add_variable<float>("zen_cam", {"y","x"});
+            auto nc_var_csza = output_nc.add_variable<Float>("zen_cam", {"y","x"});
             nc_var_csza.insert(zen_cam_cpu.v(), {0, 0});
             nc_var_csza.add_attribute("long_name", "zenith angle of camera pixel");
         }
