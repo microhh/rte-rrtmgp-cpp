@@ -86,8 +86,8 @@ namespace
         const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
         const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
         const int iz = blockIdx.z*blockDim.z + threadIdx.z;
-
-        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < grid_cells.z) )
+        
+        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < (grid_cells.z - 1)) )
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
             const Float kext_tot = tau_tot[idx] / grid_d.z;
@@ -103,6 +103,61 @@ namespace
             scat_asy[idx].k_sca_aer = ksca_aer;
             scat_asy[idx].asy_cld = asy_cld[idx];
             scat_asy[idx].asy_aer = asy_aer[idx];
+        }
+    }
+
+    __global__
+    void bundles_optical_props_tod(
+            const Vector<int> grid_cells, const Vector<Float> grid_d, const int n_lev,
+            const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
+            const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
+            const Float* __restrict__ tau_aer, const Float* __restrict__ ssa_aer, const Float* __restrict__ asy_aer,
+            Float* __restrict__ k_ext, Optics_scat* __restrict__ scat_asy)
+    {
+        const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
+        const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
+
+        const int z_tod = grid_cells.z - 1;
+
+        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y))
+        {
+            Float tau_tot_sum = Float(0.);
+            Float tausca_tot_sum = Float(0.);
+
+            Float tausca_cld_sum = Float(0.);
+            Float tauscag_cld_sum = Float(0.);
+
+            Float tausca_aer_sum = Float(0.);
+            Float tauscag_aer_sum = Float(0.);
+            
+            for (int iz=z_tod; iz<n_lev; ++iz)
+            {
+                const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
+                tau_tot_sum += tau_tot[idx];
+                tausca_tot_sum += tau_tot[idx] * ssa_tot[idx];
+                
+                tausca_cld_sum += tau_cld[idx] * ssa_cld[idx];
+                tauscag_cld_sum += tau_cld[idx] * ssa_cld[idx] * asy_cld[idx];
+                
+                tausca_aer_sum += tau_aer[idx] * ssa_aer[idx];
+                tauscag_aer_sum += tau_aer[idx] * ssa_aer[idx] * asy_aer[idx];
+            }
+
+            const int idx = icol_x + icol_y*grid_cells.x + z_tod*grid_cells.y*grid_cells.x;
+            
+            const Float kext_tot = tau_tot_sum / grid_d.z;
+            
+            const Float ksca_cld = tausca_cld_sum / grid_d.z;
+            const Float ksca_aer = tausca_aer_sum / grid_d.z;
+            const Float ksca_gas = tausca_tot_sum / grid_d.z - ksca_cld - ksca_aer;
+            k_ext[idx] = kext_tot;
+
+            scat_asy[idx].k_sca_gas = ksca_gas;
+            scat_asy[idx].k_sca_cld = ksca_cld;
+            scat_asy[idx].k_sca_aer = ksca_aer;
+
+            scat_asy[idx].asy_cld = tauscag_cld_sum / tausca_cld_sum;
+            scat_asy[idx].asy_aer = tauscag_aer_sum / tausca_aer_sum;
         }
     }
 
@@ -169,6 +224,7 @@ Raytracer::Raytracer()
 
 void Raytracer::trace_rays(
         const int igpt,
+        const bool switch_independent_column,
         const Int photons_per_pixel,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
@@ -197,6 +253,8 @@ void Raytracer::trace_rays(
         Array_gpu<Float,3>& flux_abs_dir,
         Array_gpu<Float,3>& flux_abs_dif)
 {
+    const int n_lay = tau_total.dim(2);
+
     // set of block and grid dimensions used in data processing kernels - requires some proper tuning later
     const int block_col_x = 8;
     const int block_col_y = 8;
@@ -215,8 +273,17 @@ void Raytracer::trace_rays(
     Array_gpu<Float,3> k_ext({grid_cells.x, grid_cells.y, grid_cells.z});
     Array_gpu<Optics_scat,3> scat_asy({grid_cells.x, grid_cells.y, grid_cells.z});
 
+    // first on the whole grid expect the extra layer
     bundles_optical_props<<<grid_3d, block_3d>>>(
             grid_cells, grid_d,
+            tau_total.ptr(), ssa_total.ptr(),
+            tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
+            tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
+            k_ext.ptr(), scat_asy.ptr());
+    
+    // second, integrate from TOD to TOA 
+    bundles_optical_props_tod<<<grid_2d, block_2d>>>(
+            grid_cells, grid_d, n_lay,
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
@@ -303,6 +370,7 @@ void Raytracer::trace_rays(
     
     const int qrng_gpt_offset = (igpt-1) * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
     ray_tracer_kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
+            switch_independent_column,
             photons_per_thread,
             qrng_grid_x,
             qrng_grid_y,

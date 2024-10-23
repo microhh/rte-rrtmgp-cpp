@@ -145,8 +145,10 @@ class Radiation_solver_shortwave
                 Array<Float,3>& sw_bnd_flux_dn_dir, Array<Float,3>& sw_bnd_flux_net) const;
 
         void load_mie_tables(
-                const std::string& file_name_mie,
-                const bool switch_broadband);
+                const std::string& file_name_mie_bb,
+                const std::string& file_name_mie_im,
+                const bool switch_broadband,
+                const bool switch_image);
 
         #ifdef __CUDACC__
         void solve_gpu(
@@ -157,6 +159,8 @@ class Radiation_solver_shortwave
                 const bool switch_lu_albedo,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
+                const bool switch_cloud_cam,
+                const bool switch_raytracing,
                 const Vector<int>& grid_cells,
                 const Vector<Float>& grid_d,
                 const Vector<int>& kn_grid,
@@ -175,7 +179,11 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,2>& rh,
                 const Aerosol_concs_gpu& aerosol_concs,
                 const Camera& camera,
-                Array_gpu<Float,3>& XYZ);
+                Array_gpu<Float,3>& XYZ,
+                Array_gpu<Float,2>& liwp_cam,
+                Array_gpu<Float,2>& tauc_cam,
+                Array_gpu<Float,2>& dist_cam,
+                Array_gpu<Float,2>& zen_cam);
         #endif
 
         #ifdef __CUDACC__
@@ -186,6 +194,8 @@ class Radiation_solver_shortwave
                 const bool switch_lu_albedo,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
+                const bool switch_cloud_cam,
+                const bool switch_raytracing,
                 const Vector<int>& grid_cells,
                 const Vector<Float>& grid_d,
                 const Vector<int>& kn_grid,
@@ -204,7 +214,11 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,2>& rh,
                 const Aerosol_concs_gpu& aerosol_concs,
                 const Camera& camera,
-                Array_gpu<Float,2>& radiance);
+                Array_gpu<Float,2>& radiance,
+                Array_gpu<Float,2>& liwp_cam,
+                Array_gpu<Float,2>& tauc_cam,
+                Array_gpu<Float,2>& dist_cam,
+                Array_gpu<Float,2>& zen_cam);
 
         int get_n_gpt_gpu() const { return this->kdist_gpu->get_ngpt(); };
         int get_n_bnd_gpu() const { return this->kdist_gpu->get_nband(); };
@@ -232,11 +246,16 @@ class Radiation_solver_shortwave
         std::unique_ptr<Optical_props_2str_rt> cloud_optical_props;
         std::unique_ptr<Optical_props_2str_rt> aerosol_optical_props;
 
-        Array_gpu<Float,1> mie_phase_angs;
+        Array_gpu<Float,1> mie_phase_angs_bb;
+        Array_gpu<Float,3> mie_cdfs_bb;
+        Array_gpu<Float,4> mie_angs_bb;
+        Array_gpu<Float,4> mie_phase_bb;
         
+        Array_gpu<Float,1> mie_phase_angs;
         Array_gpu<Float,3> mie_cdfs;
         Array_gpu<Float,4> mie_angs;
         Array_gpu<Float,4> mie_phase;
+        
         #endif
 };
 #endif

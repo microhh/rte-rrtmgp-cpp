@@ -126,8 +126,9 @@ void solve_radiation(int argc, char** argv)
     ////// FLOW CONTROL SWITCHES //////
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_switches {
-        {"raytracing"       , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
-        {"profiling"        , { false, "Perform additional profiling run."         }} };
+        {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
+        {"independent-column", { false, "run raytracer in independent column mode"}},
+        {"profiling"         , { false, "Perform additional profiling run."         }} };
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}}} ;
@@ -135,9 +136,10 @@ void solve_radiation(int argc, char** argv)
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
 
-    const bool switch_raytracing        = command_line_switches.at("raytracing"       ).first;
-    const bool switch_profiling         = command_line_switches.at("profiling"        ).first;
-
+    const bool switch_raytracing         = command_line_switches.at("raytracing"       ).first;
+    const bool switch_independent_column =  command_line_switches.at("independent-column").first;
+    const bool switch_profiling          = command_line_switches.at("profiling"        ).first;
+    
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
@@ -257,6 +259,7 @@ void solve_radiation(int argc, char** argv)
         
 	    raytracer.trace_rays(
                0,
+               switch_independent_column,
                photons_per_pixel,
                grid_cells,
                grid_d,

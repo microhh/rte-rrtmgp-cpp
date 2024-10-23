@@ -23,6 +23,7 @@ class Raytracer
 
         void trace_rays(
                 const int qrng_gpt_offset,
+                const bool switch_independent_column,
                 const Int photons_per_pixel,
                 const Raytracer_definitions::Vector<int> grid_cells,
                 const Raytracer_definitions::Vector<Float> grid_d,
