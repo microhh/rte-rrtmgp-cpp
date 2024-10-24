@@ -291,8 +291,10 @@ void solve_radiation(int argc, char** argv)
     
     const int n_z_in = input_nc.get_dimension_size("z");
     
-    // number of vertical levels in the raytrace grid. We add 1 layer on top, in which we add integrated optical properties between TOD and TOA
-    const int n_z = n_z_in + 1;
+    // Number of vertical levels in the raytrace grid.
+    // We add 1 layer on top, in which we add integrated optical properties between TOD and TOA,
+    // unless the ray tracer extends until TOA.
+    const int n_z = (n_z_in < n_lay) ? n_z_in+1 : n_z_in;
 
     Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {n_col_x}), {n_col_x});
     Array<Float,1> grid_xh(input_nc.get_variable<Float>("xh", {n_col_x+1}), {n_col_x+1});
