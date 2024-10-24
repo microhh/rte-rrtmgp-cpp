@@ -384,6 +384,7 @@ Radiation_solver_longwave::Radiation_solver_longwave(
             load_and_init_cloud_optics(file_name_cloud));
 }
 
+
 void Radiation_solver_longwave::solve_gpu(
         const bool switch_fluxes,
         const bool switch_cloud_optics,
@@ -401,6 +402,10 @@ void Radiation_solver_longwave::solve_gpu(
         Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
         Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net)
 {
+
+    throw std::runtime_error("Longwave raytracing is not implemented");
+
+    /*
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
     const int n_lev = p_lev.dim(2);
@@ -524,6 +529,7 @@ void Radiation_solver_longwave::solve_gpu(
             }
         }
     }
+    */
 }
 
 Radiation_solver_shortwave::Radiation_solver_shortwave(
@@ -585,8 +591,8 @@ void Radiation_solver_shortwave::solve_gpu(
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& rei,
         const Array_gpu<Float,2>& rh,
         const Aerosol_concs_gpu& aerosol_concs,
-        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out, 
-        Array_gpu<Float,2>& cld_tau_out, Array_gpu<Float,2>& cld_ssa_out, Array_gpu<Float,2>& cld_asy_out, 
+        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out,
+        Array_gpu<Float,2>& cld_tau_out, Array_gpu<Float,2>& cld_ssa_out, Array_gpu<Float,2>& cld_asy_out,
         Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
         Array_gpu<Float,2>& sw_flux_up, Array_gpu<Float,2>& sw_flux_dn,
         Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net,
@@ -647,7 +653,7 @@ void Radiation_solver_shortwave::solve_gpu(
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
     int previous_band = 0;
-    
+
     for (int igpt=1; igpt<=n_gpt; ++igpt)
     {
         int band = 0;
@@ -669,9 +675,9 @@ void Radiation_solver_shortwave::solve_gpu(
         {
             // Run the gas_optics on a subset.
             kdist_gpu->gas_optics(
-                    igpt, 
-                    col_s, 
-                    n_col_subset, 
+                    igpt,
+                    col_s,
+                    n_col_subset,
                     n_col,
                     p_lay,
                     p_lev,
@@ -701,7 +707,7 @@ void Radiation_solver_shortwave::solve_gpu(
         }
 
         toa_src.fill(toa_src_temp({1}) * tsi_scaling({1}));
-        
+
         if (switch_aerosol_optics)
         {
             if (band > previous_band)
@@ -727,7 +733,7 @@ void Radiation_solver_shortwave::solve_gpu(
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_ssa().ptr());
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_g().ptr());
         }
-        
+
         if (switch_cloud_optics)
         {
             if (band > previous_band)
@@ -768,10 +774,11 @@ void Radiation_solver_shortwave::solve_gpu(
             aer_ssa_out = aerosol_optical_props->get_ssa();
             aer_asy_out = aerosol_optical_props->get_g();
         }
+
         if (switch_fluxes)
         {
             std::unique_ptr<Fluxes_broadband_rt> fluxes =
-                    std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, n_lev);
+                    std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
 
             rte_sw.rte_sw(
                     optical_props,

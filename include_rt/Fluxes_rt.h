@@ -58,7 +58,7 @@ class Fluxes_rt
 class Fluxes_broadband_rt : public Fluxes_rt
 {
     public:
-        Fluxes_broadband_rt(const int ncol_x, const int ncol_y, const int nlev);
+        Fluxes_broadband_rt(const int ncol_x, const int ncol_y, const int n_z, const int nlev);
         virtual ~Fluxes_broadband_rt() {};
 
         virtual void net_flux();
@@ -113,7 +113,7 @@ class Fluxes_broadband_rt : public Fluxes_rt
 class Fluxes_byband_rt : public Fluxes_broadband_rt
 {
     public:
-        Fluxes_byband_rt(const int ncol_x, const int ncol_y, const int nlev, const int nbnd);
+        Fluxes_byband_rt(const int ncol_x, const int ncol_y, const int n_z, const int nlev, const int nbnd);
         virtual ~Fluxes_byband_rt() {};
 
         virtual void reduce(

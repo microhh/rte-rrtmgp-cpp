@@ -86,8 +86,8 @@ namespace
         const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
         const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
         const int iz = blockIdx.z*blockDim.z + threadIdx.z;
-        
-        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < (grid_cells.z - 1)) )
+
+        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < (grid_cells.z-1)) )
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
             const Float kext_tot = tau_tot[idx] / grid_d.z;
@@ -96,6 +96,7 @@ namespace
             const Float ksca_cld = kext_cld * ssa_cld[idx];
             const Float ksca_aer = kext_aer * ssa_aer[idx];
             const Float ksca_gas = kext_tot * ssa_tot[idx] - ksca_cld - ksca_aer;
+
             k_ext[idx] = tau_tot[idx] / grid_d.z;
 
             scat_asy[idx].k_sca_gas = ksca_gas;
@@ -105,6 +106,7 @@ namespace
             scat_asy[idx].asy_aer = asy_aer[idx];
         }
     }
+
 
     __global__
     void bundles_optical_props_tod(
@@ -119,7 +121,7 @@ namespace
 
         const int z_tod = grid_cells.z - 1;
 
-        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y))
+        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) )
         {
             Float tau_tot_sum = Float(0.);
             Float tausca_tot_sum = Float(0.);
@@ -129,27 +131,29 @@ namespace
 
             Float tausca_aer_sum = Float(0.);
             Float tauscag_aer_sum = Float(0.);
-            
+
             for (int iz=z_tod; iz<n_lev; ++iz)
             {
                 const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
+
                 tau_tot_sum += tau_tot[idx];
                 tausca_tot_sum += tau_tot[idx] * ssa_tot[idx];
-                
+
                 tausca_cld_sum += tau_cld[idx] * ssa_cld[idx];
                 tauscag_cld_sum += tau_cld[idx] * ssa_cld[idx] * asy_cld[idx];
-                
+
                 tausca_aer_sum += tau_aer[idx] * ssa_aer[idx];
                 tauscag_aer_sum += tau_aer[idx] * ssa_aer[idx] * asy_aer[idx];
             }
 
             const int idx = icol_x + icol_y*grid_cells.x + z_tod*grid_cells.y*grid_cells.x;
-            
+
             const Float kext_tot = tau_tot_sum / grid_d.z;
-            
+
             const Float ksca_cld = tausca_cld_sum / grid_d.z;
             const Float ksca_aer = tausca_aer_sum / grid_d.z;
             const Float ksca_gas = tausca_tot_sum / grid_d.z - ksca_cld - ksca_aer;
+
             k_ext[idx] = kext_tot;
 
             scat_asy[idx].k_sca_gas = ksca_gas;
@@ -171,7 +175,7 @@ namespace
         const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
         const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
 
-        if ( ( icol_x < grid_cells.x) && ( icol_y < grid_cells.y) )
+        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) )
         {
             const int idx = icol_x + icol_y*grid_cells.x;
             const Float flux_per_ray = toa_src / photons_per_col;
@@ -182,6 +186,7 @@ namespace
             flux_5[idx] = count_5[idx] * flux_per_ray;
         }
     }
+
 
     __global__
     void count_to_flux_3d(
@@ -197,7 +202,9 @@ namespace
         if ( ( icol_x < grid_cells.x) && ( icol_y < grid_cells.y) && ( iz < grid_cells.z))
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.x*grid_cells.y;
+
             const Float flux_per_ray = toa_src / photons_per_col;
+
             flux_1[idx] = count_1[idx] * flux_per_ray / grid_d.z;
             flux_2[idx] = count_2[idx] * flux_per_ray / grid_d.z;
         }
@@ -280,8 +287,8 @@ void Raytracer::trace_rays(
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
             k_ext.ptr(), scat_asy.ptr());
-    
-    // second, integrate from TOD to TOA 
+
+    // second, integrate from TOD to TOA
     bundles_optical_props_tod<<<grid_2d, block_2d>>>(
             grid_cells, grid_d, n_lay,
             tau_total.ptr(), ssa_total.ptr(),
@@ -337,18 +344,18 @@ void Raytracer::trace_rays(
     // smallest two power that is larger than grid dimension (minimum of 2 is currently required)
     const Int qrng_grid_x = std::max(Float(2), pow(Float(2.), ceil(std::log2(Float(grid_cells.x)))) );
     const Int qrng_grid_y = std::max(Float(2), pow(Float(2.), ceil(std::log2(Float(grid_cells.y)))) );
-   
+
     // total number of photons
     const Int photons_total = photons_per_pixel * qrng_grid_x * qrng_grid_y;
 
     // number of photons per thread, this should a power of 2 and nonzero
     Float photons_per_thread_tmp = std::max(Float(1), static_cast<Float>(photons_total) / (rt_kernel_grid * rt_kernel_block));
     Int photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
-    
+
     // with very low number of columns and photons_per_pixel, we may have too many threads firing a single photons, actually exceeding photons_per pixel
     // In that case, reduce grid and block size
     Int actual_photons_per_pixel = photons_per_thread * rt_kernel_grid * rt_kernel_block / (qrng_grid_x * qrng_grid_y);
-    
+
     int rt_kernel_grid_size = rt_kernel_grid;
     int rt_kernel_block_size = rt_kernel_block;
     while ( (actual_photons_per_pixel > photons_per_pixel) )
@@ -356,18 +363,18 @@ void Raytracer::trace_rays(
         if (rt_kernel_grid_size > 1)
             rt_kernel_grid_size /= 2;
         else
-            rt_kernel_block_size /= 2;        
-        
+            rt_kernel_block_size /= 2;
+
         photons_per_thread_tmp = std::max(Float(1), static_cast<Float>(photons_total) / (rt_kernel_grid_size * rt_kernel_block_size));
         photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
         actual_photons_per_pixel = photons_per_thread * rt_kernel_grid_size * rt_kernel_block_size / (qrng_grid_x * qrng_grid_y);
     }
-    
+
     dim3 grid(rt_kernel_grid_size);
     dim3 block(rt_kernel_block_size);
-    
+
     const int mie_table_size = mie_cdf.size();
-    
+
     const int qrng_gpt_offset = (igpt-1) * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
     ray_tracer_kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
             switch_independent_column,
