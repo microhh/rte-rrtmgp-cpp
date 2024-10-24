@@ -116,61 +116,8 @@ namespace
     }
 }
 
-//namespace rrtmgp_kernel_launcher
-//{
-//    
-//    void sum_broadband(
-//            int ncol, int nlev, int ngpt,
-//            const Array<Float,3>& spectral_flux, Array<Float,2>& broadband_flux)
-//    {
-//        rrtmgp_kernels::sum_broadband(
-//                &ncol, &nlev, &ngpt,
-//                const_cast<Float*>(spectral_flux.ptr()),
-//                broadband_flux.ptr());
-//    }
-//
-//    
-//    void net_broadband(
-//            int ncol, int nlev,
-//            const Array<Float,2>& broadband_flux_dn, const Array<Float,2>& broadband_flux_up,
-//            Array<Float,2>& broadband_flux_net)
-//    {
-//        rrtmgp_kernels::net_broadband_precalc(
-//                &ncol, &nlev,
-//                const_cast<Float*>(broadband_flux_dn.ptr()),
-//                const_cast<Float*>(broadband_flux_up.ptr()),
-//                broadband_flux_net.ptr());
-//    }
-//
-//    
-//    void sum_byband(
-//            int ncol, int nlev, int ngpt, int nbnd,
-//            const Array<int,2>& band_lims,
-//            const Array<Float,3>& spectral_flux,
-//            Array<Float,3>& byband_flux)
-//    {
-//        rrtmgp_kernels::sum_byband(
-//                &ncol, &nlev, &ngpt, &nbnd,
-//                const_cast<int*>(band_lims.ptr()),
-//                const_cast<Float*>(spectral_flux.ptr()),
-//                byband_flux.ptr());
-//    }
-//
-//    
-//    void net_byband(
-//            int ncol, int nlev, int nband,
-//            const Array<Float,3>& byband_flux_dn, const Array<Float,3>& byband_flux_up,
-//            Array<Float,3>& byband_flux_net)
-//    {
-//        rrtmgp_kernels::net_byband_precalc(
-//                &ncol, &nlev, &nband,
-//                const_cast<Float*>(byband_flux_dn.ptr()),
-//                const_cast<Float*>(byband_flux_up.ptr()),
-//                byband_flux_net.ptr());
-//    }
 
-
-Fluxes_broadband_rt::Fluxes_broadband_rt(const int ncol_x, const int ncol_y, const int nlev) :
+Fluxes_broadband_rt::Fluxes_broadband_rt(const int ncol_x, const int ncol_y, const int n_z, const int nlev) :
     flux_up     ({ncol_x*ncol_y, nlev}),
     flux_dn     ({ncol_x*ncol_y, nlev}),
     flux_dn_dir ({ncol_x*ncol_y, nlev}),
@@ -180,8 +127,8 @@ Fluxes_broadband_rt::Fluxes_broadband_rt(const int ncol_x, const int ncol_y, con
     flux_sfc_dir({ncol_x, ncol_y}),
     flux_sfc_dif({ncol_x, ncol_y}),
     flux_sfc_up ({ncol_x, ncol_y}),
-    flux_abs_dir({ncol_x, ncol_y, nlev-1}),
-    flux_abs_dif({ncol_x, ncol_y, nlev-1})
+    flux_abs_dir({ncol_x, ncol_y, n_z}),
+    flux_abs_dif({ncol_x, ncol_y, n_z})
 {}
 
 
@@ -259,8 +206,8 @@ void Fluxes_broadband_rt::reduce(
 }
 
 
-Fluxes_byband_rt::Fluxes_byband_rt(const int ncol_x, const int ncol_y, const int nlev, const int nbnd) :
-    Fluxes_broadband_rt(ncol_x, ncol_y, nlev),
+Fluxes_byband_rt::Fluxes_byband_rt(const int ncol_x, const int ncol_y, const int n_z, const int nlev, const int nbnd) :
+    Fluxes_broadband_rt(ncol_x, ncol_y, n_z, nlev),
     bnd_flux_up    ({ncol_x * ncol_y, nlev, nbnd}),
     bnd_flux_dn    ({ncol_x * ncol_y, nlev, nbnd}),
     bnd_flux_dn_dir({ncol_x * ncol_y, nlev, nbnd}),

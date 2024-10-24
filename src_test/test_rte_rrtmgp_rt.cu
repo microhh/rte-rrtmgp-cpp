@@ -235,7 +235,7 @@ void solve_radiation(int argc, char** argv)
         {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }} };  
+        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }} };
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
@@ -288,9 +288,9 @@ void solve_radiation(int argc, char** argv)
     const int n_col = n_col_x * n_col_y;
     const int n_lay = input_nc.get_dimension_size("lay");
     const int n_lev = input_nc.get_dimension_size("lev");
-    
+
     const int n_z_in = input_nc.get_dimension_size("z");
-    
+
     // Number of vertical levels in the raytrace grid.
     // We add 1 layer on top, in which we add integrated optical properties between TOD and TOA,
     // unless the ray tracer extends until TOA.
@@ -301,7 +301,7 @@ void solve_radiation(int argc, char** argv)
     Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {n_col_y}), {n_col_y});
     Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
     Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z_in}), {n_z_in});
-    
+
     const Vector<int> grid_cells = {n_col_x, n_col_y, n_z};
     const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), grid_z({2}) - grid_z({1})};
     const Vector<int> kn_grid = {input_nc.get_variable<int>("ngrid_x"),
@@ -313,7 +313,7 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> t_lay(input_nc.get_variable<Float>("t_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
     Array<Float,2> p_lev(input_nc.get_variable<Float>("p_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
     Array<Float,2> t_lev(input_nc.get_variable<Float>("t_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
-    
+
     // Fetch the col_dry in case present.
     Array<Float,2> col_dry;
     if (input_nc.variable_exists("col_dry"))
@@ -706,6 +706,7 @@ void solve_radiation(int argc, char** argv)
             sw_flux_dn    .set_dims({n_col, n_lev});
             sw_flux_dn_dir.set_dims({n_col, n_lev});
             sw_flux_net   .set_dims({n_col, n_lev});
+
             if (switch_raytracing)
             {
                 rt_flux_tod_up .set_dims({n_col_x, n_col_y});
@@ -879,7 +880,7 @@ void solve_radiation(int argc, char** argv)
             nc_aer_tau.insert(sw_aer_tau_cpu.v(), {0, 0, 0});
             nc_aer_ssa.insert(sw_aer_ssa_cpu.v(), {0, 0, 0});
             nc_aer_asy.insert(sw_aer_asy_cpu.v(), {0, 0, 0});
-        
+
             nc_tot_tau.add_attribute("long_name","Total optical depth at g-point "+std::to_string(single_gpt));
             nc_tot_ssa.add_attribute("long_name","Total single scattering albedo at g-point "+std::to_string(single_gpt));
             nc_cld_tau.add_attribute("long_name","Cloud optical depth at g-point "+std::to_string(single_gpt));
@@ -888,7 +889,7 @@ void solve_radiation(int argc, char** argv)
             nc_aer_tau.add_attribute("long_name","Aerosol optical depth at g-point "+std::to_string(single_gpt));
             nc_aer_ssa.add_attribute("long_name","Aerosol single scattering albedo at g-point "+std::to_string(single_gpt));
             nc_aer_asy.add_attribute("long_name","Aerosol asymmetry parameter at g-point "+std::to_string(single_gpt));
-            
+
             nc_tot_tau.add_attribute("units", "-");
             nc_tot_ssa.add_attribute("units", "-");
             nc_cld_tau.add_attribute("units", "-");
@@ -897,7 +898,7 @@ void solve_radiation(int argc, char** argv)
             nc_aer_tau.add_attribute("units", "-");
             nc_aer_ssa.add_attribute("units", "-");
             nc_aer_asy.add_attribute("units", "-");
-            
+
         }
 
         if (switch_fluxes)
@@ -914,16 +915,16 @@ void solve_radiation(int argc, char** argv)
 
             nc_sw_flux_up.add_attribute("long_name","Upwelling shortwave fluxes (TwoStream solver)");
             nc_sw_flux_up.add_attribute("units","W m-2");
-            
+
             nc_sw_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes (TwoStream solver)");
             nc_sw_flux_dn.add_attribute("units","W m-2");
-            
+
             nc_sw_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes (TwoStream solver)");
             nc_sw_flux_dn_dir.add_attribute("units","W m-2");
-            
+
             nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
             nc_sw_flux_net.add_attribute("units","W m-2");
-            
+
             if (switch_raytracing)
             {
                 auto nc_rt_flux_tod_up  = output_nc.add_variable<Float>("rt_flux_tod_up",  {"y","x"});
@@ -940,22 +941,22 @@ void solve_radiation(int argc, char** argv)
 
                 nc_rt_flux_abs_dir.insert(rt_flux_abs_dir_cpu.v(), {0,0,0});
                 nc_rt_flux_abs_dif.insert(rt_flux_abs_dif_cpu.v(), {0,0,0});
- 
+
                 nc_rt_flux_tod_up.add_attribute("long_name","Upwelling shortwave top-of-domain fluxes (Monte Carlo ray tracer)");
                 nc_rt_flux_tod_up.add_attribute("units","W m-2");
-                
+
                 nc_rt_flux_sfc_dir.add_attribute("long_name","Downwelling direct shortwave surface fluxes (Monte Carlo ray tracer)");
                 nc_rt_flux_sfc_dir.add_attribute("units","W m-2");
-                
+
                 nc_rt_flux_sfc_dif.add_attribute("long_name","Downwelling diffuse shortwave surface fluxes (Monte Carlo ray tracer)");
                 nc_rt_flux_sfc_dif.add_attribute("units","W m-2");
-                
+
                 nc_rt_flux_sfc_up.add_attribute("long_name","Upwelling shortwave surface fluxes (Monte Carlo ray tracer)");
                 nc_rt_flux_sfc_up.add_attribute("units","W m-2");
-                
+
                 nc_rt_flux_abs_dir.add_attribute("long_name","Absorbed direct shortwave fluxes (Monte Carlo ray tracer)");
                 nc_rt_flux_abs_dir.add_attribute("units","W m-3");
-            
+
                 nc_rt_flux_abs_dif.add_attribute("long_name","Absorbed diffuse shortwave fluxes (Monte Carlo ray tracer)");
                 nc_rt_flux_abs_dif.add_attribute("units","W m-3");
 
@@ -973,16 +974,16 @@ void solve_radiation(int argc, char** argv)
                 nc_sw_gpt_flux_dn    .insert(sw_gpt_flux_dn_cpu    .v(), {0, 0, 0});
                 nc_sw_gpt_flux_dn_dir.insert(sw_gpt_flux_dn_dir_cpu.v(), {0, 0, 0});
                 nc_sw_gpt_flux_net   .insert(sw_gpt_flux_net_cpu   .v(), {0, 0, 0});
-                
+
                 nc_sw_gpt_flux_up.add_attribute("long_name","Upwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
                 nc_sw_gpt_flux_up.add_attribute("units","W m-2");
-                
+
                 nc_sw_gpt_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
                 nc_sw_gpt_flux_dn.add_attribute("units","W m-2");
-                
+
                 nc_sw_gpt_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
                 nc_sw_gpt_flux_dn_dir.add_attribute("units","W m-2");
-                
+
                 nc_sw_gpt_flux_net.add_attribute("long_name","Net shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
                 nc_sw_gpt_flux_net.add_attribute("units","W m-2");
             }
