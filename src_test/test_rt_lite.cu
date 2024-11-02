@@ -137,7 +137,7 @@ void solve_radiation(int argc, char** argv)
         return;
 
     const bool switch_raytracing         = command_line_switches.at("raytracing"       ).first;
-    const bool switch_independent_column =  command_line_switches.at("independent-column").first;
+    const bool switch_independent_column = command_line_switches.at("independent-column").first;
     const bool switch_profiling          = command_line_switches.at("profiling"        ).first;
     
     // Print the options to the screen.
@@ -159,14 +159,18 @@ void solve_radiation(int argc, char** argv)
     Netcdf_file input_nc("rt_lite_input.nc", Netcdf_mode::Read);
     const int nx = input_nc.get_dimension_size("x");
     const int ny = input_nc.get_dimension_size("y");
-    const int nz = input_nc.get_dimension_size("z");
+    const int n_z_in = input_nc.get_dimension_size("z");
+    const int n_lay = input_nc.get_dimension_size("lay");
+
+    const int nz = (n_z_in < n_lay) ? n_z_in+1 : n_z_in;
+
     const int ncol = nx*ny;
     const Vector<int> grid_cells = {nx, ny, nz};
     
     // Read the x,y,z dimensions if raytracing is enabled
     const Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {nx}), {nx});
     const Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {ny}), {ny});
-    const Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {nz}), {nz});
+    const Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z_in}), {n_z_in});
 
     const Float dx = grid_x({2}) - grid_x({1});
     const Float dy = grid_y({2}) - grid_y({1});
@@ -179,24 +183,24 @@ void solve_radiation(int argc, char** argv)
     const Vector<int> kn_grid = {ngrid_x, ngrid_y, ngrid_z};
 
     // Read the atmospheric fields.
-    const Array<Float,2> tot_tau(input_nc.get_variable<Float>("tot_tau", {nz, ny, nx}), {ncol, nz});
-    const Array<Float,2> tot_ssa(input_nc.get_variable<Float>("tot_ssa", {nz, ny, nx}), {ncol, nz});
+    const Array<Float,2> tot_tau(input_nc.get_variable<Float>("tot_tau", {n_lay, ny, nx}), {ncol, n_lay});
+    const Array<Float,2> tot_ssa(input_nc.get_variable<Float>("tot_ssa", {n_lay, ny, nx}), {ncol, n_lay});
 
-    Array<Float,2> cld_tau({ncol, nz});	
-    Array<Float,2> cld_ssa({ncol, nz});	
-    Array<Float,2> cld_asy({ncol, nz});
+    Array<Float,2> cld_tau({ncol, n_lay});	
+    Array<Float,2> cld_ssa({ncol, n_lay});	
+    Array<Float,2> cld_asy({ncol, n_lay});
     
-    cld_tau = std::move(input_nc.get_variable<Float>("cld_tau", {nz, ny, nx}));
-    cld_ssa = std::move(input_nc.get_variable<Float>("cld_ssa", {nz, ny, nx}));
-    cld_asy = std::move(input_nc.get_variable<Float>("cld_asy", {nz, ny, nx}));
+    cld_tau = std::move(input_nc.get_variable<Float>("cld_tau", {n_lay, ny, nx}));
+    cld_ssa = std::move(input_nc.get_variable<Float>("cld_ssa", {n_lay, ny, nx}));
+    cld_asy = std::move(input_nc.get_variable<Float>("cld_asy", {n_lay, ny, nx}));
     
-    Array<Float,2> aer_tau({ncol, nz});	
-    Array<Float,2> aer_ssa({ncol, nz});	
-    Array<Float,2> aer_asy({ncol, nz});
+    Array<Float,2> aer_tau({ncol, n_lay});	
+    Array<Float,2> aer_ssa({ncol, n_lay});	
+    Array<Float,2> aer_asy({ncol, n_lay});
     
-    aer_tau = std::move(input_nc.get_variable<Float>("aer_tau", {nz, ny, nx}));
-    aer_ssa = std::move(input_nc.get_variable<Float>("aer_ssa", {nz, ny, nx}));
-    aer_asy = std::move(input_nc.get_variable<Float>("aer_asy", {nz, ny, nx}));
+    aer_tau = std::move(input_nc.get_variable<Float>("aer_tau", {n_lay, ny, nx}));
+    aer_ssa = std::move(input_nc.get_variable<Float>("aer_ssa", {n_lay, ny, nx}));
+    aer_asy = std::move(input_nc.get_variable<Float>("aer_asy", {n_lay, ny, nx}));
     
     // read albedo, solar angles, and top-of-domain fluxes
     Array<Float,2> sfc_albedo({1,ncol});
@@ -204,7 +208,6 @@ void solve_radiation(int argc, char** argv)
     const Float zenith_angle = input_nc.get_variable<Float>("sza");
     const Float azimuth_angle = input_nc.get_variable<Float>("azi");
     const Float tod_dir = input_nc.get_variable<Float>("tod_direct");
-    const Float tod_dif = input_nc.get_variable<Float>("tod_diffuse");
 
     // output arrays
     Array_gpu<Float,2> flux_tod_dn({nx, ny});
@@ -228,7 +231,7 @@ void solve_radiation(int argc, char** argv)
     Netcdf_file output_nc("rt_lite_output.nc", Netcdf_mode::Create);
     output_nc.add_dimension("x", nx);
     output_nc.add_dimension("y", ny);
-    output_nc.add_dimension("z", nz);
+    output_nc.add_dimension("z", n_z_in);
 
     //// GPU arrays
     Array_gpu<Float,2> tot_tau_g(tot_tau);
@@ -278,8 +281,8 @@ void solve_radiation(int argc, char** argv)
                sfc_albedo_g, 
                zenith_angle,
                azimuth_angle,
-               tod_dir,
-               tod_dif,
+               tod_dir * std::cos(zenith_angle),
+               Float(0.),
                flux_tod_dn,
                flux_tod_up,
                flux_sfc_dir,
