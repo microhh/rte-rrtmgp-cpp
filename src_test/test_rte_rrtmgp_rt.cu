@@ -230,6 +230,8 @@ void solve_radiation(int argc, char** argv)
         {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
         {"cloud-optics"      , { false, "Enable cloud optics."                      }},
+        {"liq-cloud-optics"  , { false, "liquid only cloud optics."                      }},
+        {"ice-cloud-optics"  , { false, "ice only cloud optics."                      }},
         {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
         {"aerosol-optics"    , { false, "Enable aerosol optics."                    }},
         {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
@@ -250,6 +252,8 @@ void solve_radiation(int argc, char** argv)
     const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
     const bool switch_independent_column= command_line_switches.at("independent-column").first;
     const bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
+    const bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
+    const bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
     const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
@@ -268,6 +272,11 @@ void solve_radiation(int argc, char** argv)
     if (switch_longwave)
     {
         std::string error = "No longwave radiation implemented in the ray tracer";
+        throw std::runtime_error(error);
+    }
+
+    if (switch_liq_cloud_optics && switch_ice_cloud_optics) {
+        std::string error = "Both liquid-only and ice-only cloud optics cannot be enabled simultaneously";
         throw std::runtime_error(error);
     }
 
@@ -353,17 +362,22 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_cloud_optics)
     {
-        lwp.set_dims({n_col, n_lay});
-        lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
+        
+        if(!switch_ice_cloud_optics){
+            lwp.set_dims({n_col, n_lay});
+            lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
 
-        iwp.set_dims({n_col, n_lay});
-        iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
+            rel.set_dims({n_col, n_lay});
+            rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+        }
 
-        rel.set_dims({n_col, n_lay});
-        rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+        if(!switch_liq_cloud_optics){
+            iwp.set_dims({n_col, n_lay});
+            iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
 
-        rei.set_dims({n_col, n_lay});
-        rei = std::move(input_nc.get_variable<Float>("rei", {n_lay, n_col_y, n_col_x}));
+            rei.set_dims({n_col, n_lay});
+            rei = std::move(input_nc.get_variable<Float>("rei", {n_lay, n_col_y, n_col_x}));
+        }
     }
 
     Array<Float,2> rh;

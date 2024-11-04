@@ -201,12 +201,16 @@ void Cloud_optics_rt::cloud_optics(
     dim3 block_m_gpu(block_col_m, block_lay_m);
 
     Array_gpu<Bool,2> liqmsk({ncol, nlay});
-    set_mask<<<grid_m_gpu, block_m_gpu>>>(
-            ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
-
+    if (clwp.ptr() != nullptr){
+        set_mask<<<grid_m_gpu, block_m_gpu>>>(
+                ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
+    }
     Array_gpu<Bool,2> icemsk({ncol, nlay});
-    set_mask<<<grid_m_gpu, block_m_gpu>>>(
-            ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
+    if (ciwp.ptr() != nullptr){
+        set_mask<<<grid_m_gpu, block_m_gpu>>>(
+                ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
+    }
+
 
     // Temporary arrays for storage.
     Array_gpu<Float,2> ltau    ({ncol, nlay});
@@ -227,19 +231,22 @@ void Cloud_optics_rt::cloud_optics(
     dim3 block_gpu(block_col, block_lay);
 
     // Liquid water
-    compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, ibnd-1, liqmsk.ptr(), clwp.ptr(), reliq.ptr(),
-            this->liq_nsteps, this->liq_step_size, this->radliq_lwr,
-            this->lut_extliq_gpu.ptr(), this->lut_ssaliq_gpu.ptr(),
-            this->lut_asyliq_gpu.ptr(), ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
+    if (clwp.ptr() != nullptr){
+        compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
+                ncol, nlay, ibnd-1, liqmsk.ptr(), clwp.ptr(), reliq.ptr(),
+                this->liq_nsteps, this->liq_step_size, this->radliq_lwr,
+                this->lut_extliq_gpu.ptr(), this->lut_ssaliq_gpu.ptr(),
+                this->lut_asyliq_gpu.ptr(), ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
+    }
 
     // Ice.
-    compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, ibnd-1, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
-            this->ice_nsteps, this->ice_step_size, this->radice_lwr,
-            this->lut_extice_gpu.ptr(), this->lut_ssaice_gpu.ptr(),
-            this->lut_asyice_gpu.ptr(), itau.ptr(), itaussa.ptr(), itaussag.ptr());
-
+    if (ciwp.ptr() != nullptr){
+        compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
+                ncol, nlay, ibnd-1, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
+                this->ice_nsteps, this->ice_step_size, this->radice_lwr,
+                this->lut_extice_gpu.ptr(), this->lut_ssaice_gpu.ptr(),
+                this->lut_asyice_gpu.ptr(), itau.ptr(), itaussa.ptr(), itaussag.ptr());
+    }
     constexpr Float eps = std::numeric_limits<Float>::epsilon();
 
     combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
@@ -274,13 +281,15 @@ void Cloud_optics_rt::cloud_optics(
     dim3 block_m_gpu(block_col_m, block_lay_m);
 
     Array_gpu<Bool,2> liqmsk({ncol, nlay});
-    set_mask<<<grid_m_gpu, block_m_gpu>>>(
-            ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
-
+    if (clwp.ptr() != nullptr){
+        set_mask<<<grid_m_gpu, block_m_gpu>>>(
+                ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
+    }
     Array_gpu<Bool,2> icemsk({ncol, nlay});
-    set_mask<<<grid_m_gpu, block_m_gpu>>>(
-            ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
-
+    if (ciwp.ptr() != nullptr){
+        set_mask<<<grid_m_gpu, block_m_gpu>>>(
+                ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
+    }
     // Temporary arrays for storage.
     Array_gpu<Float,2> ltau    ({ncol, nlay});
     Array_gpu<Float,2> ltaussa ({ncol, nlay});
@@ -300,18 +309,22 @@ void Cloud_optics_rt::cloud_optics(
     dim3 block_gpu(block_col, block_lay);
 
     // Liquid water
-    compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, ibnd-1, liqmsk.ptr(), clwp.ptr(), reliq.ptr(),
-            this->liq_nsteps, this->liq_step_size, this->radliq_lwr,
-            this->lut_extliq_gpu.ptr(), this->lut_ssaliq_gpu.ptr(),
-            this->lut_asyliq_gpu.ptr(), ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
+    if (clwp.ptr() != nullptr){
+        compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
+                ncol, nlay, ibnd-1, liqmsk.ptr(), clwp.ptr(), reliq.ptr(),
+                this->liq_nsteps, this->liq_step_size, this->radliq_lwr,
+                this->lut_extliq_gpu.ptr(), this->lut_ssaliq_gpu.ptr(),
+                this->lut_asyliq_gpu.ptr(), ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
+    }
 
     // Ice.
-    compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, ibnd-1, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
-            this->ice_nsteps, this->ice_step_size, this->radice_lwr,
-            this->lut_extice_gpu.ptr(), this->lut_ssaice_gpu.ptr(),
-            this->lut_asyice_gpu.ptr(), itau.ptr(), itaussa.ptr(), itaussag.ptr());
+    if (ciwp.ptr() != nullptr){
+        compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
+                ncol, nlay, ibnd-1, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
+                this->ice_nsteps, this->ice_step_size, this->radice_lwr,
+                this->lut_extice_gpu.ptr(), this->lut_ssaice_gpu.ptr(),
+                this->lut_asyice_gpu.ptr(), itau.ptr(), itaussa.ptr(), itaussag.ptr());
+    }
 
     constexpr Float eps = std::numeric_limits<Float>::epsilon();
 
