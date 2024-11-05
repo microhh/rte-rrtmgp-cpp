@@ -23,7 +23,6 @@ constexpr int bw_kernel_grid = 1024;
 constexpr int bw_kernel_block = 256;
 constexpr int bw_kernel_grid = 256;
 #endif
-constexpr Float k_null_gas_min = Float(1.e-3);
 
 // sun has a half angle of .266 degrees
 constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
