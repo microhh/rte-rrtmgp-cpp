@@ -175,7 +175,7 @@ namespace
             Photon& photon,
             Float* __restrict__ camera_count,
             Float* __restrict__ camera_shot,
-            const int ij_cam, const int n,
+            const Int ij_cam, const int n,
             Random_number_generator<Float>& rng,
             const Vector<Float>& sun_direction,
             const Grid_knull* __restrict__ k_null_grid,
@@ -278,11 +278,11 @@ namespace
 __global__
 void ray_tracer_kernel_bw(
         const int igpt,
-        const int photons_per_pixel,
+        const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
         Float* __restrict__ camera_count,
         Float* __restrict__ camera_shot,
-        int* __restrict__ counter,
+        Int* __restrict__ counter,
         const Float* __restrict__ k_ext, const Optics_scat* __restrict__ scat_asy,
         const Float* __restrict__ k_ext_bg, const Optics_scat* __restrict__ scat_asy_bg,
         const Float* __restrict__ z_lev_bg,
@@ -338,13 +338,13 @@ void ray_tracer_kernel_bw(
 
     const Float s_min = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
     const Float s_min_bg = max(max(grid_size.x, grid_size.y), z_top) * Float_epsilon;
-
-    while (counter[0] < camera.nx*camera.ny*photons_per_pixel)
+    
+    while (counter[0] < camera.npix*photons_per_pixel)
     {
-        const int count = atomicAdd(&counter[0], 1);
-        const int ij_cam = count / photons_per_pixel;
+        const Int count = atomicAdd(&counter[0], 1);
+        const Int ij_cam = count / photons_per_pixel;
 
-        if (ij_cam >= camera.nx*camera.ny)
+        if (ij_cam >= camera.npix)
             return;
 
         Float weight;

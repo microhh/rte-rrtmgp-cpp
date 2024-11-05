@@ -91,17 +91,18 @@ struct Camera
     // size of output arrays, either number of horizontal and vertical pixels, or number of zenith/azimuth angles of fisheye lens. Default to 1024
     int ny = 1024;
     int nx = 1024;
+    Int npix;
 };
 
 
 __global__
 void ray_tracer_kernel_bw(
         const int igpt,
-        const int photons_per_pixel,
+        const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
         Float* __restrict__ camera_count,
         Float* __restrict__ camera_shot,
-        int* __restrict__ counter,
+        Int* __restrict__ counter,
         const Float* __restrict__ k_ext, const Optics_scat* __restrict__ scat_asy,
         const Float* __restrict__ k_ext_bg, const Optics_scat* __restrict__ scat_asy_bg,
         const Float* __restrict__ z_lev_bg,

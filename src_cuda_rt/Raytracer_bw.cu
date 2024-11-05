@@ -456,11 +456,12 @@ void Raytracer_bw::trace_rays(
 
     Array_gpu<Float,2> camera_count({camera.nx, camera.ny});
     Array_gpu<Float,2> shot_count({camera.nx, camera.ny});
-    Array_gpu<int,1> counter({1});
+    Array_gpu<Int,1> counter({1});
 
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count.ptr());
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, shot_count.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(1, counter.ptr());
+    
+    counter.fill(Int(0));
 
     // domain sizes
     const Vector<Float> grid_size = grid_d * grid_cells;
@@ -604,11 +605,11 @@ void Raytracer_bw::trace_rays_bb(
 
     Array_gpu<Float,2> camera_count({camera.nx, camera.ny});
     Array_gpu<Float,2> shot_count({camera.nx, camera.ny});
-    Array_gpu<int,1> counter({1});
+    Array_gpu<Int,1> counter({1});
 
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count.ptr());
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, shot_count.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(1, counter.ptr());
+    counter.fill(Int(0));
 
     // domain sizes
     const Vector<Float> grid_size = grid_d * grid_cells;
