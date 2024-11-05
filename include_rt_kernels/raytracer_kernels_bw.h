@@ -59,24 +59,21 @@ struct Camera
         const Float yaw = yaw_deg / Float(180.) * M_PI;
         const Float pitch = pitch_deg / Float(180.) * M_PI;
         const Float roll = roll_deg / Float(180.) * M_PI;
-        mx = {cos(yaw)*sin(pitch), (cos(yaw)*cos(pitch)*sin(roll)-sin(yaw)*cos(roll)), (cos(yaw)*cos(pitch)*cos(roll)+sin(yaw)*sin(roll))};
-        my = {sin(yaw)*sin(pitch), (sin(yaw)*cos(pitch)*sin(roll)+cos(yaw)*cos(roll)), (sin(yaw)*cos(pitch)*cos(roll)-cos(yaw)*sin(roll))};
-        mz = {-cos(pitch), sin(pitch)*sin(roll), sin(pitch)*cos(roll)};
+        mx = {cos(yaw)*cos(pitch), (cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll)), (cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll))};
+        my = {sin(yaw)*cos(pitch), (sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll)), (sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll))};
+        mz = {-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)};
     }
 
     void setup_normal_camera(const Camera camera)
     {
         if (!fisheye)
         {
-            const Vector<Float> dir_tmp = {0, 0, 1};
-            const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)*Float(-1)}));
-            Vector<Float> dir_up;
-            if ( (int(dir_cam.z)==1) || (int(dir_cam.z)==-1) )
-                dir_up = {1, 0, 0};
-            else
-                dir_up = {0, 0, 1};
+            const Vector<Float> dir_tmp = {1, 0, 0};
+            const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)}));
+            const Vector<Float> dir_up_tmp = {0, 0, 1};
+            const Vector<Float> dir_up = normalize(Vector<Float>({dot(camera.mx,dir_up_tmp), dot(camera.my,dir_up_tmp), dot(camera.mz,dir_up_tmp)}));
 
-            cam_width = normalize(cross(dir_cam, dir_up));
+            cam_width = Float(-1) * normalize(cross(dir_cam, dir_up));
             cam_height = normalize(cross(dir_cam, cam_width));
             cam_depth = dir_cam / tan(fov/Float(180)*M_PI/Float(2.));
         

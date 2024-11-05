@@ -11,6 +11,7 @@
 import netCDF4 as nc
 import numpy as np
 import argparse
+import os
 
 camera_variables = {
     "yaw": "Horizontal direction of camera, 0: east, 90: north, 180/-180: weast, -90/270: south",
@@ -39,7 +40,10 @@ for var in camera_variables.keys():
 args = vars(parser.parse_args())
 
 # open netcdf file
-ncf = nc.Dataset(args['name'],"r+")
+if os.path.isfile(args['name']):
+    ncf = nc.Dataset(args['name'],"r+")
+else:
+    print("file does not exist")
 
 # add group if it does not exsist yet
 if not "camera-settings" in ncf.groups:
@@ -94,7 +98,7 @@ if not args['azi'] is None:
 print("Camera settings:")
 for v in camera_variables.keys():
     print("{:6}{:>8}".format(v, str(cam[v][:])))
-print("{:6}{:>8}".format("sza", str(np.round(np.rad2deg(np.arccos(ncf['mu0'][0,0])),1))))
-print("{:6}{:>8}".format("azi", str(np.round(np.rad2deg(ncf['azi'][0,0]),1))))
+print("{:6}{:>8}".format("sza", str(np.round(np.rad2deg(np.arccos(ncf['mu0'][:].flatten()[0])),1))))
+print("{:6}{:>8}".format("azi", str(np.round(np.rad2deg(ncf['azi'][:].flatten()[0]),1))))
 
 ncf.close()
