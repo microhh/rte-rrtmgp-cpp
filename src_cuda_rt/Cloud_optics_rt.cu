@@ -88,6 +88,23 @@ namespace
     }
 
     __global__
+    void combine_and_store_kernel_single_phase(const int ncol, const int nlay, const Float tmin,
+                  Float* __restrict__ tau,
+                  const Float* __restrict__ l_or_i_tau, const Float* __restrict__ l_or_i_taussa)
+    {
+        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+        const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
+
+        if ( (icol < ncol) && (ilay < nlay) )
+        {
+            const int idx = icol + ilay*ncol;
+            const Float tau_t = (l_or_i_tau[idx] - l_or_i_taussa[idx]);
+
+            tau[idx] = tau_t;
+        }
+    }
+
+    __global__
     void combine_and_store_kernel(const int ncol, const int nlay, const Float tmin,
                   Float* __restrict__ tau, Float* __restrict__ ssa, Float* __restrict__ g,
                   const Float* __restrict__ ltau, const Float* __restrict__ ltaussa, const Float* __restrict__ ltaussag,
@@ -102,6 +119,28 @@ namespace
             const Float tau_t = ltau[idx] + itau[idx];
             const Float taussa = ltaussa[idx] + itaussa[idx];
             const Float taussag = ltaussag[idx] + itaussag[idx];
+
+            tau[idx] = tau_t;
+            ssa[idx] = taussa / max(tau_t, tmin);
+            g[idx]   = taussag/ max(taussa, tmin);
+        }
+    }
+
+        __global__
+    void combine_and_store_kernel_single_phase(const int ncol, const int nlay, const Float tmin,
+                  Float* __restrict__ tau, Float* __restrict__ ssa, Float* __restrict__ g,
+                  const Float* __restrict__ l_or_i_tau, const Float* __restrict__ l_or_i_taussa, const Float* __restrict__ l_or_i_taussag
+                  )
+    {
+        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+        const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
+
+        if ( (icol < ncol) && (ilay < nlay) )
+        {
+            const int idx = icol + ilay*ncol;
+            const Float tau_t = l_or_i_tau[idx];
+            const Float taussa = l_or_i_taussa[idx];
+            const Float taussag = l_or_i_taussag[idx];
 
             tau[idx] = tau_t;
             ssa[idx] = taussa / max(tau_t, tmin);
@@ -200,26 +239,34 @@ void Cloud_optics_rt::cloud_optics(
     dim3 grid_m_gpu(grid_col_m, grid_lay_m);
     dim3 block_m_gpu(block_col_m, block_lay_m);
 
-    Array_gpu<Bool,2> liqmsk({ncol, nlay});
+    Array_gpu<Bool,2> liqmsk, icemsk;
+
     if (clwp.ptr() != nullptr){
+        Array_gpu<Bool,2> liqmsk({ncol, nlay});
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
                 ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
     }
-    Array_gpu<Bool,2> icemsk({ncol, nlay});
+    
     if (ciwp.ptr() != nullptr){
+        Array_gpu<Bool,2> icemsk({ncol, nlay});
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
                 ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
     }
 
 
     // Temporary arrays for storage.
-    Array_gpu<Float,2> ltau    ({ncol, nlay});
-    Array_gpu<Float,2> ltaussa ({ncol, nlay});
-    Array_gpu<Float,2> ltaussag({ncol, nlay});
-
-    Array_gpu<Float,2> itau    ({ncol, nlay});
-    Array_gpu<Float,2> itaussa ({ncol, nlay});
-    Array_gpu<Float,2> itaussag({ncol, nlay});
+    Array_gpu<Float,2> ltau, ltaussa, ltaussag;
+    Array_gpu<Float,2> itau, itaussa, itaussag;
+    if (clwp.ptr() != nullptr){
+        Array_gpu<Float,2> ltau    ({ncol, nlay});
+        Array_gpu<Float,2> ltaussa ({ncol, nlay});
+        Array_gpu<Float,2> ltaussag({ncol, nlay});
+    }
+    if (ciwp.ptr() != nullptr){
+        Array_gpu<Float,2> itau    ({ncol, nlay});
+        Array_gpu<Float,2> itaussa ({ncol, nlay});
+        Array_gpu<Float,2> itaussag({ncol, nlay});
+    }
 
     const int block_col = 64;
     const int block_lay = 1;
@@ -248,12 +295,27 @@ void Cloud_optics_rt::cloud_optics(
                 this->lut_asyice_gpu.ptr(), itau.ptr(), itaussa.ptr(), itaussag.ptr());
     }
     constexpr Float eps = std::numeric_limits<Float>::epsilon();
-
-    combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
+    if ((ciwp.ptr() != nullptr) && (clwp.ptr() != nullptr))
+    {
+        combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
             ncol, nlay, eps,
             optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
             ltau.ptr(), ltaussa.ptr(), ltaussag.ptr(),
             itau.ptr(), itaussa.ptr(), itaussag.ptr());
+    } else if(ciwp.ptr() == nullptr)
+    {
+        combine_and_store_kernel_single_phase<<<grid_gpu, block_gpu>>>(
+            ncol, nlay, eps,
+            optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
+            ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
+    } else if (clwp.ptr() == nullptr)
+    {
+       combine_and_store_kernel_single_phase<<<grid_gpu, block_gpu>>>(
+            ncol, nlay, eps,
+            optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
+            itau.ptr(), itaussa.ptr(), itaussag.ptr()); 
+    }
+
 }
 
 // 1scl variant of cloud optics.
@@ -280,24 +342,29 @@ void Cloud_optics_rt::cloud_optics(
     dim3 grid_m_gpu(grid_col_m, grid_lay_m);
     dim3 block_m_gpu(block_col_m, block_lay_m);
 
-    Array_gpu<Bool,2> liqmsk({ncol, nlay});
-    if (clwp.ptr() != nullptr){
+    // Temporary arrays for storage.
+    Array_gpu<Bool,2> liqmsk, icemsk;
+    Array_gpu<Float,2> ltau, ltaussa, ltaussag;
+    Array_gpu<Float,2> itau, itaussa, itaussag;
+    if (clwp.ptr() != nullptr)
+    {
+        Array_gpu<Bool,2> liqmsk({ncol, nlay});
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
-                ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
+            ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
+
+        Array_gpu<Float,2> ltau    ({ncol, nlay});
+        Array_gpu<Float,2> ltaussa ({ncol, nlay});
+        Array_gpu<Float,2> ltaussag({ncol, nlay});
     }
-    Array_gpu<Bool,2> icemsk({ncol, nlay});
-    if (ciwp.ptr() != nullptr){
+    if (ciwp.ptr() != nullptr)
+    {
+        Array_gpu<Bool,2> icemsk({ncol, nlay});
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
                 ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
+        Array_gpu<Float,2> itau    ({ncol, nlay});
+        Array_gpu<Float,2> itaussa ({ncol, nlay});
+        Array_gpu<Float,2> itaussag({ncol, nlay});
     }
-    // Temporary arrays for storage.
-    Array_gpu<Float,2> ltau    ({ncol, nlay});
-    Array_gpu<Float,2> ltaussa ({ncol, nlay});
-    Array_gpu<Float,2> ltaussag({ncol, nlay});
-
-    Array_gpu<Float,2> itau    ({ncol, nlay});
-    Array_gpu<Float,2> itaussa ({ncol, nlay});
-    Array_gpu<Float,2> itaussag({ncol, nlay});
 
     const int block_col = 64;
     const int block_lay = 1;
@@ -327,11 +394,27 @@ void Cloud_optics_rt::cloud_optics(
     }
 
     constexpr Float eps = std::numeric_limits<Float>::epsilon();
-
-    combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
+    if ((ciwp.ptr() != nullptr) && (clwp.ptr() != nullptr))
+    {
+        combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
             ncol, nlay, eps,
             optical_props.get_tau().ptr(),
             ltau.ptr(), ltaussa.ptr(),
             itau.ptr(), itaussa.ptr());
+    } else if(ciwp.ptr() == nullptr)
+    {
+        combine_and_store_kernel_single_phase<<<grid_gpu, block_gpu>>>(
+            ncol, nlay, eps,
+            optical_props.get_tau().ptr(),
+            ltau.ptr(), ltaussa.ptr());
+    } else if(clwp.ptr() == nullptr)
+    {
+        combine_and_store_kernel_single_phase<<<grid_gpu, block_gpu>>>(
+            ncol, nlay, eps,
+            optical_props.get_tau().ptr(),
+            itau.ptr(), itaussa.ptr());
+
+    }
+
 }
 
