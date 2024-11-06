@@ -227,6 +227,7 @@ void solve_radiation(int argc, char** argv)
         {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
         {"longwave"          , { false, "Enable computation of longwave radiation." }},
         {"fluxes"            , { true,  "Enable computation of fluxes."             }},
+        {"disable-2s"        , { false, "use raytracing onlu for flux computation. must be passed with raytracing" }},
         {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
@@ -249,6 +250,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
     const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
     const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
+    const bool switch_disable_2s        = command_line_switches.at("disable-2s"        ).first;
     const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
     const bool switch_independent_column= command_line_switches.at("independent-column").first;
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
@@ -272,6 +274,11 @@ void solve_radiation(int argc, char** argv)
     if (switch_longwave)
     {
         std::string error = "No longwave radiation implemented in the ray tracer";
+        throw std::runtime_error(error);
+    }
+
+    if (switch_disable_2s && !switch_raytracing) {
+        std::string error = "cannot disable two-stream for flux calculation without turning ray tracing on";
         throw std::runtime_error(error);
     }
 
@@ -721,10 +728,13 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            sw_flux_up    .set_dims({n_col, n_lev});
-            sw_flux_dn    .set_dims({n_col, n_lev});
-            sw_flux_dn_dir.set_dims({n_col, n_lev});
-            sw_flux_net   .set_dims({n_col, n_lev});
+            if(!switch_disable_2s)
+            {
+                sw_flux_up    .set_dims({n_col, n_lev});
+                sw_flux_dn    .set_dims({n_col, n_lev});
+                sw_flux_dn_dir.set_dims({n_col, n_lev});
+                sw_flux_net   .set_dims({n_col, n_lev});
+            }
 
             if (switch_raytracing)
             {
@@ -785,6 +795,7 @@ void solve_radiation(int argc, char** argv)
 
             rad_sw.solve_gpu(
                     switch_fluxes,
+                    switch_disable_2s,
                     switch_raytracing,
                     switch_independent_column,
                     switch_cloud_optics,
@@ -922,27 +933,31 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            auto nc_sw_flux_up     = output_nc.add_variable<Float>("sw_flux_up"    , {"lev", "y", "x"});
-            auto nc_sw_flux_dn     = output_nc.add_variable<Float>("sw_flux_dn"    , {"lev", "y", "x"});
-            auto nc_sw_flux_dn_dir = output_nc.add_variable<Float>("sw_flux_dn_dir", {"lev", "y", "x"});
-            auto nc_sw_flux_net    = output_nc.add_variable<Float>("sw_flux_net"   , {"lev", "y", "x"});
+            if (!switch_disable_2s)
+            {
+                auto nc_sw_flux_up     = output_nc.add_variable<Float>("sw_flux_up"    , {"lev", "y", "x"});
+                auto nc_sw_flux_dn     = output_nc.add_variable<Float>("sw_flux_dn"    , {"lev", "y", "x"});
+                auto nc_sw_flux_dn_dir = output_nc.add_variable<Float>("sw_flux_dn_dir", {"lev", "y", "x"});
+                auto nc_sw_flux_net    = output_nc.add_variable<Float>("sw_flux_net"   , {"lev", "y", "x"});
 
-            nc_sw_flux_up    .insert(sw_flux_up_cpu    .v(), {0, 0, 0});
-            nc_sw_flux_dn    .insert(sw_flux_dn_cpu    .v(), {0, 0, 0});
-            nc_sw_flux_dn_dir.insert(sw_flux_dn_dir_cpu.v(), {0, 0, 0});
-            nc_sw_flux_net   .insert(sw_flux_net_cpu   .v(), {0, 0, 0});
+                nc_sw_flux_up    .insert(sw_flux_up_cpu    .v(), {0, 0, 0});
+                nc_sw_flux_dn    .insert(sw_flux_dn_cpu    .v(), {0, 0, 0});
+                nc_sw_flux_dn_dir.insert(sw_flux_dn_dir_cpu.v(), {0, 0, 0});
+                nc_sw_flux_net   .insert(sw_flux_net_cpu   .v(), {0, 0, 0});
 
-            nc_sw_flux_up.add_attribute("long_name","Upwelling shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_up.add_attribute("units","W m-2");
+                nc_sw_flux_up.add_attribute("long_name","Upwelling shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_up.add_attribute("units","W m-2");
 
-            nc_sw_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_dn.add_attribute("units","W m-2");
+                nc_sw_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_dn.add_attribute("units","W m-2");
 
-            nc_sw_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_dn_dir.add_attribute("units","W m-2");
+                nc_sw_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_dn_dir.add_attribute("units","W m-2");
 
-            nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_net.add_attribute("units","W m-2");
+                nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_net.add_attribute("units","W m-2");
+
+            }        
 
             if (switch_raytracing)
             {
@@ -983,28 +998,31 @@ void solve_radiation(int argc, char** argv)
 
 
             if (switch_single_gpt)
-            {
-                auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_dn     = output_nc.add_variable<Float>("sw_gpt_flux_dn"    , {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_dn_dir = output_nc.add_variable<Float>("sw_gpt_flux_dn_dir", {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_net    = output_nc.add_variable<Float>("sw_gpt_flux_net"   , {"lev", "y", "x"});
+            { 
+                if (!switch_disable_2s)
+                {
+                    auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});
+                    auto nc_sw_gpt_flux_dn     = output_nc.add_variable<Float>("sw_gpt_flux_dn"    , {"lev", "y", "x"});
+                    auto nc_sw_gpt_flux_dn_dir = output_nc.add_variable<Float>("sw_gpt_flux_dn_dir", {"lev", "y", "x"});
+                    auto nc_sw_gpt_flux_net    = output_nc.add_variable<Float>("sw_gpt_flux_net"   , {"lev", "y", "x"});
 
-                nc_sw_gpt_flux_up    .insert(sw_gpt_flux_up_cpu    .v(), {0, 0, 0});
-                nc_sw_gpt_flux_dn    .insert(sw_gpt_flux_dn_cpu    .v(), {0, 0, 0});
-                nc_sw_gpt_flux_dn_dir.insert(sw_gpt_flux_dn_dir_cpu.v(), {0, 0, 0});
-                nc_sw_gpt_flux_net   .insert(sw_gpt_flux_net_cpu   .v(), {0, 0, 0});
+                    nc_sw_gpt_flux_up    .insert(sw_gpt_flux_up_cpu    .v(), {0, 0, 0});
+                    nc_sw_gpt_flux_dn    .insert(sw_gpt_flux_dn_cpu    .v(), {0, 0, 0});
+                    nc_sw_gpt_flux_dn_dir.insert(sw_gpt_flux_dn_dir_cpu.v(), {0, 0, 0});
+                    nc_sw_gpt_flux_net   .insert(sw_gpt_flux_net_cpu   .v(), {0, 0, 0});
 
-                nc_sw_gpt_flux_up.add_attribute("long_name","Upwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_up.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_up.add_attribute("long_name","Upwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_up.add_attribute("units","W m-2");
 
-                nc_sw_gpt_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_dn.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_dn.add_attribute("units","W m-2");
 
-                nc_sw_gpt_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_dn_dir.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_dn_dir.add_attribute("units","W m-2");
 
-                nc_sw_gpt_flux_net.add_attribute("long_name","Net shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_net.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_net.add_attribute("long_name","Net shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_net.add_attribute("units","W m-2");
+                }
             }
         }
     }
