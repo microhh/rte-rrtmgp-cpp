@@ -251,9 +251,9 @@ void solve_radiation(int argc, char** argv)
     const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
     const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
     const bool switch_independent_column= command_line_switches.at("independent-column").first;
-    const bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
-    const bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
-    const bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
+    bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
+    bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
+    bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
     const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
