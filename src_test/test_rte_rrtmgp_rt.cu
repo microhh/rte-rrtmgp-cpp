@@ -275,9 +275,14 @@ void solve_radiation(int argc, char** argv)
         throw std::runtime_error(error);
     }
 
-    if (switch_liq_cloud_optics && switch_ice_cloud_optics) {
-        std::string error = "Both liquid-only and ice-only cloud optics cannot be enabled simultaneously";
-        throw std::runtime_error(error);
+    if (switch_cloud_optics)
+    {
+        switch_liq_cloud_optics = true;
+        switch_ice_cloud_optics = true;
+    }
+    if (switch_liq_cloud_optics || switch_ice_cloud_optics)
+    {
+        switch_cloud_optics = true;
     }
 
     // Print the options to the screen.
