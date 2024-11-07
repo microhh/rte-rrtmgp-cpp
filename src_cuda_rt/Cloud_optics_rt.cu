@@ -222,11 +222,19 @@ void Cloud_optics_rt::cloud_optics(
         const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& reice,
         Optical_props_2str_rt& optical_props)
 {
-    const int ncol = clwp.dim(1);
-    const int nlay = clwp.dim(2);
-
-    Optical_props_2str_rt clouds_liq(ncol, nlay, optical_props);
-    Optical_props_2str_rt clouds_ice(ncol, nlay, optical_props);
+    int ncol = -1;
+    int nlay = -1;
+    if (clwp.ptr() != nullptr)
+    {
+        const int ncol = clwp.dim(1);
+        const int nlay = clwp.dim(2);
+        Optical_props_1scl_rt clouds_liq(ncol, nlay, optical_props);
+    } else if (ciwp.ptr() != nullptr) 
+    {
+        const int ncol = ciwp.dim(1);
+        const int nlay = ciwp.dim(2);
+        Optical_props_1scl_rt clouds_ice(ncol, nlay, optical_props);
+    }
 
     // Set the mask.
     constexpr Float mask_min_value = Float(0.);
@@ -325,12 +333,21 @@ void Cloud_optics_rt::cloud_optics(
         const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& reice,
         Optical_props_1scl_rt& optical_props)
 {
-    const int ncol = clwp.dim(1);
-    const int nlay = clwp.dim(2);
-
-    Optical_props_1scl_rt clouds_liq(ncol, nlay, optical_props);
-    Optical_props_1scl_rt clouds_ice(ncol, nlay, optical_props);
-
+    
+    int ncol = -1;
+    int nlay = -1;
+    if (clwp.ptr() != nullptr)
+    {
+        const int ncol = clwp.dim(1);
+        const int nlay = clwp.dim(2);
+        Optical_props_1scl_rt clouds_liq(ncol, nlay, optical_props);
+    } else if (ciwp.ptr() != nullptr) 
+    {
+        const int ncol = ciwp.dim(1);
+        const int nlay = ciwp.dim(2);
+        Optical_props_1scl_rt clouds_ice(ncol, nlay, optical_props);
+    }
+    
     // Set the mask.
     constexpr Float mask_min_value = Float(0.);
     const int block_col_m = 16;
