@@ -228,12 +228,12 @@ void Cloud_optics_rt::cloud_optics(
     {
         const int ncol = clwp.dim(1);
         const int nlay = clwp.dim(2);
-        Optical_props_1scl_rt clouds_liq(ncol, nlay, optical_props);
+        Optical_props_2str_rt clouds_liq(ncol, nlay, optical_props);
     } else if (ciwp.ptr() != nullptr) 
     {
         const int ncol = ciwp.dim(1);
         const int nlay = ciwp.dim(2);
-        Optical_props_1scl_rt clouds_ice(ncol, nlay, optical_props);
+        Optical_props_2str_rt clouds_ice(ncol, nlay, optical_props);
     }
 
     // Set the mask.
