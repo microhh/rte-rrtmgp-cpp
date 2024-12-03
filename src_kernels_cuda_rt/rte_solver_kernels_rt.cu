@@ -306,6 +306,18 @@ void apply_BC_kernel_lw(const int isfc, int ncol, const int nlay, const int ngpt
 }
 
 __global__
+void apply_BC_kernel(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float inc_flux, Float* __restrict__ flux_dn)
+{
+    const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+    if ( (icol < ncol) )
+    {
+        const int idx_out = icol + ((top_at_1 ? 0 : (nlay * ncol))); 
+        const int idx_in = icol;
+        flux_dn[idx_out] = inc_flux;
+    }
+}
+
+__global__
 void apply_BC_kernel(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float* __restrict__ inc_flux, Float* __restrict__ flux_dn)
 {
     const int icol = blockIdx.x*blockDim.x + threadIdx.x;

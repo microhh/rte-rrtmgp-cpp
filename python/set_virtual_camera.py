@@ -91,7 +91,13 @@ for var in camera_variables:
         cam[var][:] = args[var]
 
 if not args['sza'] is None:
+    try:
+        ncf.createVariable('sza','f4',ncf['mu0'].dimensions) 
+    except:
+        pass
+    ncf['sza'][:] = np.deg2rad(args['sza'])
     ncf['mu0'][:] = np.cos(np.deg2rad(args['sza']))
+
 if not args['azi'] is None:
     ncf['azi'][:] = np.deg2rad(args['azi'])
 
