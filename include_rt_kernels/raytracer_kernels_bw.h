@@ -23,7 +23,6 @@ constexpr int bw_kernel_grid = 1024;
 constexpr int bw_kernel_block = 256;
 constexpr int bw_kernel_grid = 256;
 #endif
-constexpr Float k_null_gas_min = Float(1.e-3);
 
 // sun has a half angle of .266 degrees
 constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
@@ -60,24 +59,21 @@ struct Camera
         const Float yaw = yaw_deg / Float(180.) * M_PI;
         const Float pitch = pitch_deg / Float(180.) * M_PI;
         const Float roll = roll_deg / Float(180.) * M_PI;
-        mx = {cos(yaw)*sin(pitch), (cos(yaw)*cos(pitch)*sin(roll)-sin(yaw)*cos(roll)), (cos(yaw)*cos(pitch)*cos(roll)+sin(yaw)*sin(roll))};
-        my = {sin(yaw)*sin(pitch), (sin(yaw)*cos(pitch)*sin(roll)+cos(yaw)*cos(roll)), (sin(yaw)*cos(pitch)*cos(roll)-cos(yaw)*sin(roll))};
-        mz = {-cos(pitch), sin(pitch)*sin(roll), sin(pitch)*cos(roll)};
+        mx = {cos(yaw)*cos(pitch), (cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll)), (cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll))};
+        my = {sin(yaw)*cos(pitch), (sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll)), (sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll))};
+        mz = {-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)};
     }
 
     void setup_normal_camera(const Camera camera)
     {
         if (!fisheye)
         {
-            const Vector<Float> dir_tmp = {0, 0, 1};
-            const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)*Float(-1)}));
-            Vector<Float> dir_up;
-            if ( (int(dir_cam.z)==1) || (int(dir_cam.z)==-1) )
-                dir_up = {1, 0, 0};
-            else
-                dir_up = {0, 0, 1};
+            const Vector<Float> dir_tmp = {1, 0, 0};
+            const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)}));
+            const Vector<Float> dir_up_tmp = {0, 0, 1};
+            const Vector<Float> dir_up = normalize(Vector<Float>({dot(camera.mx,dir_up_tmp), dot(camera.my,dir_up_tmp), dot(camera.mz,dir_up_tmp)}));
 
-            cam_width = normalize(cross(dir_cam, dir_up));
+            cam_width = Float(-1) * normalize(cross(dir_cam, dir_up));
             cam_height = normalize(cross(dir_cam, cam_width));
             cam_depth = dir_cam / tan(fov/Float(180)*M_PI/Float(2.));
         
@@ -91,17 +87,18 @@ struct Camera
     // size of output arrays, either number of horizontal and vertical pixels, or number of zenith/azimuth angles of fisheye lens. Default to 1024
     int ny = 1024;
     int nx = 1024;
+    Int npix;
 };
 
 
 __global__
 void ray_tracer_kernel_bw(
         const int igpt,
-        const int photons_per_pixel,
+        const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
         Float* __restrict__ camera_count,
         Float* __restrict__ camera_shot,
-        int* __restrict__ counter,
+        Int* __restrict__ counter,
         const Float* __restrict__ k_ext, const Optics_scat* __restrict__ scat_asy,
         const Float* __restrict__ k_ext_bg, const Optics_scat* __restrict__ scat_asy_bg,
         const Float* __restrict__ z_lev_bg,

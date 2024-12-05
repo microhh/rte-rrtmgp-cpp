@@ -43,11 +43,10 @@ namespace
 
             if (mask[idx])
             {
-                const Float reff= min(Float(21.5), re[idx]);
-                const int index = min(int((reff - offset) / step_size) + 1, nsteps-1) - 1;
+                const int index = min(int((re[idx] - offset) / step_size) + 1, nsteps-1) - 1;
 
                 const int idx_ib = index + ibnd*nsteps;
-                const Float fint = (reff - offset) /step_size - (index);
+                const Float fint = (re[idx] - offset) /step_size - (index);
 
                 const Float tau_local = cwp[idx] *
                                      (tau_table[idx_ib] + fint * (tau_table[idx_ib+1] - tau_table[idx_ib]));

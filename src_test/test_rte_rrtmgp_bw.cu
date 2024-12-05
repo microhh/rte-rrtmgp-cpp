@@ -321,6 +321,7 @@ void solve_radiation(int argc, char** argv)
 
     camera.nx  = int(cam_in.get_variable<Float>("nx"));
     camera.ny  = int(cam_in.get_variable<Float>("ny"));
+    camera.npix = Int(camera.nx * camera.ny);
 
     camera.setup_rotation_matrix(cam_in.get_variable<Float>("yaw"),
                                  cam_in.get_variable<Float>("pitch"),
