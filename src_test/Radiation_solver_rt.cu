@@ -567,6 +567,7 @@ void Radiation_solver_shortwave::load_mie_tables(
 
 void Radiation_solver_shortwave::solve_gpu(
         const bool switch_fluxes,
+        const bool switch_disable_2s,
         const bool switch_raytracing,
         const bool switch_independent_column,
         const bool switch_cloud_optics,
@@ -636,10 +637,13 @@ void Radiation_solver_shortwave::solve_gpu(
 
     if (switch_fluxes)
     {
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_up.ptr());
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn.ptr());
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn_dir.ptr());
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_net.ptr());
+        if (!switch_disable_2s)
+        {
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_up.ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn.ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn_dir.ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_net.ptr());
+        }
         if (switch_raytracing)
         {
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_tod_up.ptr());
@@ -836,10 +840,12 @@ void Radiation_solver_shortwave::solve_gpu(
             }
 
             (*fluxes).net_flux();
-
-            Gpt_combine_kernels_cuda_rt::add_from_gpoint(
-                    n_col, n_lev, sw_flux_up.ptr(), sw_flux_dn.ptr(), sw_flux_dn_dir.ptr(), sw_flux_net.ptr(),
-                    (*fluxes).get_flux_up().ptr(), (*fluxes).get_flux_dn().ptr(), (*fluxes).get_flux_dn_dir().ptr(), (*fluxes).get_flux_net().ptr());
+            if (!switch_disable_2s)
+            {
+                Gpt_combine_kernels_cuda_rt::add_from_gpoint(
+                        n_col, n_lev, sw_flux_up.ptr(), sw_flux_dn.ptr(), sw_flux_dn_dir.ptr(), sw_flux_net.ptr(),
+                        (*fluxes).get_flux_up().ptr(), (*fluxes).get_flux_dn().ptr(), (*fluxes).get_flux_dn_dir().ptr(), (*fluxes).get_flux_net().ptr());
+            }
 
             if (switch_raytracing)
             {

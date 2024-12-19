@@ -227,19 +227,26 @@ void solve_radiation(int argc, char** argv)
         {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
         {"longwave"          , { false, "Enable computation of longwave radiation." }},
         {"fluxes"            , { true,  "Enable computation of fluxes."             }},
+        {"disable-2s"        , { false, "use raytracing onlu for flux computation. must be passed with raytracing" }},
         {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
-        {"cloud-optics"      , { false, "Enable cloud optics."                      }},
+        {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
+        {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
+        {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
         {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
         {"aerosol-optics"    , { false, "Enable aerosol optics."                    }},
         {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }} };
+        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }} ,
+        {"override-sza"     , { false, "override provided value of sza in input file. IN DEGREES. '--override-sza 50': use a sza of 50 degrees" }},
+        {"override-azi"     , { false, "override provided value of azi in input file. IN DEGREES. '--override-azi 240': use of azi of 240 degrees"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
-        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }} };
+        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }},
+        {"override-sza", {0, "solar zenith angle (theta) in degrees."}},
+        {"override-azi", {0, "Solar azimuth angle in degrees."}} };
 
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
@@ -247,16 +254,20 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
     const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
     const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
+    const bool switch_disable_2s        = command_line_switches.at("disable-2s"        ).first;
     const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
     const bool switch_independent_column= command_line_switches.at("independent-column").first;
-    const bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
+    bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
+    bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
+    bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
     const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
     const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
-
+    const bool override_sza             = command_line_switches.at("override-sza"    ).first;
+    const bool override_azi             = command_line_switches.at("override-azi"    ).first;
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
@@ -271,12 +282,39 @@ void solve_radiation(int argc, char** argv)
         throw std::runtime_error(error);
     }
 
+    if (switch_disable_2s && !switch_raytracing) {
+        std::string error = "cannot disable two-stream for flux calculation without turning ray tracing on";
+        throw std::runtime_error(error);
+    }
+
+    if (switch_cloud_optics)
+    {
+        switch_liq_cloud_optics = true;
+        switch_ice_cloud_optics = true;
+    }
+    if (switch_liq_cloud_optics || switch_ice_cloud_optics)
+    {
+        switch_cloud_optics = true;
+    }
+
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
     int single_gpt = command_line_ints.at("single-gpt").first;
+    int sza_deg = Int(command_line_ints.at("override-sza").first);
+    int azi_deg = Int(command_line_ints.at("override-azi").first);
 
     Status::print_message("Using "+ std::to_string(photons_per_pixel) + " rays per pixel");
+
+    if (override_sza) 
+    {
+        Status::print_message("Using SZA of "+ std::to_string(sza_deg) + " degrees");
+    }
+
+    if (override_azi) 
+    {
+        Status::print_message("Using azi of "+ std::to_string(azi_deg) + " degrees");
+    }
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -353,17 +391,22 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_cloud_optics)
     {
-        lwp.set_dims({n_col, n_lay});
-        lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
+        
+        if(switch_liq_cloud_optics){
+            lwp.set_dims({n_col, n_lay});
+            lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
 
-        iwp.set_dims({n_col, n_lay});
-        iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
+            rel.set_dims({n_col, n_lay});
+            rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+        }
 
-        rel.set_dims({n_col, n_lay});
-        rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+        if(switch_ice_cloud_optics){
+            iwp.set_dims({n_col, n_lay});
+            iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
 
-        rei.set_dims({n_col, n_lay});
-        rei = std::move(input_nc.get_variable<Float>("rei", {n_lay, n_col_y, n_col_x}));
+            rei.set_dims({n_col, n_lay});
+            rei = std::move(input_nc.get_variable<Float>("rei", {n_lay, n_col_y, n_col_x}));
+        }
     }
 
     Array<Float,2> rh;
@@ -639,9 +682,25 @@ void solve_radiation(int argc, char** argv)
             rad_sw.load_mie_tables("mie_lut_broadband.nc");
         }
 
+        Array<Float,1> mu0({n_col});
+        Array<Float,1> azi({n_col});
 
-        Array<Float,1> mu0(input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x}), {n_col});
-        Array<Float,1> azi(input_nc.get_variable<Float>("azi", {n_col_y, n_col_x}), {n_col});
+        if (override_sza) {
+            Float mu0_in = cosf(sza_deg * 3.14159f / 180.0f);
+            for (int icol=1; icol<=n_col; ++icol)
+                mu0({icol}) = mu0_in;
+        } else {
+            mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
+        }
+
+        if (override_azi) {
+            Float azi_in = azi_deg * 3.14159f / 180.0f;
+            for (int icol=1; icol<=n_col; ++icol)
+                azi({icol}) = azi_in;
+        } else {
+            azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
+        }
+
         Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
         Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
 
@@ -702,10 +761,13 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            sw_flux_up    .set_dims({n_col, n_lev});
-            sw_flux_dn    .set_dims({n_col, n_lev});
-            sw_flux_dn_dir.set_dims({n_col, n_lev});
-            sw_flux_net   .set_dims({n_col, n_lev});
+            if(!switch_disable_2s)
+            {
+                sw_flux_up    .set_dims({n_col, n_lev});
+                sw_flux_dn    .set_dims({n_col, n_lev});
+                sw_flux_dn_dir.set_dims({n_col, n_lev});
+                sw_flux_net   .set_dims({n_col, n_lev});
+            }
 
             if (switch_raytracing)
             {
@@ -766,6 +828,7 @@ void solve_radiation(int argc, char** argv)
 
             rad_sw.solve_gpu(
                     switch_fluxes,
+                    switch_disable_2s,
                     switch_raytracing,
                     switch_independent_column,
                     switch_cloud_optics,
@@ -903,27 +966,31 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            auto nc_sw_flux_up     = output_nc.add_variable<Float>("sw_flux_up"    , {"lev", "y", "x"});
-            auto nc_sw_flux_dn     = output_nc.add_variable<Float>("sw_flux_dn"    , {"lev", "y", "x"});
-            auto nc_sw_flux_dn_dir = output_nc.add_variable<Float>("sw_flux_dn_dir", {"lev", "y", "x"});
-            auto nc_sw_flux_net    = output_nc.add_variable<Float>("sw_flux_net"   , {"lev", "y", "x"});
+            if (!switch_disable_2s)
+            {
+                auto nc_sw_flux_up     = output_nc.add_variable<Float>("sw_flux_up"    , {"lev", "y", "x"});
+                auto nc_sw_flux_dn     = output_nc.add_variable<Float>("sw_flux_dn"    , {"lev", "y", "x"});
+                auto nc_sw_flux_dn_dir = output_nc.add_variable<Float>("sw_flux_dn_dir", {"lev", "y", "x"});
+                auto nc_sw_flux_net    = output_nc.add_variable<Float>("sw_flux_net"   , {"lev", "y", "x"});
 
-            nc_sw_flux_up    .insert(sw_flux_up_cpu    .v(), {0, 0, 0});
-            nc_sw_flux_dn    .insert(sw_flux_dn_cpu    .v(), {0, 0, 0});
-            nc_sw_flux_dn_dir.insert(sw_flux_dn_dir_cpu.v(), {0, 0, 0});
-            nc_sw_flux_net   .insert(sw_flux_net_cpu   .v(), {0, 0, 0});
+                nc_sw_flux_up    .insert(sw_flux_up_cpu    .v(), {0, 0, 0});
+                nc_sw_flux_dn    .insert(sw_flux_dn_cpu    .v(), {0, 0, 0});
+                nc_sw_flux_dn_dir.insert(sw_flux_dn_dir_cpu.v(), {0, 0, 0});
+                nc_sw_flux_net   .insert(sw_flux_net_cpu   .v(), {0, 0, 0});
 
-            nc_sw_flux_up.add_attribute("long_name","Upwelling shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_up.add_attribute("units","W m-2");
+                nc_sw_flux_up.add_attribute("long_name","Upwelling shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_up.add_attribute("units","W m-2");
 
-            nc_sw_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_dn.add_attribute("units","W m-2");
+                nc_sw_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_dn.add_attribute("units","W m-2");
 
-            nc_sw_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_dn_dir.add_attribute("units","W m-2");
+                nc_sw_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_dn_dir.add_attribute("units","W m-2");
 
-            nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
-            nc_sw_flux_net.add_attribute("units","W m-2");
+                nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
+                nc_sw_flux_net.add_attribute("units","W m-2");
+
+            }        
 
             if (switch_raytracing)
             {
@@ -964,28 +1031,31 @@ void solve_radiation(int argc, char** argv)
 
 
             if (switch_single_gpt)
-            {
-                auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_dn     = output_nc.add_variable<Float>("sw_gpt_flux_dn"    , {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_dn_dir = output_nc.add_variable<Float>("sw_gpt_flux_dn_dir", {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_net    = output_nc.add_variable<Float>("sw_gpt_flux_net"   , {"lev", "y", "x"});
+            { 
+                if (!switch_disable_2s)
+                {
+                    auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});
+                    auto nc_sw_gpt_flux_dn     = output_nc.add_variable<Float>("sw_gpt_flux_dn"    , {"lev", "y", "x"});
+                    auto nc_sw_gpt_flux_dn_dir = output_nc.add_variable<Float>("sw_gpt_flux_dn_dir", {"lev", "y", "x"});
+                    auto nc_sw_gpt_flux_net    = output_nc.add_variable<Float>("sw_gpt_flux_net"   , {"lev", "y", "x"});
 
-                nc_sw_gpt_flux_up    .insert(sw_gpt_flux_up_cpu    .v(), {0, 0, 0});
-                nc_sw_gpt_flux_dn    .insert(sw_gpt_flux_dn_cpu    .v(), {0, 0, 0});
-                nc_sw_gpt_flux_dn_dir.insert(sw_gpt_flux_dn_dir_cpu.v(), {0, 0, 0});
-                nc_sw_gpt_flux_net   .insert(sw_gpt_flux_net_cpu   .v(), {0, 0, 0});
+                    nc_sw_gpt_flux_up    .insert(sw_gpt_flux_up_cpu    .v(), {0, 0, 0});
+                    nc_sw_gpt_flux_dn    .insert(sw_gpt_flux_dn_cpu    .v(), {0, 0, 0});
+                    nc_sw_gpt_flux_dn_dir.insert(sw_gpt_flux_dn_dir_cpu.v(), {0, 0, 0});
+                    nc_sw_gpt_flux_net   .insert(sw_gpt_flux_net_cpu   .v(), {0, 0, 0});
 
-                nc_sw_gpt_flux_up.add_attribute("long_name","Upwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_up.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_up.add_attribute("long_name","Upwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_up.add_attribute("units","W m-2");
 
-                nc_sw_gpt_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_dn.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_dn.add_attribute("units","W m-2");
 
-                nc_sw_gpt_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_dn_dir.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_dn_dir.add_attribute("units","W m-2");
 
-                nc_sw_gpt_flux_net.add_attribute("long_name","Net shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_net.add_attribute("units","W m-2");
+                    nc_sw_gpt_flux_net.add_attribute("long_name","Net shortwave fluxes for g-point "+std::to_string(single_gpt)+" (TwoStream solver)");
+                    nc_sw_gpt_flux_net.add_attribute("units","W m-2");
+                }
             }
         }
     }
