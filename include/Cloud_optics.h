@@ -41,18 +41,18 @@ class Cloud_optics : public Optical_props
         Cloud_optics(
                 const Array<Float,2>& band_lims_wvn,
                 const Float radliq_lwr, const Float radliq_upr, const Float radliq_fac,
-                const Float radice_lwr, const Float radice_upr, const Float radice_fac,
+                const Float diamice_lwr, const Float diamice_upr, const Float diamice_fac,
                 const Array<Float,2>& lut_extliq, const Array<Float,2>& lut_ssaliq, const Array<Float,2>& lut_asyliq,
                 const Array<Float,3>& lut_extice, const Array<Float,3>& lut_ssaice, const Array<Float,3>& lut_asyice);
 
         void cloud_optics(
                 const Array<Float,2>& clwp, const Array<Float,2>& ciwp,
-                const Array<Float,2>& reliq, const Array<Float,2>& reice,
+                const Array<Float,2>& reliq, const Array<Float,2>& deice,
                 Optical_props_1scl& optical_props);
 
         void cloud_optics(
                 const Array<Float,2>& clwp, const Array<Float,2>& ciwp,
-                const Array<Float,2>& reliq, const Array<Float,2>& reice,
+                const Array<Float,2>& reliq, const Array<Float,2>& deice,
                 Optical_props_2str& optical_props);
 
     private:
@@ -64,8 +64,8 @@ class Cloud_optics : public Optical_props
         // Lookup table constants.
         Float radliq_lwr;
         Float radliq_upr;
-        Float radice_lwr;
-        Float radice_upr;
+        Float diamice_lwr;
+        Float diamice_upr;
 
         // Lookup table coefficients.
         Array<Float,2> lut_extliq;
@@ -84,18 +84,18 @@ class Cloud_optics_gpu : public Optical_props_gpu
         Cloud_optics_gpu(
                 const Array<Float,2>& band_lims_wvn,
                 const Float radliq_lwr, const Float radliq_upr, const Float radliq_fac,
-                const Float radice_lwr, const Float radice_upr, const Float radice_fac,
+                const Float diamice_lwr, const Float diamice_upr, const Float diamice_fac,
                 const Array<Float,2>& lut_extliq, const Array<Float,2>& lut_ssaliq, const Array<Float,2>& lut_asyliq,
                 const Array<Float,3>& lut_extice, const Array<Float,3>& lut_ssaice, const Array<Float,3>& lut_asyice);
 
         void cloud_optics(
                 const Array_gpu<Float,2>& clwp, const Array_gpu<Float,2>& ciwp,
-                const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& reice,
+                const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& deice,
                 Optical_props_1scl_gpu& optical_props);
 
         void cloud_optics(
                 const Array_gpu<Float,2>& clwp, const Array_gpu<Float,2>& ciwp,
-                const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& reice,
+                const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& deice,
                 Optical_props_2str_gpu& optical_props);
 
     private:
@@ -107,8 +107,8 @@ class Cloud_optics_gpu : public Optical_props_gpu
         // Lookup table constants.
         Float radliq_lwr;
         Float radliq_upr;
-        Float radice_lwr;
-        Float radice_upr;
+        Float diamice_lwr;
+        Float diamice_upr;
 
         // Lookup table coefficients.
         Array<Float,2> lut_extliq;

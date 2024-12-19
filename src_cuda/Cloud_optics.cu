@@ -130,7 +130,7 @@ namespace
 Cloud_optics_gpu::Cloud_optics_gpu(
         const Array<Float,2>& band_lims_wvn,
         const Float radliq_lwr, const Float radliq_upr, const Float radliq_fac,
-        const Float radice_lwr, const Float radice_upr, const Float radice_fac,
+        const Float diamice_lwr, const Float diamice_upr, const Float diamice_fac,
         const Array<Float,2>& lut_extliq, const Array<Float,2>& lut_ssaliq, const Array<Float,2>& lut_asyliq,
         const Array<Float,3>& lut_extice, const Array<Float,3>& lut_ssaice, const Array<Float,3>& lut_asyice) :
     Optical_props_gpu(band_lims_wvn)
@@ -141,13 +141,13 @@ Cloud_optics_gpu::Cloud_optics_gpu(
     this->liq_nsteps = nsize_liq;
     this->ice_nsteps = nsize_ice;
     this->liq_step_size = (radliq_upr - radliq_lwr) / (nsize_liq - Float(1.));
-    this->ice_step_size = (radice_upr - radice_lwr) / (nsize_ice - Float(1.));
+    this->ice_step_size = (diamice_upr - diamice_lwr) / (nsize_ice - Float(1.));
 
     // Load LUT constants.
     this->radliq_lwr = radliq_lwr;
     this->radliq_upr = radliq_upr;
-    this->radice_lwr = radice_lwr;
-    this->radice_upr = radice_upr;
+    this->diamice_lwr = diamice_lwr;
+    this->diamice_upr = diamice_upr;
 
     // Load LUT coefficients.
     this->lut_extliq = lut_extliq;
@@ -180,7 +180,7 @@ Cloud_optics_gpu::Cloud_optics_gpu(
 // Two-stream variant of cloud optics.
 void Cloud_optics_gpu::cloud_optics(
         const Array_gpu<Float,2>& clwp, const Array_gpu<Float,2>& ciwp,
-        const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& reice,
+        const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& deice,
         Optical_props_2str_gpu& optical_props)
 {
     const int ncol = clwp.dim(1);
@@ -238,8 +238,8 @@ void Cloud_optics_gpu::cloud_optics(
 
     // Ice.
     compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, nbnd, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
-            this->ice_nsteps, this->ice_step_size, this->radice_lwr,
+            ncol, nlay, nbnd, icemsk.ptr(), ciwp.ptr(), deice.ptr(),
+            this->ice_nsteps, this->ice_step_size, this->diamice_lwr,
             this->lut_extice_gpu.ptr(), this->lut_ssaice_gpu.ptr(),
             this->lut_asyice_gpu.ptr(), itau.ptr(), itaussa.ptr(), itaussag.ptr());
 
@@ -256,7 +256,7 @@ void Cloud_optics_gpu::cloud_optics(
 // 1scl variant of cloud optics.
 void Cloud_optics_gpu::cloud_optics(
         const Array_gpu<Float,2>& clwp, const Array_gpu<Float,2>& ciwp,
-        const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& reice,
+        const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& deice,
         Optical_props_1scl_gpu& optical_props)
 {
     const int ncol = clwp.dim(1);
@@ -314,8 +314,8 @@ void Cloud_optics_gpu::cloud_optics(
 
     // Ice.
     compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, nbnd, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
-            this->ice_nsteps, this->ice_step_size, this->radice_lwr,
+            ncol, nlay, nbnd, icemsk.ptr(), ciwp.ptr(), deice.ptr(),
+            this->ice_nsteps, this->ice_step_size, this->diamice_lwr,
             this->lut_extice_gpu.ptr(), this->lut_ssaice_gpu.ptr(),
             this->lut_asyice_gpu.ptr(), itau.ptr(), itaussa.ptr(), itaussag.ptr());
 

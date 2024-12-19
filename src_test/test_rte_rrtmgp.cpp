@@ -254,7 +254,7 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> lwp;
     Array<Float,2> iwp;
     Array<Float,2> rel;
-    Array<Float,2> rei;
+    Array<Float,2> dei;
 
     if (switch_cloud_optics)
     {
@@ -267,8 +267,8 @@ void solve_radiation(int argc, char** argv)
         rel.set_dims({n_col, n_lay});
         rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
 
-        rei.set_dims({n_col, n_lay});
-        rei = std::move(input_nc.get_variable<Float>("rei", {n_lay, n_col_y, n_col_x}));
+        dei.set_dims({n_col, n_lay});
+        dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
     }
 
     Array<Float,2> rh;
@@ -377,7 +377,7 @@ void solve_radiation(int argc, char** argv)
                 col_dry,
                 t_sfc, emis_sfc,
                 lwp, iwp,
-                rel, rei,
+                rel, dei,
                 lw_tau, lay_source, lev_source, sfc_source,
                 lw_flux_up, lw_flux_dn, lw_flux_net,
                 lw_bnd_flux_up, lw_bnd_flux_dn, lw_bnd_flux_net);
@@ -537,7 +537,7 @@ void solve_radiation(int argc, char** argv)
                 sfc_alb_dir, sfc_alb_dif,
                 tsi_scaling, mu0,
                 lwp, iwp,
-                rel, rei,
+                rel, dei,
                 rh,
                 aerosol_concs,
                 sw_tau, ssa, g,
@@ -590,16 +590,16 @@ void solve_radiation(int argc, char** argv)
             nc_sw_flux_dn    .insert(sw_flux_dn    .v(), {0, 0, 0});
             nc_sw_flux_dn_dir.insert(sw_flux_dn_dir.v(), {0, 0, 0});
             nc_sw_flux_net   .insert(sw_flux_net   .v(), {0, 0, 0});
-            
+
             nc_sw_flux_up.add_attribute("long_name","Upwelling shortwave fluxes (TwoStream solver)");
             nc_sw_flux_up.add_attribute("units","W m-2");
-            
+
             nc_sw_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes (TwoStream solver)");
             nc_sw_flux_dn.add_attribute("units","W m-2");
-            
+
             nc_sw_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes (TwoStream solver)");
             nc_sw_flux_dn_dir.add_attribute("units","W m-2");
-            
+
             nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
             nc_sw_flux_net.add_attribute("units","W m-2");
 
@@ -614,16 +614,16 @@ void solve_radiation(int argc, char** argv)
                 nc_sw_bnd_flux_dn    .insert(sw_bnd_flux_dn    .v(), {0, 0, 0, 0});
                 nc_sw_bnd_flux_dn_dir.insert(sw_bnd_flux_dn_dir.v(), {0, 0, 0, 0});
                 nc_sw_bnd_flux_net   .insert(sw_bnd_flux_net   .v(), {0, 0, 0, 0});
-            
+
                 nc_sw_bnd_flux_up.add_attribute("long_name","Upwelling shortwave fluxes per spectral band (TwoStream solver)");
                 nc_sw_bnd_flux_up.add_attribute("units","W m-2");
-                
+
                 nc_sw_bnd_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes per spectral band (TwoStream solver)");
                 nc_sw_bnd_flux_dn.add_attribute("units","W m-2");
-                
+
                 nc_sw_bnd_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes per spectral band (TwoStream solver)");
                 nc_sw_bnd_flux_dn_dir.add_attribute("units","W m-2");
-                
+
                 nc_sw_bnd_flux_net.add_attribute("long_name","Net shortwave fluxes per spectral band (TwoStream solver)");
                 nc_sw_bnd_flux_net.add_attribute("units","W m-2");
             }
