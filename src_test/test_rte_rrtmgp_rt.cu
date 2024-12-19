@@ -373,7 +373,7 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_cloud_optics)
     {
-        
+
         if (switch_liq_cloud_optics)
         {
             lwp.set_dims({n_col, n_lay});
@@ -958,7 +958,7 @@ void solve_radiation(int argc, char** argv)
                 nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
                 nc_sw_flux_net.add_attribute("units","W m-2");
 
-            }        
+            }
 
             if (switch_raytracing)
             {
@@ -999,7 +999,7 @@ void solve_radiation(int argc, char** argv)
 
 
             if (switch_single_gpt)
-            { 
+            {
                 if (switch_twostream)
                 {
                     auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});

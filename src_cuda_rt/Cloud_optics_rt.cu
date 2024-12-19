@@ -235,24 +235,24 @@ void Cloud_optics_rt::cloud_optics(
     Array_gpu<Float,2> ltau    ({0, 0});
     Array_gpu<Float,2> ltaussa ({0, 0});
     Array_gpu<Float,2> ltaussag({0, 0});
-    
+
     Array_gpu<Bool,2> icemsk({0, 0});
     Array_gpu<Float,2> itau    ({0, 0});
     Array_gpu<Float,2> itaussa ({0, 0});
     Array_gpu<Float,2> itaussag({0, 0});
-    
+
     // Temporary arrays for storage, only on set needed if either liquid or ice is present
     Array_gpu<Bool,2> msk({0, 0});
     Array_gpu<Float,2> taussa ({0, 0});
     Array_gpu<Float,2> taussag({0, 0});
-    
+
     if ((clwp.ptr() != nullptr) && (ciwp.ptr() != nullptr))
     {
         liqmsk.set_dims({ncol, nlay});
         ltau.set_dims({ncol, nlay});
         ltaussa.set_dims({ncol, nlay});
         ltaussag.set_dims({ncol, nlay});
-        
+
         icemsk.set_dims({ncol, nlay});
         itau.set_dims({ncol, nlay});
         itaussa.set_dims({ncol, nlay});
@@ -260,7 +260,7 @@ void Cloud_optics_rt::cloud_optics(
 
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
                 ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
-        
+
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
                 ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
     }
@@ -300,7 +300,7 @@ void Cloud_optics_rt::cloud_optics(
                 this->liq_nsteps, this->liq_step_size, this->radliq_lwr,
                 this->lut_extliq_gpu.ptr(), this->lut_ssaliq_gpu.ptr(),
                 this->lut_asyliq_gpu.ptr(), ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
-        
+
         compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
                 ncol, nlay, ibnd-1, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
                 this->ice_nsteps, this->ice_step_size, this->radice_lwr,
@@ -325,8 +325,8 @@ void Cloud_optics_rt::cloud_optics(
                 this->lut_extice_gpu.ptr(), this->lut_ssaice_gpu.ptr(),
                 this->lut_asyice_gpu.ptr(), optical_props.get_tau().ptr(), taussa.ptr(), taussag.ptr());
     }
-    
-   
+
+
     constexpr Float eps = std::numeric_limits<Float>::epsilon();
     if ((ciwp.ptr() != nullptr) && (clwp.ptr() != nullptr))
     {
@@ -348,7 +348,7 @@ void Cloud_optics_rt::cloud_optics(
        store_single_phase_kernel<<<grid_gpu, block_gpu>>>(
             ncol, nlay, eps,
             optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
-            taussa.ptr(), taussag.ptr()); 
+            taussa.ptr(), taussag.ptr());
     }
 
 }
@@ -362,7 +362,7 @@ void Cloud_optics_rt::cloud_optics(
 {
     const int ncol = optical_props.get_tau().dim(1);
     const int nlay = optical_props.get_tau().dim(2);
-    
+
     // Set the mask.
     constexpr Float mask_min_value = Float(0.);
     const int block_col_m = 16;
@@ -379,24 +379,24 @@ void Cloud_optics_rt::cloud_optics(
     Array_gpu<Float,2> ltau    ({0, 0});
     Array_gpu<Float,2> ltaussa ({0, 0});
     Array_gpu<Float,2> ltaussag({0, 0});
-    
+
     Array_gpu<Bool,2> icemsk({0, 0});
     Array_gpu<Float,2> itau    ({0, 0});
     Array_gpu<Float,2> itaussa ({0, 0});
     Array_gpu<Float,2> itaussag({0, 0});
-    
+
     // Temporary arrays for storage, only on set needed if either liquid or ice is present
     Array_gpu<Bool,2> msk({0, 0});
     Array_gpu<Float,2> taussa ({0, 0});
     Array_gpu<Float,2> taussag({0, 0});
-    
+
     if ((clwp.ptr() != nullptr) && (ciwp.ptr() != nullptr))
     {
         liqmsk.set_dims({ncol, nlay});
         ltau.set_dims({ncol, nlay});
         ltaussa.set_dims({ncol, nlay});
         ltaussag.set_dims({ncol, nlay});
-        
+
         icemsk.set_dims({ncol, nlay});
         itau.set_dims({ncol, nlay});
         itaussa.set_dims({ncol, nlay});
@@ -404,7 +404,7 @@ void Cloud_optics_rt::cloud_optics(
 
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
                 ncol, nlay, mask_min_value, liqmsk.ptr(), clwp.ptr());
-        
+
         set_mask<<<grid_m_gpu, block_m_gpu>>>(
                 ncol, nlay, mask_min_value, icemsk.ptr(), ciwp.ptr());
     }
@@ -444,7 +444,7 @@ void Cloud_optics_rt::cloud_optics(
                 this->liq_nsteps, this->liq_step_size, this->radliq_lwr,
                 this->lut_extliq_gpu.ptr(), this->lut_ssaliq_gpu.ptr(),
                 this->lut_asyliq_gpu.ptr(), ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
-        
+
         compute_from_table_kernel<<<grid_gpu, block_gpu>>>(
                 ncol, nlay, ibnd-1, icemsk.ptr(), ciwp.ptr(), reice.ptr(),
                 this->ice_nsteps, this->ice_step_size, this->radice_lwr,
@@ -459,7 +459,7 @@ void Cloud_optics_rt::cloud_optics(
                 this->liq_nsteps, this->liq_step_size, this->radliq_lwr,
                 this->lut_extliq_gpu.ptr(), this->lut_ssaliq_gpu.ptr(),
                 this->lut_asyliq_gpu.ptr(), optical_props.get_tau().ptr(), taussa.ptr(), taussag.ptr());
-    }    
+    }
     // Ice.
     else if (ciwp.ptr() != nullptr)
     {
@@ -478,13 +478,13 @@ void Cloud_optics_rt::cloud_optics(
             optical_props.get_tau().ptr(),
             ltau.ptr(), ltaussa.ptr(),
             itau.ptr(), itaussa.ptr());
-    } 
+    }
     else if(clwp.ptr() != nullptr)
     {
         store_single_phase_kernel<<<grid_gpu, block_gpu>>>(
             ncol, nlay, eps,
             optical_props.get_tau().ptr(), taussa.ptr());
-    } 
+    }
     else if(ciwp.ptr() != nullptr)
     {
         store_single_phase_kernel<<<grid_gpu, block_gpu>>>(

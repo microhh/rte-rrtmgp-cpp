@@ -222,7 +222,7 @@ void ray_tracer_kernel(
                 photon.position.x += dx;
                 photon.position.y += dy;
             }
-            
+
             const Float dz = photon.direction.z * (s_min + d_max);
             photon.position.z += dz;
 
@@ -339,7 +339,7 @@ void ray_tracer_kernel(
         {
             Float dz = photon.direction.z * dn;
             photon.position.z = (dz > 0) ? min(photon.position.z + dz, (k_n+1) * kn_grid_d.z - s_min) : max(photon.position.z + dz, (k_n) * kn_grid_d.z + s_min);
-           
+
             if (!independent_column)
             {
                 Float dx = photon.direction.x * dn;
