@@ -99,7 +99,7 @@ class Radiation_solver_shortwave
         #ifdef __CUDACC__
         void solve_gpu(
                 const bool switch_fluxes,
-                const bool switch_disable_2s,
+                const bool switch_twostream,
                 const bool switch_raytracing,
                 const bool switch_independent_column,
                 const bool switch_cloud_optics,

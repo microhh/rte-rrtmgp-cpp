@@ -567,7 +567,7 @@ void Radiation_solver_shortwave::load_mie_tables(
 
 void Radiation_solver_shortwave::solve_gpu(
         const bool switch_fluxes,
-        const bool switch_disable_2s,
+        const bool switch_twostream,
         const bool switch_raytracing,
         const bool switch_independent_column,
         const bool switch_cloud_optics,
@@ -637,7 +637,7 @@ void Radiation_solver_shortwave::solve_gpu(
 
     if (switch_fluxes)
     {
-        if (!switch_disable_2s)
+        if (switch_twostream)
         {
                 Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_up.ptr());
                 Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn.ptr());
@@ -840,7 +840,7 @@ void Radiation_solver_shortwave::solve_gpu(
             }
 
             (*fluxes).net_flux();
-            if (!switch_disable_2s)
+            if (switch_twostream)
             {
                 Gpt_combine_kernels_cuda_rt::add_from_gpoint(
                         n_col, n_lev, sw_flux_up.ptr(), sw_flux_dn.ptr(), sw_flux_dn_dir.ptr(), sw_flux_net.ptr(),
