@@ -41,6 +41,16 @@ namespace Rte_solver_kernels_cuda_rt
     }
 
 
+    void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float inc_flux, Float* gpt_flux_dn)
+    {
+        const int block_col = 32;
+        const int grid_col = ncol/block_col + (ncol%block_col > 0);
+
+        dim3 grid_gpu(grid_col);
+        dim3 block_gpu(block_col);
+        apply_BC_kernel<<<grid_gpu, block_gpu>>>(ncol, nlay, ngpt, top_at_1, inc_flux, gpt_flux_dn);
+    }
+    
     void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float* inc_flux_dif, Float* gpt_flux_dn)
     {
         const int block_col = 32;

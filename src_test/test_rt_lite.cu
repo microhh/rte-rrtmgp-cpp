@@ -30,6 +30,8 @@
 #include "Raytracer_bw.h"
 #include "raytracer_kernels_bw.h"
 #include "types.h"
+#include "rte_solver_kernels_cuda_rt.h"
+#include "Rte_sw_rt.h"
 #include "tools_gpu.h"
 
 
@@ -129,20 +131,22 @@ void solve_radiation(int argc, char** argv)
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_switches {
         {"raytracing"        , { true,  "Use forward raytracer for irradiances. '--raytracing 256': use 256 rays per pixel" }},
-        {"bw_raytracing"     , { true,  "Use backward raytracer radiances. '--raytracing 256': use 256 rays per pixel" }},
+        {"bw-raytracing"     , { true,  "Use backward raytracer radiances. '--raytracing 256': use 256 rays per pixel" }},
+        {"two-stream"        , { true,  "Perform two-stream computations"}},
         {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
         {"profiling"         , { false, "Perform additional profiling run."         }} };
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel."}}, 
-        {"bw_raytracing", {32, "Number of rays initialised at per camera pixel."}}} ;
+        {"bw-raytracing", {32, "Number of rays initialised at per camera pixel."}}} ;
 
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
 
     const bool switch_raytracing         = command_line_switches.at("raytracing"        ).first;
-    const bool switch_bw_raytracing      = command_line_switches.at("bw_raytracing"     ).first;
+    const bool switch_bw_raytracing      = command_line_switches.at("bw-raytracing"     ).first;
+    const bool switch_two_stream         = command_line_switches.at("two-stream"        ).first;
     const bool switch_cloud_mie          = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_independent_column = command_line_switches.at("independent-column").first;
     const bool switch_profiling          = command_line_switches.at("profiling"         ).first;
@@ -207,6 +211,7 @@ void solve_radiation(int argc, char** argv)
     // Read the atmospheric fields.
     const Array<Float,2> tot_tau(input_nc.get_variable<Float>("tot_tau", {n_lay, ny, nx}), {ncol, n_lay});
     const Array<Float,2> tot_ssa(input_nc.get_variable<Float>("tot_ssa", {n_lay, ny, nx}), {ncol, n_lay});
+    const Array<Float,2> tot_asy(input_nc.get_variable<Float>("tot_asy", {n_lay, ny, nx}), {ncol, n_lay});
 
     Array<Float,2> cld_tau({ncol, n_lay});	
     Array<Float,2> cld_ssa({ncol, n_lay});	
@@ -225,13 +230,16 @@ void solve_radiation(int argc, char** argv)
     aer_asy = std::move(input_nc.get_variable<Float>("aer_asy", {n_lay, ny, nx}));
     
     // read albedo, solar angles, and top-of-domain fluxes
-    Array<Float,2> sfc_albedo({1,ncol});
-    sfc_albedo.fill(input_nc.get_variable<Float>("albedo"));
+    Array<Float,2> sfc_albedo({ncol, 1});
+    sfc_albedo = std::move(input_nc.get_variable<Float>("albedo", {ny, nx}));
+    
     const Float zenith_angle = input_nc.get_variable<Float>("sza");
     const Float azimuth_angle = input_nc.get_variable<Float>("azi");
     const Float tod_dir = input_nc.get_variable<Float>("tod_direct");
 
-        
+    Array<Float,1> mu0({ncol});	
+    mu0.fill(cos(zenith_angle));
+
     Camera camera;
     if (switch_bw_raytracing)
     {
@@ -266,6 +274,10 @@ void solve_radiation(int argc, char** argv)
     Array_gpu<Float,3> flux_abs_dir({nx, ny, nz});
     Array_gpu<Float,3> flux_abs_dif({nx, ny, nz});
     Array_gpu<Float,2> radiance({camera.nx, camera.ny});
+    
+    Array_gpu<Float,2> flux_dn_2stream;
+    Array_gpu<Float,2> flux_up_2stream;
+    Array_gpu<Float,2> flux_dn_dir_2stream;
     
     // empty arrays (mie scattering not (yet) supported in lite version)
     Array<Float,2> mie_cdfs_c;
@@ -317,27 +329,10 @@ void solve_radiation(int argc, char** argv)
     lum_c.fill(Float(0.));
     Array_gpu<Float,1> land_use_map(lum_c);
     
-
-    ////// CREATE THE OUTPUT FILE //////
-    // Create the general dimensions and arrays.
-    Status::print_message("Preparing NetCDF output file.");
-
-    Netcdf_file output_nc("rt_lite_output.nc", Netcdf_mode::Create);
-    if (switch_raytracing)
-    {
-        output_nc.add_dimension("x", nx);
-        output_nc.add_dimension("y", ny);
-        output_nc.add_dimension("z", n_z_in);
-    }
-    if (switch_bw_raytracing)
-    {
-        output_nc.add_dimension("nx", camera.nx);
-        output_nc.add_dimension("ny", camera.ny);
-    }
-    
     //// GPU arrays
     Array_gpu<Float,2> tot_tau_g(tot_tau);
     Array_gpu<Float,2> tot_ssa_g(tot_ssa);
+    Array_gpu<Float,2> tot_asy_g(tot_asy);
     Array_gpu<Float,2> cld_tau_g(cld_tau);
     Array_gpu<Float,2> cld_ssa_g(cld_ssa);
     Array_gpu<Float,2> cld_asy_g(cld_asy);
@@ -345,6 +340,58 @@ void solve_radiation(int argc, char** argv)
     Array_gpu<Float,2> aer_ssa_g(aer_ssa);
     Array_gpu<Float,2> aer_asy_g(aer_asy);
     Array_gpu<Float,2> sfc_albedo_g(sfc_albedo);
+    Array_gpu<Float,1> mu0_g(mu0);
+   
+    ////// CREATE THE OUTPUT FILE //////
+    // Create the general dimensions and arrays.
+    Status::print_message("Preparing NetCDF output file.");
+
+    Netcdf_file output_nc("rt_lite_output.nc", Netcdf_mode::Create);
+    if (switch_raytracing || switch_two_stream)
+    {
+        output_nc.add_dimension("x", nx);
+        output_nc.add_dimension("y", ny);
+        output_nc.add_dimension("z", nz);
+        output_nc.add_dimension("lev", n_lay+1);
+    }
+    if (switch_bw_raytracing)
+    {
+        output_nc.add_dimension("nx", camera.nx);
+        output_nc.add_dimension("ny", camera.ny);
+    }
+    
+
+    if (switch_two_stream)
+    {
+        flux_up_2stream.set_dims({ncol, n_lay+1});
+        flux_dn_2stream.set_dims({ncol, n_lay+1});
+        flux_dn_dir_2stream.set_dims({ncol, n_lay+1});
+        
+        Rte_sw_rt rte_sw;
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 1, 0, tod_dir * cos(zenith_angle), flux_dn_dir_2stream.ptr());
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 1, 0, flux_dn_2stream.ptr());
+
+        Rte_solver_kernels_cuda_rt::sw_solver_2stream(
+            ncol, n_lay, 1, 0,
+            tot_tau_g.ptr(),
+            tot_ssa_g.ptr(),
+            tot_asy_g.ptr(),
+            mu0_g.ptr(),
+            sfc_albedo_g.ptr(), sfc_albedo_g.ptr(),
+            flux_up_2stream.ptr(), flux_dn_2stream.ptr(), flux_dn_dir_2stream.ptr());
+
+        Array<Float,2> flux_up_2stream_c(flux_up_2stream);
+        Array<Float,2> flux_dn_2stream_c(flux_dn_2stream);
+        Array<Float,2> flux_dn_dir_2stream_c(flux_dn_dir_2stream);
+
+        auto nc_up_2stream = output_nc.add_variable<Float>("flux_up_2stream" , {"lev", "y", "x"});
+        auto nc_dn_2stream = output_nc.add_variable<Float>("flux_dn_2stream" , {"lev", "y", "x"});
+        auto nc_dn_dir_2stream = output_nc.add_variable<Float>("flux_dn_dir_2stream" , {"lev", "y", "x"});
+
+        nc_up_2stream.insert(flux_up_2stream_c  .v(), {0, 0, 0});
+        nc_dn_2stream.insert(flux_dn_2stream_c  .v(), {0, 0, 0});
+        nc_dn_dir_2stream.insert(flux_dn_dir_2stream_c  .v(), {0, 0, 0});
+    }
     
     if (switch_raytracing)
     {

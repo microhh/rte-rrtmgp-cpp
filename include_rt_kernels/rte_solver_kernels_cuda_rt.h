@@ -38,6 +38,8 @@ namespace Rte_solver_kernels_cuda_rt
     void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, Float* gpt_flux_dn);
 
     void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float* inc_flux_dif, Float* gpt_flux_dn);
+    
+    void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float inc_flux, Float* gpt_flux_dn);
 
     void sw_solver_2stream(
             const int ncol, const int nlay, const int ngpt, const Bool top_at_1,
