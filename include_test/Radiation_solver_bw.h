@@ -58,7 +58,7 @@ class Radiation_solver_longwave
                 const Array<Float,2>& col_dry,
                 const Array<Float,1>& t_sfc, const Array<Float,2>& emis_sfc,
                 const Array<Float,2>& lwp, const Array<Float,2>& iwp,
-                const Array<Float,2>& rel, const Array<Float,2>& rei,
+                const Array<Float,2>& rel, const Array<Float,2>& dei,
                 Array<Float,3>& tau, Array<Float,3>& lay_source,
                 Array<Float,3>& lev_source_inc, Array<Float,3>& lev_source_dec, Array<Float,2>& sfc_source,
                 Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net,
@@ -76,7 +76,7 @@ class Radiation_solver_longwave
                 Array_gpu<Float,2>& col_dry,
                 const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
                 const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
-                const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& rei,
+                const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
                 Array_gpu<Float,3>& tau, Array_gpu<Float,3>& lay_source,
                 Array_gpu<Float,3>& lev_source_inc, Array_gpu<Float,3>& lev_source_dec, Array_gpu<Float,2>& sfc_source,
                 Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
@@ -136,7 +136,7 @@ class Radiation_solver_shortwave
                 const Array<Float,2>& sfc_alb,
                 const Array<Float,1>& tsi_scaling, const Array<Float,1>& mu0,
                 const Array<Float,2>& lwp, const Array<Float,2>& iwp,
-                const Array<Float,2>& rel, const Array<Float,2>& rei,
+                const Array<Float,2>& rel, const Array<Float,2>& dei,
                 Array<Float,3>& tau, Array<Float,3>& ssa, Array<Float,3>& g,
                 Array<Float,2>& toa_src,
                 Array<Float,2>& sw_flux_up, Array<Float,2>& sw_flux_dn,
@@ -174,7 +174,7 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,1>& tsi_scaling,
                 const Array_gpu<Float,1>& mu0, const Array_gpu<Float,1>& azi,
                 const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
-                const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& rei,
+                const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
                 const Array_gpu<Float,1>& land_use_map,
                 const Array_gpu<Float,2>& rh,
                 const Aerosol_concs_gpu& aerosol_concs,
@@ -209,7 +209,7 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,1>& tsi_scaling,
                 const Array_gpu<Float,1>& mu0, const Array_gpu<Float,1>& azi,
                 const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
-                const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& rei,
+                const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
                 const Array_gpu<Float,1>& land_use_map,
                 const Array_gpu<Float,2>& rh,
                 const Aerosol_concs_gpu& aerosol_concs,
@@ -250,12 +250,12 @@ class Radiation_solver_shortwave
         Array_gpu<Float,3> mie_cdfs_bb;
         Array_gpu<Float,4> mie_angs_bb;
         Array_gpu<Float,4> mie_phase_bb;
-        
+
         Array_gpu<Float,1> mie_phase_angs;
         Array_gpu<Float,3> mie_cdfs;
         Array_gpu<Float,4> mie_angs;
         Array_gpu<Float,4> mie_phase;
-        
+
         #endif
 };
 #endif

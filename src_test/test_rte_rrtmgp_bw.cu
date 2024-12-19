@@ -279,7 +279,7 @@ void solve_radiation(int argc, char** argv)
         std::string error = "No longwave radiation implemented in the ray tracer";
         throw std::runtime_error(error);
     }
-    
+
     // Print the options to the screen.
     print_command_line_options(command_line_options);
 
@@ -382,7 +382,7 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> lwp;
     Array<Float,2> iwp;
     Array<Float,2> rel;
-    Array<Float,2> rei;
+    Array<Float,2> dei;
 
     if (switch_cloud_optics || switch_cloud_cam)
     {
@@ -391,12 +391,12 @@ void solve_radiation(int argc, char** argv)
 
         iwp.set_dims({n_col, n_lay});
         iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
-        
+
         rel.set_dims({n_col, n_lay});
         rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
 
-        rei.set_dims({n_col, n_lay});
-        rei = std::move(input_nc.get_variable<Float>("rei", {n_lay, n_col_y, n_col_x}));
+        dei.set_dims({n_col, n_lay});
+        dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
     }
     else
     {
@@ -525,7 +525,7 @@ void solve_radiation(int argc, char** argv)
             Array_gpu<Float,2> lwp_gpu(lwp);
             Array_gpu<Float,2> iwp_gpu(iwp);
             Array_gpu<Float,2> rel_gpu(rel);
-            Array_gpu<Float,2> rei_gpu(rei);
+            Array_gpu<Float,2> dei_gpu(dei);
 
             cudaDeviceSynchronize();
             cudaEvent_t start;
@@ -546,7 +546,7 @@ void solve_radiation(int argc, char** argv)
                     col_dry_gpu,
                     t_sfc_gpu, emis_sfc_gpu,
                     lwp_gpu, iwp_gpu,
-                    rel_gpu, rei_gpu,
+                    rel_gpu, dei_gpu,
                     lw_tau, lay_source, lev_source_inc, lev_source_dec, sfc_source,
                     lw_flux_up, lw_flux_dn, lw_flux_net,
                     lw_bnd_flux_up, lw_bnd_flux_dn, lw_bnd_flux_net);
@@ -690,11 +690,11 @@ void solve_radiation(int argc, char** argv)
         {
             XYZ.set_dims({camera.nx, camera.ny, 3});
         }
-        
+
         if (switch_cloud_mie)
             rad_sw.load_mie_tables("mie_lut_broadband.nc", "mie_lut_visualisation.nc", switch_broadband, switch_image);
-        
-        
+
+
         Array_gpu<Float,2> liwp_cam;
         Array_gpu<Float,2> tauc_cam;
         Array_gpu<Float,2> dist_cam;
@@ -707,7 +707,7 @@ void solve_radiation(int argc, char** argv)
             dist_cam.set_dims({camera.nx, camera.ny});
             zen_cam.set_dims({camera.nx, camera.ny});
         }
-        
+
         // Solve the radiation.
         Status::print_message("Solving the shortwave radiation.");
 
@@ -726,7 +726,7 @@ void solve_radiation(int argc, char** argv)
             Array_gpu<Float,2> lwp_gpu(lwp);
             Array_gpu<Float,2> iwp_gpu(iwp);
             Array_gpu<Float,2> rel_gpu(rel);
-            Array_gpu<Float,2> rei_gpu(rei);
+            Array_gpu<Float,2> dei_gpu(dei);
 
             Array_gpu<Float,2> rh_gpu(rh);
             Aerosol_concs_gpu aerosol_concs_gpu(aerosol_concs);
@@ -763,7 +763,7 @@ void solve_radiation(int argc, char** argv)
                     tsi_scaling_gpu,
                     mu0_gpu, azi_gpu,
                     lwp_gpu, iwp_gpu,
-                    rel_gpu, rei_gpu,
+                    rel_gpu, dei_gpu,
                     land_use_map_gpu,
                     rh_gpu,
                     aerosol_concs,
@@ -800,7 +800,7 @@ void solve_radiation(int argc, char** argv)
             Array_gpu<Float,2> lwp_gpu(lwp);
             Array_gpu<Float,2> iwp_gpu(iwp);
             Array_gpu<Float,2> rel_gpu(rel);
-            Array_gpu<Float,2> rei_gpu(rei);
+            Array_gpu<Float,2> dei_gpu(dei);
 
             Array_gpu<Float,2> rh_gpu(rh);
             Aerosol_concs_gpu aerosol_concs_gpu(aerosol_concs);
@@ -838,7 +838,7 @@ void solve_radiation(int argc, char** argv)
                     tsi_scaling_gpu,
                     mu0_gpu, azi_gpu,
                     lwp_gpu, iwp_gpu,
-                    rel_gpu, rei_gpu,
+                    rel_gpu, dei_gpu,
                     land_use_map_gpu,
                     rh_gpu,
                     aerosol_concs,
@@ -899,7 +899,7 @@ void solve_radiation(int argc, char** argv)
 
             auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
             nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
-            
+
             if (switch_broadband)
             {
                 Array<Float,2> radiance_cpu(radiance);
@@ -916,7 +916,7 @@ void solve_radiation(int argc, char** argv)
 
                 auto nc_xyz = output_nc.add_variable<Float>("XYZ", {"n","y","x"});
                 nc_xyz.insert(xyz_cpu.v(), {0, 0, 0});
-                
+
                 nc_xyz.add_attribute("long_name", "X Y Z tristimulus values");
             }
         }
@@ -927,19 +927,19 @@ void solve_radiation(int argc, char** argv)
             Array<Float,2> tauc_cam_cpu(tauc_cam);
             Array<Float,2> dist_cam_cpu(dist_cam);
             Array<Float,2> zen_cam_cpu(zen_cam);
-            
+
             auto nc_var_liwp = output_nc.add_variable<Float>("liq_ice_wp_cam", {"y","x"});
             nc_var_liwp.insert(liwp_cam_cpu.v(), {0, 0});
             nc_var_liwp.add_attribute("long_name", "accumulated liquid+ice water path");
-            
+
             auto nc_var_tauc = output_nc.add_variable<Float>("tau_cld_cam", {"y","x"});
             nc_var_tauc.insert(tauc_cam_cpu.v(), {0, 0});
             nc_var_tauc.add_attribute("long_name", "accumulated cloud optical depth (441-615nm band)");
-            
+
             auto nc_var_dist = output_nc.add_variable<Float>("dist_cld_cam", {"y","x"});
             nc_var_dist.insert(dist_cam_cpu.v(), {0, 0});
             nc_var_dist.add_attribute("long_name", "distance to first cloudy cell");
-            
+
             auto nc_var_csza = output_nc.add_variable<Float>("zen_cam", {"y","x"});
             nc_var_csza.insert(zen_cam_cpu.v(), {0, 0});
             nc_var_csza.add_attribute("long_name", "zenith angle of camera pixel");

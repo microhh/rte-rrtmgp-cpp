@@ -302,9 +302,9 @@ namespace
         Float radliq_upr = coef_nc.get_variable<Float>("radliq_upr");
         Float radliq_fac = coef_nc.get_variable<Float>("radliq_fac");
 
-        Float radice_lwr = coef_nc.get_variable<Float>("radice_lwr");
-        Float radice_upr = coef_nc.get_variable<Float>("radice_upr");
-        Float radice_fac = coef_nc.get_variable<Float>("radice_fac");
+        Float diamice_lwr = coef_nc.get_variable<Float>("diamice_lwr");
+        Float diamice_upr = coef_nc.get_variable<Float>("diamice_upr");
+        Float diamice_fac = coef_nc.get_variable<Float>("diamice_fac");
 
         Array<Float,2> lut_extliq(
                 coef_nc.get_variable<Float>("lut_extliq", {n_band, n_size_liq}), {n_size_liq, n_band});
@@ -323,7 +323,7 @@ namespace
         return Cloud_optics(
                 band_lims_wvn,
                 radliq_lwr, radliq_upr, radliq_fac,
-                radice_lwr, radice_upr, radice_fac,
+                diamice_lwr, diamice_upr, diamice_fac,
                 lut_extliq, lut_ssaliq, lut_asyliq,
                 lut_extice, lut_ssaice, lut_asyice);
     }
@@ -392,7 +392,7 @@ void Radiation_solver_longwave::solve(
         const Array<Float,2>& col_dry,
         const Array<Float,1>& t_sfc, const Array<Float,2>& emis_sfc,
         const Array<Float,2>& lwp, const Array<Float,2>& iwp,
-        const Array<Float,2>& rel, const Array<Float,2>& rei,
+        const Array<Float,2>& rel, const Array<Float,2>& dei,
         Array<Float,3>& tau, Array<Float,3>& lay_source,
         Array<Float,3>& lev_source, Array<Float,2>& sfc_source,
         Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net,
@@ -476,7 +476,7 @@ void Radiation_solver_longwave::solve(
                     lwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     iwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     rel.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
-                    rei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    dei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     *cloud_optical_props_subset_in);
 
             // cloud->delta_scale();
@@ -657,7 +657,7 @@ void Radiation_solver_shortwave::solve(
         const Array<Float,2>& sfc_alb_dir, const Array<Float,2>& sfc_alb_dif,
         const Array<Float,1>& tsi_scaling, const Array<Float,1>& mu0,
         const Array<Float,2>& lwp, const Array<Float,2>& iwp,
-        const Array<Float,2>& rel, const Array<Float,2>& rei,
+        const Array<Float,2>& rel, const Array<Float,2>& dei,
         const Array<Float,2>& rh,
         const Aerosol_concs& aerosol_concs,
         Array<Float,3>& tau, Array<Float,3>& ssa, Array<Float,3>& g,
@@ -755,7 +755,7 @@ void Radiation_solver_shortwave::solve(
                     lwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     iwp.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     rel.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
-                    rei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
+                    dei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     *cloud_optical_props_subset_in);
 
             if (switch_delta_cloud)

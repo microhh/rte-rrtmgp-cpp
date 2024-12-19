@@ -12,7 +12,7 @@ for expt in range(expts):
     # Save all the input data to NetCDF
     nc_file = nc.Dataset('rte_rrtmgp_input_expt_{:02d}.nc'.format(expt), mode='w', datamodel='NETCDF4', clobber=True)
     nc_file_rfmip = nc.Dataset('multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc', mode='r', datamodel='NETCDF4', clobber=False)
-    
+
     # Create a group for the radiation and set up the values.
     nc_file.createDimension('lay', nc_file_rfmip.dimensions['layer'].size)
     nc_file.createDimension('lev', nc_file_rfmip.dimensions['level'].size)
@@ -20,12 +20,12 @@ for expt in range(expts):
     nc_file.createDimension('x', nc_file_rfmip.dimensions['site'].size)
     nc_file.createDimension('band_lw', band_lw)
     nc_file.createDimension('band_sw', band_sw)
-    
+
     nc_pres_layer = nc_file.createVariable('p_lay', float_type, ('lay', 'y', 'x'))
     nc_pres_level = nc_file.createVariable('p_lev', float_type, ('lev', 'y', 'x'))
     nc_temp_layer = nc_file.createVariable('t_lay', float_type, ('lay', 'y', 'x'))
     nc_temp_level = nc_file.createVariable('t_lev', float_type, ('lev', 'y', 'x'))
-    
+
     nc_pres_layer[:,:,:] = nc_file_rfmip.variables['pres_layer'][:,:].transpose()
     nc_pres_level[:,:,:] = nc_file_rfmip.variables['pres_level'][:,:].transpose()
 
@@ -35,25 +35,25 @@ for expt in range(expts):
 
     nc_temp_layer[:,:,:] = (nc_file_rfmip.variables['temp_layer'][expt,:,:]).transpose()
     nc_temp_level[:,:,:] = (nc_file_rfmip.variables['temp_level'][expt,:,:]).transpose()
-    
+
     nc_surface_emissivity = nc_file.createVariable('emis_sfc', float_type, ('y', 'x', 'band_lw'))
     nc_surface_temperature = nc_file.createVariable('t_sfc', float_type, ('y', 'x'))
-    
+
     nc_surface_emissivity[:,:] = np.tile( (nc_file_rfmip.variables['surface_emissivity'][:]) [:,None], (1, band_lw) )
     nc_surface_temperature[:,:] = nc_file_rfmip.variables['surface_temperature'][expt,:]
-    
+
     nc_surface_albedo_dir = nc_file.createVariable('sfc_alb_dir', float_type, ('y', 'x', 'band_sw'))
     nc_surface_albedo_dif = nc_file.createVariable('sfc_alb_dif', float_type, ('y', 'x', 'band_sw'))
-    
+
     nc_surface_albedo_dir[:,:,:] = np.tile( (nc_file_rfmip.variables['surface_albedo'][:]) [:,None], (1, band_sw) )
     nc_surface_albedo_dif[:,:,:] = np.tile( (nc_file_rfmip.variables['surface_albedo'][:]) [:,None], (1, band_sw) )
-    
+
     nc_mu0 = nc_file.createVariable('mu0', float_type, ('y', 'x'))
     nc_mu0[:,:] = np.maximum(0., np.cos( np.deg2rad(nc_file_rfmip.variables['solar_zenith_angle'][:]) ) )
-    
+
     nc_tsi = nc_file.createVariable('tsi', float_type, ('y', 'x'))
     nc_tsi[:,:] = nc_file_rfmip.variables['total_solar_irradiance'][:]
-   
+
     nc_h2o     = nc_file.createVariable('vmr_h2o'    , float_type, ('lay', 'y', 'x'))
     nc_o3      = nc_file.createVariable('vmr_o3'     , float_type, ('lay', 'y', 'x'))
     nc_co2     = nc_file.createVariable('vmr_co2'    , float_type)
@@ -77,7 +77,7 @@ for expt in range(expts):
     # Profiles
     nc_h2o[:,:,:] = nc_file_rfmip.variables['water_vapor'][expt,:,:].transpose() * float(nc_file_rfmip.variables['water_vapor'].units)
     nc_o3 [:,:,:] = nc_file_rfmip.variables['ozone'][expt,:,:].transpose() * float(nc_file_rfmip.variables['ozone'].units)
-    
+
     # Constants
     nc_co2    [:] = nc_file_rfmip.variables['carbon_dioxide_GM'][expt] * float(nc_file_rfmip.variables['carbon_dioxide_GM'].units)
     nc_n2o    [:] = nc_file_rfmip.variables['nitrous_oxide_GM'][expt] * float(nc_file_rfmip.variables['nitrous_oxide_GM'].units)
@@ -100,13 +100,13 @@ for expt in range(expts):
     # CvH: To be removed if settings can be set.
     nc_lwp = nc_file.createVariable('lwp', float_type, ('lay', 'y', 'x'))
     nc_iwp = nc_file.createVariable('iwp', float_type, ('lay', 'y', 'x'))
-    nc_rel = nc_file.createVariable('rei', float_type, ('lay', 'y', 'x'))
-    nc_rei = nc_file.createVariable('rel', float_type, ('lay', 'y', 'x'))
+    nc_rel = nc_file.createVariable('dei', float_type, ('lay', 'y', 'x'))
+    nc_dei = nc_file.createVariable('rel', float_type, ('lay', 'y', 'x'))
 
     nc_lwp[:,:,:] = 0.
     nc_iwp[:,:,:] = 0.
     nc_rel[:,:,:] = 0.
-    nc_rei[:,:,:] = 0.
+    nc_dei[:,:,:] = 0.
     # CvH end.
 
     nc_file_rfmip.close()

@@ -369,7 +369,7 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> lwp;
     Array<Float,2> iwp;
     Array<Float,2> rel;
-    Array<Float,2> rei;
+    Array<Float,2> dei;
 
     if (switch_cloud_optics)
     {
@@ -388,8 +388,8 @@ void solve_radiation(int argc, char** argv)
             iwp.set_dims({n_col, n_lay});
             iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
 
-            rei.set_dims({n_col, n_lay});
-            rei = std::move(input_nc.get_variable<Float>("rei", {n_lay, n_col_y, n_col_x}));
+            dei.set_dims({n_col, n_lay});
+            dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
         }
     }
 
@@ -530,7 +530,7 @@ void solve_radiation(int argc, char** argv)
             Array_gpu<Float,2> lwp_gpu(lwp);
             Array_gpu<Float,2> iwp_gpu(iwp);
             Array_gpu<Float,2> rel_gpu(rel);
-            Array_gpu<Float,2> rei_gpu(rei);
+            Array_gpu<Float,2> dei_gpu(dei);
 
 
             cudaDeviceSynchronize();
@@ -552,7 +552,7 @@ void solve_radiation(int argc, char** argv)
                     col_dry_gpu,
                     t_sfc_gpu, emis_sfc_gpu,
                     lwp_gpu, iwp_gpu,
-                    rel_gpu, rei_gpu,
+                    rel_gpu, dei_gpu,
                     lw_tau, lay_source, lev_source_inc, lev_source_dec, sfc_source,
                     lw_flux_up, lw_flux_dn, lw_flux_net,
                     lw_gpt_flux_up, lw_gpt_flux_dn, lw_gpt_flux_net);
@@ -781,7 +781,7 @@ void solve_radiation(int argc, char** argv)
             Array_gpu<Float,2> lwp_gpu(lwp);
             Array_gpu<Float,2> iwp_gpu(iwp);
             Array_gpu<Float,2> rel_gpu(rel);
-            Array_gpu<Float,2> rei_gpu(rei);
+            Array_gpu<Float,2> dei_gpu(dei);
 
             Array_gpu<Float,2> rh_gpu(rh);
             Aerosol_concs_gpu aerosol_concs_gpu(aerosol_concs);
@@ -817,7 +817,7 @@ void solve_radiation(int argc, char** argv)
                     sfc_alb_dir_gpu, sfc_alb_dif_gpu,
                     tsi_scaling_gpu, mu0_gpu, azi_gpu,
                     lwp_gpu, iwp_gpu,
-                    rel_gpu, rei_gpu,
+                    rel_gpu, dei_gpu,
                     rh,
                     aerosol_concs,
                     sw_tot_tau, sw_tot_ssa,

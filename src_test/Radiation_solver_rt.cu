@@ -307,9 +307,9 @@ namespace
         Float radliq_upr = coef_nc.get_variable<Float>("radliq_upr");
         Float radliq_fac = coef_nc.get_variable<Float>("radliq_fac");
 
-        Float radice_lwr = coef_nc.get_variable<Float>("radice_lwr");
-        Float radice_upr = coef_nc.get_variable<Float>("radice_upr");
-        Float radice_fac = coef_nc.get_variable<Float>("radice_fac");
+        Float diamice_lwr = coef_nc.get_variable<Float>("diamice_lwr");
+        Float diamice_upr = coef_nc.get_variable<Float>("diamice_upr");
+        Float diamice_fac = coef_nc.get_variable<Float>("diamice_fac");
 
         Array<Float,2> lut_extliq(
                 coef_nc.get_variable<Float>("lut_extliq", {n_band, n_size_liq}), {n_size_liq, n_band});
@@ -328,7 +328,7 @@ namespace
         return Cloud_optics_rt(
                 band_lims_wvn,
                 radliq_lwr, radliq_upr, radliq_fac,
-                radice_lwr, radice_upr, radice_fac,
+                diamice_lwr, diamice_upr, diamice_fac,
                 lut_extliq, lut_ssaliq, lut_asyliq,
                 lut_extice, lut_ssaice, lut_asyice);
     }
@@ -396,7 +396,7 @@ void Radiation_solver_longwave::solve_gpu(
         Array_gpu<Float,2>& col_dry,
         const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
-        const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& rei,
+        const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         Array_gpu<Float,2>& tau, Array_gpu<Float,2>& lay_source,
         Array_gpu<Float,2>& lev_source_inc, Array_gpu<Float,2>& lev_source_dec, Array_gpu<Float,1>& sfc_source,
         Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
@@ -465,7 +465,7 @@ void Radiation_solver_longwave::solve_gpu(
                     lwp,
                     iwp,
                     rel,
-                    rei,
+                    dei,
                     *cloud_optical_props);
             // cloud->delta_scale();
 
@@ -589,7 +589,7 @@ void Radiation_solver_shortwave::solve_gpu(
         const Array_gpu<Float,1>& tsi_scaling,
         const Array_gpu<Float,1>& mu0, const Array_gpu<Float,1>& azi,
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
-        const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& rei,
+        const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         const Array_gpu<Float,2>& rh,
         const Aerosol_concs_gpu& aerosol_concs,
         Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out,
@@ -747,7 +747,7 @@ void Radiation_solver_shortwave::solve_gpu(
                         lwp,
                         iwp,
                         rel,
-                        rei,
+                        dei,
                         *cloud_optical_props);
 
                 if (switch_delta_cloud)

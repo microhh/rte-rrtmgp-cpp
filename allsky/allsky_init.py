@@ -31,7 +31,7 @@ def calc_p_q_T(z):
 
     i_above_zt = np.where(z > z_trop)
     q[i_above_zt] = q_t
-    
+
     T_0 = 300.
     Tv_0 = (1. + 0.608*q_0)*T_0
 
@@ -51,16 +51,16 @@ def calc_p_q_T(z):
     Tv = T * (1. + 0.608*q)
 
     # T = Tv / (1. + 0.608*q)
-    
+
     g = 9.79764
     Rd = 287.04
     p0 = 101480.
 
     p = p0 * (Tv / Tv_0)**(g/(Rd*gamma))
- 
+
     p_tmp = p0 * (Tv/Tv_0)**(g/(Rd*gamma)) \
           * np.exp( -( (g*(z-z_trop)) / (Rd*Tv) ) )
-    
+
     p[i_above_zt] = p_tmp[i_above_zt]
 
     return p, q, T
@@ -159,13 +159,13 @@ nc_sfc_alb_dif[:,:,:] = sfc_alb_dif[:,:]
 nc_lwp = nc_file.createVariable('lwp', float_type, ('lay', 'y', 'x'))
 nc_iwp = nc_file.createVariable('iwp', float_type, ('lay', 'y', 'x'))
 nc_rel = nc_file.createVariable('rel', float_type, ('lay', 'y', 'x'))
-nc_rei = nc_file.createVariable('rei', float_type, ('lay', 'y', 'x'))
+nc_dei = nc_file.createVariable('dei', float_type, ('lay', 'y', 'x'))
 
 min_rel, max_rel = 2.5, 21.5
-min_rei, max_rei = 10., 180.
+min_dei, max_dei = 10., 180.
 
 rel_val = 0.5*(min_rel + max_rel)
-rei_val = 0.5*(min_rei + max_rei)
+dei_val = 0.5*(min_dei + max_dei)
 
 cloud_flag = (np.arange(1, n_col_x+1)%3 > 0)
 cloud_mask = np.where((nc_p_lay[:,:,:] > 1.e4) & (nc_p_lay[:,:,:] < 9.e4) & cloud_flag[None, None,:], True, False)
@@ -173,6 +173,6 @@ cloud_mask = np.where((nc_p_lay[:,:,:] > 1.e4) & (nc_p_lay[:,:,:] < 9.e4) & clou
 nc_lwp[:,:,:] = np.where(cloud_mask & (nc_T_lay[:,:,:] > 263.), 10., 0.)
 nc_iwp[:,:,:] = np.where(cloud_mask & (nc_T_lay[:,:,:] < 273.), 10., 0.)
 nc_rel[:,:,:] = np.where(nc_lwp[:,:,:] > 0., rel_val, 0.)
-nc_rei[:,:,:] = np.where(nc_iwp[:,:,:] > 0., rei_val, 0.)
+nc_dei[:,:,:] = np.where(nc_iwp[:,:,:] > 0., dei_val, 0.)
 
 nc_file.close()
