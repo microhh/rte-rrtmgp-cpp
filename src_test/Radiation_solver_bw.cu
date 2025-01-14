@@ -747,9 +747,10 @@ void Radiation_solver_shortwave::load_mie_tables(
         const int n_bnd_sw = this->get_n_bnd_gpu();
         const int n_re  = mie_nc.get_dimension_size("r_eff");
         const int n_mie = mie_nc.get_dimension_size("n_ang");
+        const int n_mie_cdf = mie_nc.get_dimension_size("n_ang_cdf");
 
-        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie}), {n_mie, 1, n_bnd_sw});
-        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
+        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie_cdf}), {n_mie, 1, n_bnd_sw});
+        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_re, n_mie_cdf}), {n_mie_cdf, n_re, 1, n_bnd_sw});
 
         Array<Float,4> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
         Array<Float,1> mie_phase_ang(mie_nc.get_variable<Float>("phase_angle", {n_mie}), {n_mie});
@@ -1137,7 +1138,8 @@ void Radiation_solver_shortwave::solve_gpu_bb(
     const int n_gpt = this->kdist_gpu->get_ngpt();
     const int n_bnd = this->kdist_gpu->get_nband();
 
-    const int n_mie = (switch_cloud_mie) ? this->mie_angs_bb.dim(1) : 0;
+    const int n_mie = (switch_cloud_mie) ? this->mie_phase_angs_bb.dim(1) : 0;
+    const int n_mie_cdf = (switch_cloud_mie) ? this->mie_angs_bb.dim(1) : 0;
     const int n_re = (switch_cloud_mie) ? this->mie_angs_bb.dim(2) : 0;
 
     const int cam_nx = radiance.dim(1);
@@ -1296,8 +1298,8 @@ void Radiation_solver_shortwave::solve_gpu_bb(
 
             if (switch_cloud_mie)
             {
-                mie_cdfs_sub = mie_cdfs_bb.subset({{ {1, n_mie}, {1,1}, {band, band} }});
-                mie_angs_sub = mie_angs_bb.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
+                mie_cdfs_sub = mie_cdfs_bb.subset({{ {1, n_mie_cdf}, {1,1}, {band, band} }});
+                mie_angs_sub = mie_angs_bb.subset({{ {1, n_mie_cdf}, {1, n_re}, {1,1}, {band, band} }});
                 mie_phase_sub = mie_phase_bb.subset({{ {1, n_mie}, {1, n_re}, {1,1}, {band, band} }});
             }
 
