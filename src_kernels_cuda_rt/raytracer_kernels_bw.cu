@@ -235,7 +235,7 @@ namespace
            atomicAdd(&camera_count[ij_cam], weight * trans_sun);
         }
         atomicAdd(&camera_shot[ij_cam], Float(1.));
-        
+
     }
 
     __device__
@@ -298,19 +298,23 @@ void ray_tracer_kernel_bw(
         const Float* __restrict__ mie_ang,
         const Float* __restrict__ mie_phase,
         const Float* __restrict__ mie_phase_ang,
-        const int mie_table_size)
+        const int mie_cdf_table_size,
+        const int mie_phase_table_size)
 {
     extern __shared__ Float shared_arrays[];
     Float* mie_cdf_shared = &shared_arrays[0];
-    Float* mie_phase_ang_shared = &shared_arrays[mie_table_size];
-    Float* bg_tau_cum = &shared_arrays[2*mie_table_size];
+    Float* mie_phase_ang_shared = &shared_arrays[mie_cdf_table_size];
+    Float* bg_tau_cum = &shared_arrays[mie_phase_table_size+mie_cdf_table_size];
     if (threadIdx.x==0)
     {
-        if (mie_table_size > 0)
+        if (mie_cdf_table_size > 0)
         {
-            for (int mie_i=0; mie_i<mie_table_size; ++mie_i)
+            for (int mie_i=0; mie_i<mie_cdf_table_size; ++mie_i)
             {
                 mie_cdf_shared[mie_i] = mie_cdf[mie_i];
+            }
+            for (int mie_i=0; mie_i<mie_phase_table_size; ++mie_i)
+            {
                 mie_phase_ang_shared[mie_i] = mie_phase_ang[mie_i];
             }
         }
@@ -324,11 +328,11 @@ void ray_tracer_kernel_bw(
     }
 
     __syncthreads();
-    
+
     Vector<Float> surface_normal = {0, 0, 1};
-    
+
     const int n = blockDim.x * blockIdx.x + threadIdx.x;
-    
+
     const Float bg_transmissivity = exp(-bg_tau_cum[0]);
 
     const Vector<Float> kn_grid_d = grid_size / kn_grid;
@@ -338,7 +342,7 @@ void ray_tracer_kernel_bw(
 
     const Float s_min = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
     const Float s_min_bg = max(max(grid_size.x, grid_size.y), z_top) * Float_epsilon;
-    
+
     while (counter[0] < camera.npix*photons_per_pixel)
     {
         const Int count = atomicAdd(&counter[0], 1);
@@ -677,19 +681,19 @@ void ray_tracer_kernel_bw(
                                     break;
                             }
                             const Float cos_scat = scatter_type == 0 ? rayleigh(rng()) : // gases -> rayleigh,
-                                                                   1 ? ( (mie_table_size > 0) //clouds: Mie or HG
-                                                                            ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff[ijk], mie_table_size) )
+                                                                   1 ? ( (mie_cdf_table_size > 0) //clouds: Mie or HG
+                                                                            ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff[ijk], mie_cdf_table_size) )
                                                                             :  henyey(g, rng()))
                                                                    : henyey(g, rng()); //aerosols
                             const Float sin_scat = max(Float(0.), sqrt(Float(1.) - cos_scat*cos_scat + Float_epsilon));
 
                             // SUN SCATTERING GOES HERE
                             const Phase_kind kind = scatter_type == 0 ? Phase_kind::Rayleigh :
-                                                                    1 ? (mie_table_size > 0)
+                                                                    1 ? (mie_phase_table_size > 0)
                                                                         ? Phase_kind::Mie
                                                                         : Phase_kind::HG
                                                                 : Phase_kind::HG;
-                            const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff[ijk], mie_table_size,
+                            const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff[ijk], mie_phase_table_size,
                                                                      surface_normal, kind);
                             const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                         k_null_grid,k_ext,
@@ -736,23 +740,23 @@ void ray_tracer_kernel_bw(
 }
     __global__
     void accumulate_clouds_kernel(
-            const Float* __restrict__ lwp, 
-            const Float* __restrict__ iwp, 
-            const Float* __restrict__ tau_cloud, 
+            const Float* __restrict__ lwp,
+            const Float* __restrict__ iwp,
+            const Float* __restrict__ tau_cloud,
             const Vector<Float> grid_d,
             const Vector<Float> grid_size,
             const Vector<int> grid_cells,
-            Float* __restrict__ liwp_cam, 
-            Float* __restrict__ tauc_cam, 
-            Float* __restrict__ dist_cam, 
-            Float* __restrict__ zen_cam, 
+            Float* __restrict__ liwp_cam,
+            Float* __restrict__ tauc_cam,
+            Float* __restrict__ dist_cam,
+            Float* __restrict__ zen_cam,
             const Camera camera)
     {
         const int pix = blockDim.x * blockIdx.x + threadIdx.x;
         const Float s_eps = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
-        Vector<Float> direction; 
+        Vector<Float> direction;
         Vector<Float> position;
-    
+
         if (pix < camera.nx * camera.ny)
         {
             Float liwp_sum = 0;
@@ -778,13 +782,13 @@ void ray_tracer_kernel_bw(
             {
                 direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
             }
-            
+
             // first bring photon to top of dynamical domain
             if ((position.z >= (grid_size.z - s_eps)) && (direction.z < Float(0.)))
             {
                 const Float s = abs((position.z - grid_size.z)/direction.z);
                 position = position + direction * s - s_eps;
-                
+
                 // Cyclic boundary condition in x.
                 position.x = fmod(position.x, grid_size.x);
                 if (position.x < Float(0.))
@@ -802,12 +806,12 @@ void ray_tracer_kernel_bw(
                 const int j = float_to_int(position.y, grid_d.y, grid_cells.y);
                 const int k = float_to_int(position.z, grid_d.z, grid_cells.z);
                 const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
-                
+
                 const Float sx = abs((direction.x > 0) ? ((i+1) * grid_d.x - position.x)/direction.x : (i*grid_d.x - position.x)/direction.x);
                 const Float sy = abs((direction.y > 0) ? ((j+1) * grid_d.y - position.y)/direction.y : (j*grid_d.y - position.y)/direction.y);
                 const Float sz = abs((direction.z > 0) ? ((k+1) * grid_d.z - position.z)/direction.z : (k*grid_d.z - position.z)/direction.z);
                 const Float s_min = min(sx, min(sy, sz));
-                
+
                 liwp_sum += s_min * (lwp[ijk] + iwp[ijk]);
                 tauc_sum += s_min * tau_cloud[ijk];
                 if (!reached_cloud)
@@ -815,13 +819,13 @@ void ray_tracer_kernel_bw(
                     dist += s_min;
                     reached_cloud = tau_cloud[ijk] > 0;
                 }
-                
+
                 position = position + direction * s_min;
 
                 position.x += direction.x >= 0 ? s_eps : -s_eps;
                 position.y += direction.y >= 0 ? s_eps : -s_eps;
                 position.z += direction.z >= 0 ? s_eps : -s_eps;
-                        
+
                 // Cyclic boundary condition in x.
                 position.x = fmod(position.x, grid_size.x);
                 if (position.x < Float(0.))
@@ -833,7 +837,7 @@ void ray_tracer_kernel_bw(
                     position.y += grid_size.y;
 
             }
-            
+
             // divide out initial layer thicknes, equivalent to first converting lwp (g/m2) to lwc (g/m3) or optical depth to k_ext(1/m)
             liwp_cam[pix] = liwp_sum / grid_d.z;
             tauc_cam[pix] = tauc_sum / grid_d.z;

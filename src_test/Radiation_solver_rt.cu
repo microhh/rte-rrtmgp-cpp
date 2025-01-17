@@ -554,7 +554,7 @@ void Radiation_solver_shortwave::load_mie_tables(
 {
     Netcdf_file mie_nc(file_name_mie, Netcdf_mode::Read);
     const int n_re  = mie_nc.get_dimension_size("r_eff");
-    const int n_mie = mie_nc.get_dimension_size("n_ang");
+    const int n_mie = mie_nc.get_dimension_size("n_ang_cdf");
 
     const int n_bnd_sw = this->get_n_bnd_gpu();
     Array<Float,2> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie}), {n_mie, n_bnd_sw});
@@ -784,17 +784,21 @@ void Radiation_solver_shortwave::solve_gpu(
             std::unique_ptr<Fluxes_broadband_rt> fluxes =
                     std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
 
-            rte_sw.rte_sw(
-                    optical_props,
-                    top_at_1,
-                    mu0,
-                    toa_src,
-                    sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
-                    sfc_alb_dif.subset({{ {band, band}, {1, n_col}}}),
-                    Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
-                    (*fluxes).get_flux_up(),
-                    (*fluxes).get_flux_dn(),
-                    (*fluxes).get_flux_dn_dir());
+            if (switch_twostream)
+            {
+
+                rte_sw.rte_sw(
+                        optical_props,
+                        top_at_1,
+                        mu0,
+                        toa_src,
+                        sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
+                        sfc_alb_dif.subset({{ {band, band}, {1, n_col}}}),
+                        Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
+                        (*fluxes).get_flux_up(),
+                        (*fluxes).get_flux_dn(),
+                        (*fluxes).get_flux_dn_dir());
+            }
 
             if (switch_raytracing)
             {
