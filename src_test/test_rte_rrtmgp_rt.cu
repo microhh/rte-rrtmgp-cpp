@@ -230,6 +230,7 @@ void solve_radiation(int argc, char** argv)
         {"two-stream"        , { true, "Run two-stream solver for to obtain 1D fluxes" }},
         {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
+        {"tica"              , { false, "run raytracer in tilted independent column mode"}},
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
@@ -238,11 +239,15 @@ void solve_radiation(int argc, char** argv)
         {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }}};
+        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }} ,
+        {"override-sza"     , { false, "override provided value of sza in input file. IN DEGREES. '--override-sza 50': use a sza of 50 degrees" }},
+        {"override-azi"     , { false, "override provided value of azi in input file. IN DEGREES. '--override-azi 240': use of azi of 240 degrees"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
-        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }}};
+        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }},
+        {"override-sza", {0, "solar zenith angle (theta) in degrees."}},
+        {"override-azi", {0, "Solar azimuth angle in degrees."}} };
 
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
@@ -253,6 +258,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_twostream         = command_line_switches.at("two-stream"        ).first;
     const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
     const bool switch_independent_column= command_line_switches.at("independent-column").first;
+    const bool switch_tica              = command_line_switches.at("tica").first;
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
@@ -262,6 +268,8 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
+    const bool override_sza             = command_line_switches.at("override-sza"    ).first;
+    const bool override_azi             = command_line_switches.at("override-azi"    ).first;
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
@@ -295,8 +303,19 @@ void solve_radiation(int argc, char** argv)
     print_command_line_options(command_line_switches, command_line_ints);
 
     int single_gpt = command_line_ints.at("single-gpt").first;
+    int sza_deg = Int(command_line_ints.at("override-sza").first);
+    int azi_deg = Int(command_line_ints.at("override-azi").first);
 
     Status::print_message("Using "+ std::to_string(photons_per_pixel) + " rays per pixel");
+    if (override_sza) 
+    {
+        Status::print_message("Using SZA of "+ std::to_string(sza_deg) + " degrees");
+    }
+
+    if (override_azi) 
+    {
+        Status::print_message("Using azi of "+ std::to_string(azi_deg) + " degrees");
+    }
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -666,8 +685,24 @@ void solve_radiation(int argc, char** argv)
             rad_sw.load_mie_tables("mie_lut_broadband.nc");
         }
 
-        Array<Float,1> mu0(input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x}), {n_col});
-        Array<Float,1> azi(input_nc.get_variable<Float>("azi", {n_col_y, n_col_x}), {n_col});
+                Array<Float,1> mu0({n_col});
+        Array<Float,1> azi({n_col});
+
+        if (override_sza) {
+            Float mu0_in = cosf(sza_deg * 3.14159f / 180.0f);
+            for (int icol=1; icol<=n_col; ++icol)
+                mu0({icol}) = mu0_in;
+        } else {
+            mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
+        }
+
+        if (override_azi) {
+            Float azi_in = azi_deg * 3.14159f / 180.0f;
+            for (int icol=1; icol<=n_col; ++icol)
+                azi({icol}) = azi_in;
+        } else {
+            azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
+        }
 
         Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
         Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
@@ -799,6 +834,7 @@ void solve_radiation(int argc, char** argv)
                     switch_twostream,
                     switch_raytracing,
                     switch_independent_column,
+                    switch_tica,
                     switch_cloud_optics,
                     switch_cloud_mie,
                     switch_aerosol_optics,

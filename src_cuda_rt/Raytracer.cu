@@ -232,6 +232,7 @@ Raytracer::Raytracer()
 void Raytracer::trace_rays(
         const int igpt,
         const bool switch_independent_column,
+        const bool switch_tica,
         const Int photons_per_pixel,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
@@ -378,6 +379,7 @@ void Raytracer::trace_rays(
     const int qrng_gpt_offset = (igpt-1) * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
     ray_tracer_kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
             switch_independent_column,
+            switch_tica,
             photons_per_thread,
             qrng_grid_x,
             qrng_grid_y,
