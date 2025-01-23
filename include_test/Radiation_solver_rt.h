@@ -100,6 +100,7 @@ class Radiation_solver_shortwave
         void solve_gpu(
                 const bool switch_fluxes,
                 const bool switch_twostream,
+                const bool switch_tica,
                 const bool switch_raytracing,
                 const bool switch_independent_column,
                 const bool switch_cloud_optics,
