@@ -436,6 +436,11 @@ void ray_tracer_kernel(
 
                     const Float phi = Float(2.*M_PI)*rng();
 
+                    if (scatter_type == 1) 
+                    {
+                        photon.cloud_status = Photon_cloud_status::cld;
+                    }
+
                     if (!tica || photon.cloud_status == Photon_cloud_status::no_cld)
                     {
                         photon.direction = cos_scat*photon.direction
@@ -443,13 +448,10 @@ void ray_tracer_kernel(
                     } else {
                         photon.direction.z = cos_scat*photon.direction.z
                             + sin_scat*(sin(phi)*t1.z + cos(phi)*t2.z);
-                    }
+                    } 
 
                     photon.kind = Photon_kind::Diffuse;
-                    if (scatter_type == 1) 
-                    {
-                        photon.cloud_status = Photon_cloud_status::cld;
-                    }
+                    
                 }
             }
             else
