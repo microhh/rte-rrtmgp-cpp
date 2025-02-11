@@ -172,6 +172,22 @@ class Array
             offsets = {};
         }
 
+        inline void expand_dims(const std::array<int, N>& dims)
+        {
+            if (this->ncells == 0)
+                throw std::runtime_error("Only arrays of size > 0 can be expanded");
+
+            this->dims = dims;
+            ncells = product<N>(dims);
+
+            if (data.size() > ncells)
+                throw std::runtime_error("new dimensions too small for data");
+
+            data.resize(ncells);
+            strides = calc_strides<N>(dims);
+            offsets = {};
+        }
+
         inline std::vector<T>& v() { return data; }
         inline const std::vector<T>& v() const { return data; }
 
