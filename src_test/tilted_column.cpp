@@ -3,35 +3,34 @@
 #include <iostream>
 #include <vector>
 
-template<typename TF>
-void tilted_path(std::vector<TF>& xh, std::vector<TF>& yh,
-                 std::vector<TF>& zh, std::vector<TF>& z,
-                 TF sza, TF azi,
+void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
+                 std::vector<Float>& zh, std::vector<Float>& z,
+                 Float sza, Float azi,
                  std::vector<ijk>& tilted_path,
-                 std::vector<TF>& zh_tilted)
+                 std::vector<Float>& zh_tilted)
 {
-    const TF dx = xh[1]-xh[0]; 
-    const TF dy = yh[1]-yh[0]; 
-    const TF z_top = *std::max_element(zh.begin(), zh.end());
-    const TF azi_deg = azi*TF(360.)/TF(2*3.14159);
+    const Float dx = xh[1]-xh[0]; 
+    const Float dy = yh[1]-yh[0]; 
+    const Float z_top = *std::max_element(zh.begin(), zh.end());
+    const Float azi_deg = azi*Float(360.)/Float(2*3.14159);
     const int n_x = xh.size()-1;
     const int n_y = yh.size()-1;
     int i = 0;
     int j = 0;
     int k = 0;
 
-    TF xp = dx/TF(2.);
-    TF yp = dy/TF(2.);
-    TF zp = 0.;
-    TF dl = 0.;
+    Float xp = dx/Float(2.);
+    Float yp = dy/Float(2.);
+    Float zp = 0.;
+    Float dl = 0.;
 
     tilted_path.clear();
     zh_tilted.clear();
-    std::vector<TF> dz_tilted;
+    std::vector<Float> dz_tilted;
 
-    TF dir_x = std::sin(sza) * std::cos(azi);
-    TF dir_y = std::sin(sza) * std::sin(azi);
-    TF dir_z = std::cos(sza);  
+    Float dir_x = std::sin(sza) * std::cos(azi);
+    Float dir_y = std::sin(sza) * std::sin(azi);
+    Float dir_z = std::cos(sza);  
 
     int z_idx = 0;
     while (zp < z_top)
@@ -41,14 +40,14 @@ void tilted_path(std::vector<TF>& xh, std::vector<TF>& yh,
             std::cerr << "Error: k+1 (" << k + 1 << ") out of bounds for zh (size=" << zh.size() << ")" << std::endl;
             break;
         }
-        TF lz = (zh[k+1] - zp) / dir_z;
+        Float lz = (zh[k+1] - zp) / dir_z;
 
         // Check bounds before accessing yh[j+1]
         if (j + 1 >= yh.size()) {
             std::cerr << "Error: j+1 (" << j + 1 << ") out of bounds for yh (size=" << yh.size() << ")" << std::endl;
             break;
         }
-        TF ly = (dir_y < 0) ? (yp - yh[j]) / dir_y 
+        Float ly = (dir_y < 0) ? (yp - yh[j]) / dir_y 
                             : (dir_y > 0) ? (yh[j+1] - yp) / dir_y 
                             : 100000.;
 
@@ -57,15 +56,15 @@ void tilted_path(std::vector<TF>& xh, std::vector<TF>& yh,
             std::cerr << "Error: i+1 (" << i + 1 << ") out of bounds for xh (size=" << xh.size() << ")" << std::endl;
             break;
         }
-        TF lx = (dir_x < 0) ? (xp - xh[i]) / dir_x 
+        Float lx = (dir_x < 0) ? (xp - xh[i]) / dir_x 
                             : (dir_x > 0) ? (xh[i+1] - xp) / dir_x 
                             : 100000.;
 
 
-        TF l = std::min({lz, ly, lx}); 
-        TF dz0 = l*dir_z;
-        TF dy0 = l*dir_y;
-        TF dx0 = l*dir_x;
+        Float l = std::min({lz, ly, lx}); 
+        Float dz0 = l*dir_z;
+        Float dy0 = l*dir_y;
+        Float dx0 = l*dir_x;
         // Move along axes:
         zp += l*dir_z;
         yp += l*dir_y;
@@ -74,7 +73,7 @@ void tilted_path(std::vector<TF>& xh, std::vector<TF>& yh,
         if (l < 1e-2) // ignore cell if crossed for less than 2 cm
         {
             
-            dl = dz0/TF(2.);
+            dl = dz0/Float(2.);
             if(z_idx >= dz_tilted.size()){
                 std::cerr << "Warning: z_idx (" << z_idx << ") out of bounds for dz_tilted (size=" << dz_tilted.size() << ")." << std::endl;
                 // TODO how to handle this? push_back a new value instead of accessing an element?
@@ -115,16 +114,14 @@ void tilted_path(std::vector<TF>& xh, std::vector<TF>& yh,
         zh_tilted.push_back(zh_tilted[iz]+dz_tilted[iz]);
 }
 
-
-template<typename TF>
 void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                           const std::vector<TF>& zh_tilted, const std::vector<ijk>& tilted_path,
-                           std::vector<TF>& var)
+                           const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
+                           std::vector<Float>& var)
 {
     const int n_lay = tilted_path.size();
     const int n_lev = zh_tilted.size();
 
-    std::vector<TF> var_tmp(n_lay*n_x*n_y);
+    std::vector<Float> var_tmp(n_lay*n_x*n_y);
 
     #pragma omp parallel for
     for (int ilay=0; ilay<n_lay; ++ilay)
@@ -143,12 +140,11 @@ void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, con
     var = var_tmp;
 }   
 
-template<typename TF>
 void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                 const std::vector<TF>& zh_in, const std::vector<TF>& zf_in,
-                 const std::vector<TF>& play_in, const std::vector<TF>& plev_in,
-                 const TF zp, const ijk offset,
-                 TF* p_out)
+                 const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
+                 const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
+                 const Float zp, const ijk offset,
+                 Float* p_out)
 {
     int zp_in_zh = -1; // half level
     int zp_in_zf = -1; // full level
@@ -188,10 +184,10 @@ void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_l
         for (int ilay=0; ilay<n_lay_in; ++ilay)
             if (zf_in[ilay] < zp)
                 posf_bot = ilay;         
-        const TF* p_top;
-        const TF* p_bot;
-        TF  z_top;
-        TF  z_bot;
+        const Float* p_top;
+        const Float* p_bot;
+        Float  z_top;
+        Float  z_bot;
 
         const int zh_top = zh_in[posh_bot+1];
         const int zh_bot = zh_in[posh_bot];
@@ -219,35 +215,34 @@ void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_l
             z_bot = zh_in[posh_bot];
         }
 
-        TF dz = z_top-z_bot;
+        Float dz = z_top-z_bot;
 
         for (int iy=0; iy<n_y; ++iy)
             for (int ix=0; ix<n_x; ++ix)
             {
                 const int idx_out  = ix + iy*n_y;
                 const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x;
-                const TF pres = (zp-z_bot)/dz*p_top[idx_in] + (z_top-zp)/dz*p_bot[idx_in];
+                const Float pres = (zp-z_bot)/dz*p_top[idx_in] + (z_top-zp)/dz*p_bot[idx_in];
                 p_out[idx_out] = pres;
             } 
 
     }
 }
 
-template<typename TF>
 void create_tilted_columns_levlay(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                                 const std::vector<TF>& zh_in, const std::vector<TF>& z_in,
-                                 const std::vector<TF>& zh_tilted, const std::vector<ijk>& tilted_path,
-                                 std::vector<TF>& var_lay, std::vector<TF>& var_lev)
+                                 const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
+                                 const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
+                                 std::vector<Float>& var_lay, std::vector<Float>& var_lev)
 
 {
     const int n_lay = tilted_path.size();
     const int n_lev = zh_tilted.size();
-    std::vector<TF> z_tilted(n_lay);
+    std::vector<Float> z_tilted(n_lay);
     for (int ilay=0; ilay<n_lay; ++ilay)
-        z_tilted[ilay] = (zh_tilted[ilay]+zh_tilted[ilay+1])/TF(2.);
+        z_tilted[ilay] = (zh_tilted[ilay]+zh_tilted[ilay+1])/Float(2.);
 
-    std::vector<TF> var_lay_tmp(n_lay*n_x*n_y);
-    std::vector<TF> var_lev_tmp(n_lev*n_x*n_y);
+    std::vector<Float> var_lay_tmp(n_lay*n_x*n_y);
+    std::vector<Float> var_lev_tmp(n_lev*n_x*n_y);
     for (int iy=0; iy<n_y; ++iy)
         for (int ix=0; ix<n_x; ++ix)
         {
@@ -268,13 +263,12 @@ void create_tilted_columns_levlay(const int n_x, const int n_y, const int n_lay_
     var_lev = var_lev_tmp;
 }
 
-template<typename TF>
 void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                             const std::vector<ijk>& tilted_path, std::vector<TF>& heat)
+                             const std::vector<ijk>& tilted_path, std::vector<Float>& heat)
 {
     const int n_lay = tilted_path.size();
 
-    std::vector<TF> heat_tmp(n_lay_in*n_x*n_y, TF(0.));
+    std::vector<Float> heat_tmp(n_lay_in*n_x*n_y, Float(0.));
 
     int k = 0;
     for (int ilay=0; ilay<n_lay_in; ++ilay)
@@ -300,41 +294,11 @@ void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, c
                 for (int ix=0; ix<n_x; ++ix)
                 {
                     const int idx_out  = ix + iy*n_y + ilay*n_y*n_x;
-                    heat_tmp[idx_out] /= TF(n);
+                    heat_tmp[idx_out] /= Float(n);
                 }
         }
     }
     heat.resize(heat_tmp.size());
     heat = heat_tmp;
 }   
-
-#ifdef FLOAT_SINGLE_RRTMGP
-template void tilted_path<float>(std::vector<float>&, std::vector<float>&, std::vector<float>&, std::vector<float>&, float, float, std::vector<ijk>&, std::vector<float>&);
-
-template void create_tilted_columns(const int, const int, const int, const int,
-                           const std::vector<float>&, const std::vector<ijk>&,
-                           std::vector<float>&);
-
-template void create_tilted_columns_levlay(const int, const int, const int, const int,
-                                           const std::vector<float>&,const std::vector<float>&,
-                                           const std::vector<float>&, const std::vector<ijk>&,
-                                           std::vector<float>&, std::vector<float>&);
-template void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                             const std::vector<ijk>& tilted_path, std::vector<float>& heat);
-#else
-template void tilted_path<double>(std::vector<double>&, std::vector<double>&, std::vector<double>&, std::vector<double>&, double, double, std::vector<ijk>&, std::vector<double>&);
-
-template void create_tilted_columns(const int, const int, const int, const int,
-                           const std::vector<double>&, const std::vector<ijk>&,
-                           std::vector<double>&);
-
-template void create_tilted_columns_levlay(const int, const int, const int, const int,
-                                           const std::vector<double>&,const std::vector<double>&,
-                                           const std::vector<double>&, const std::vector<ijk>&,
-                                           std::vector<double>&, std::vector<double>&);
-
-template void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                             const std::vector<ijk>& tilted_path, std::vector<double>& heat);
-#endif
-
 
