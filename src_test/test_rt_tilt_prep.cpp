@@ -18,6 +18,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <chrono>
+#include <cmath>
 #include <iomanip>
 #include <cuda_profiler_api.h>
 
@@ -64,40 +65,6 @@ void read_and_set_vmr(
     else
     {
         Status::print_warning("Gas \"" + gas_name + "\" not available in input file.");
-    }
-}
-
-void read_and_set_aer(
-        const std::string& aerosol_name, const int n_col_x, const int n_col_y, const int n_lay,
-        const Netcdf_handle& input_nc, Aerosol_concs& aerosol_concs)
-{
-    if (input_nc.variable_exists(aerosol_name))
-    {
-        std::map<std::string, int> dims = input_nc.get_variable_dimensions(aerosol_name);
-        const int n_dims = dims.size();
-
-        if (n_dims == 1)
-        {
-            if (dims.at("lay") == n_lay)
-                aerosol_concs.set_vmr(aerosol_name,
-                        Array<Float,1>(input_nc.get_variable<Float>(aerosol_name, {n_lay}), {n_lay}));
-            else
-                throw std::runtime_error("Illegal dimensions of \"" + aerosol_name + "\" in input");
-        }
-        else if (n_dims == 3)
-        {
-            if (dims.at("lay") == n_lay && dims.at("y") == n_col_y && dims.at("x") == n_col_x)
-                aerosol_concs.set_vmr(aerosol_name,
-                        Array<Float,2>(input_nc.get_variable<Float>(aerosol_name, {n_lay, n_col_y, n_col_x}), {n_col_x * n_col_y, n_lay}));
-            else
-                throw std::runtime_error("Illegal dimensions of \"" + aerosol_name + "\" in input");
-        }
-        else
-            throw std::runtime_error("Illegal dimensions of \"" + aerosol_name + "\" in input");
-    }
-    else
-    {
-        throw std::runtime_error("Aerosol type \"" + aerosol_name + "\" not available in input file.");
     }
 }
 
@@ -200,12 +167,12 @@ void tilt_input(int argc, char** argv)
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
-        {"override-sza"     , { false, "override provided value of sza in input file. IN DEGREES. '--override-sza 50': use a sza of 50 degrees" }},
-        {"override-azi"     , { false, "override provided value of azi in input file. IN DEGREES. '--override-azi 240': use of azi of 240 degrees"   }}};
+        {"tilt-sza"     , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
+        {"tilt-azi"     , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
-        {"override-sza", {0, "sza in degrees."}},
-        {"override-azi", {0 , "azi in degrees" }}};
+        {"tilt-sza", {0, "sza in degrees."}},
+        {"tilt-azi", {0 , "azi in degrees" }}};
 
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
@@ -213,8 +180,8 @@ void tilt_input(int argc, char** argv)
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
-    const bool override_sza             = command_line_switches.at("override-sza"    ).first;
-    const bool override_azi             = command_line_switches.at("override-azi"    ).first;
+    const bool tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
+    const bool tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
 
     
 
@@ -227,14 +194,27 @@ void tilt_input(int argc, char** argv)
     {
         switch_cloud_optics = true;
     }
+    if (tilt_sza && !tilt_azi) {
+        std::string error = "If tilt-sza is provided, user must pass tilt-azi too.";
+        throw std::runtime_error(error);
+    }
 
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
-    int sza_deg = Int(command_line_ints.at("override-sza").first);
-    int azi_deg = Int(command_line_ints.at("override-azi").first);
-    Float sza = sza_deg * 3.14159f / 180.0f;
-    Float azi = azi_deg * 3.14159f / 180.0f;
+    Float sza = 0;
+    Float azi = 0;
+
+    if (tilt_sza) 
+    {
+        int sza_deg = Int(command_line_ints.at("tilt-sza").first);
+        sza = sza_deg * 3.14159f / 180.0f;
+    }
+    if (tilt_azi) 
+    {
+        int azi_deg = Int(command_line_ints.at("tilt-azi").first);
+        azi = azi_deg * 3.14159f / 180.0f;
+    }
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -393,10 +373,6 @@ void tilt_input(int argc, char** argv)
                 }
             }
         }
-    auto time_end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
-
-    Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
     }
 
     std::vector<std::string> gas_names = {
@@ -433,6 +409,11 @@ void tilt_input(int argc, char** argv)
     t_lev.expand_dims({n_col, n_lev_tilt});
     p_lay.expand_dims({n_col, n_lay_tilt});
     p_lev.expand_dims({n_col, n_lev_tilt});
+
+    auto time_end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+
+    Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
 
     ////// CREATE THE OUTPUT FILE //////
     // Create the general dimensions and arrays.

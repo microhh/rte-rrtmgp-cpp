@@ -63,13 +63,13 @@ void tilted_path(std::vector<TF>& xh, std::vector<TF>& yh,
 
 
         TF l = std::min({lz, ly, lx}); 
-        TF dz0 = l*std::cos(sza);
-        TF dy0 = l*std::sin(sza)*std::cos(azi);
-        TF dx0 = l*std::sin(sza)*std::sin(azi);
+        TF dz0 = l*dir_z;
+        TF dy0 = l*dir_y;
+        TF dx0 = l*dir_x;
         // Move along axes:
-        zp += dz0;
-        yp += dy0;
-        xp += dx0;   
+        zp += l*dir_z;
+        yp += l*dir_y;
+        xp += l*dir_x;   
 
         if (l < 1e-2) // ignore cell if crossed for less than 2 cm
         {
@@ -316,9 +316,9 @@ template void create_tilted_columns(const int, const int, const int, const int,
                            std::vector<float>&);
 
 template void create_tilted_columns_levlay(const int, const int, const int, const int,
-                                           const std::vector<double>&,const std::vector<double>&,
-                                           const std::vector<double>&, const std::vector<ijk>&,
-                                           std::vector<double>&, std::vector<double>&);
+                                           const std::vector<float>&,const std::vector<float>&,
+                                           const std::vector<float>&, const std::vector<ijk>&,
+                                           std::vector<float>&, std::vector<float>&);
 template void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                              const std::vector<ijk>& tilted_path, std::vector<float>& heat);
 #else
@@ -335,11 +335,6 @@ template void create_tilted_columns_levlay(const int, const int, const int, cons
 
 template void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                              const std::vector<ijk>& tilted_path, std::vector<double>& heat);
-//template void interpolate_pressures(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-//                                    const std::vector<double>& zh_in, const std::vector<double>& z_in,
-//                                    const std::vector<double>& play_in, const std::vector<double>& plev_in,
-//                                    const double zp, const ijk offset,
-//                                    double* p_out);
 #endif
 
 
