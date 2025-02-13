@@ -6,11 +6,7 @@ include_directories(${INCLUDE_DIRS} "../include" "../include_test" "../include_r
 # retrieve the git hash from the current commit
 find_package(Git)
 if(GIT_EXECUTABLE)
-  execute_process(
-    COMMAND git describe --dirty
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    OUTPUT_VARIABLE GITHASH
-    RESULT_VARIABLE GITRETURN)
+  exec_program(git ${CMAKE_CURRENT_SOURCE_DIR} ARGS "describe --dirty" OUTPUT_VARIABLE GITHASH RETURN_VALUE GITRETURN)
   if(NOT GITRETURN MATCHES 0)
     set(GITHASH "not available")
   endif()
