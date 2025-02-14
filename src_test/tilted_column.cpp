@@ -111,7 +111,6 @@ void tilted_path_dda(std::vector<Float>& xh, std::vector<Float>& yh,
             else
                 next_boundary_x = xh[i];
             tMax_x += tDelta_x;
-            y += dt * dir_y;
             zpos += dt * dir_z;
         }
         else if (tMax_y < tMax_z) {
@@ -132,7 +131,6 @@ void tilted_path_dda(std::vector<Float>& xh, std::vector<Float>& yh,
             else
                 next_boundary_y = yh[j];
             tMax_y += tDelta_y;
-            x += dt * dir_x;
             zpos += dt * dir_z;
         }
         else {
@@ -152,8 +150,6 @@ void tilted_path_dda(std::vector<Float>& xh, std::vector<Float>& yh,
             // z spacing is different now, so update tMax_z
             zpos = current_z;
             tMax_z = compute_tMax_not_uniform(zh, dir_z, zpos, t, k);
-            x += dt * dir_x;
-            y += dt * dir_y;
         }
     }
     zh_tilted.push_back(0.0);
