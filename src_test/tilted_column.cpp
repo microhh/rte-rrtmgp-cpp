@@ -3,6 +3,165 @@
 #include <iostream>
 #include <vector>
 
+std::pair<Float, Float> compute_tMax_uniform(std::vector<Float>& half_grid, Float dir, Float start, int i_0){
+    /*
+    Find the maximum distance the ray travels before hitting a voxel boundary in that direction.
+    */
+    Float next_boundary;
+    if (dir >= 0) {
+        next_boundary = half_grid[i_0+1]; // next boundary of cell 0
+    } else {
+        next_boundary = half_grid[i_0];   // prev boundary
+    }
+    Float tMax = (dir != 0) ? std::abs((next_boundary - start) / dir)
+                                : std::numeric_limits<Float>::infinity();
+
+    return {tMax, next_boundary};
+}
+
+Float compute_tMax_not_uniform(std::vector<Float>& half_grid, Float dir_z, Float zpos, Float t, int k){
+    /*
+    We recompute this throughout the while loop as z spacing changes.
+    */
+    Float tMax;
+    if (dir_z > 0) {
+        tMax = t + (half_grid[k+1] - zpos) / dir_z;
+    } else if (dir_z < 0) {
+        tMax = t + (zpos - half_grid[k]) / std::abs(dir_z);
+    } else {
+        tMax = std::numeric_limits<Float>::infinity();
+    }
+    return tMax;
+}
+
+void tilted_path_dda(std::vector<Float>& xh, std::vector<Float>& yh,
+                 std::vector<Float>& zh, std::vector<Float>& z,
+                 Float sza, Float azi,
+                 std::vector<ijk>& tilted_path,
+                 std::vector<Float>& zh_tilted)
+{
+    const Float dx = xh[1]-xh[0]; 
+    const Float dy = yh[1]-yh[0]; 
+    const Float z_top = *std::max_element(zh.begin(), zh.end());
+    const int n_x = xh.size()-1;
+    const int n_y = yh.size()-1;
+    const int n_z = static_cast<int>(zh.size()) - 1; // n voxels in z.
+    int i = 0;
+    int j = 0;
+    int k = 0;
+
+    Float dir_x = std::sin(sza) * std::sin(azi);
+    Float dir_y = std::sin(sza) * std::cos(azi);
+    Float dir_z = std::cos(sza);
+
+    // starting point
+    Float t = 0.0; 
+
+    // Starting voxel
+    Float x = xh[0] + dx/Float(2.);
+    Float y = yh[0] + dy/Float(2.);
+    Float zpos = zh[0];
+
+    // tDeltaX determines how far along the ray we must move (in units of "t") 
+    // for the horizontal component of such a movement to equal the width of a voxel
+    // Amanatides & Woo “A Fast Voxel Traversal Algorithm For Ray Tracing”
+
+    Float tDelta_x = (dir_x != 0) ? dx / std::abs(dir_x) : std::numeric_limits<Float>::infinity();
+    Float tDelta_y = (dir_y != 0) ? dy / std::abs(dir_y) : std::numeric_limits<Float>::infinity();
+
+    std::pair<Float, Float> result_x = compute_tMax_uniform(xh, dir_x, x, i);
+    Float tMax_x = result_x.first;
+    Float next_boundary_x = result_x.second;
+    std::pair<Float, Float> result_y = compute_tMax_uniform(yh, dir_y, y, j);
+    Float tMax_y = result_y.first;
+    Float next_boundary_y = result_y.second;
+    Float tMax_z = compute_tMax_not_uniform(zh, dir_z, zpos, t, k);
+
+    // outputs:
+    tilted_path.clear(); // this is to access cloud and gas properties later
+    zh_tilted.clear();
+    std::vector<Float> dz_tilted;
+
+    while (true)
+    {
+        // break condition is only in z, x/y are periodic
+        if (k < 0 || k >= n_z) break;
+
+        // where is next boundary crossing?
+        if (tMax_x < tMax_y && tMax_x < tMax_z) {
+            // in x:
+            Float dt = tMax_x - t;
+            // distance to the next boundary in z:
+            Float dz_segment = dt * dir_z;
+            t = tMax_x;
+
+            tilted_path.push_back({i, j, k});
+            dz_tilted.push_back(dz_segment);
+
+            if (dir_x >= 0)
+                i = (i + 1) % n_x;
+            else
+                i = (i - 1 + n_x) % n_x;
+
+            // Move exactly to the boundary.
+            x = next_boundary_x;
+            // Update next boundary and tMax_x.
+            if (dir_x >= 0)
+                next_boundary_x = xh[i+1];
+            else
+                next_boundary_x = xh[i];
+            tMax_x += tDelta_x;
+            y += dt * dir_y;
+            zpos += dt * dir_z;
+        }
+        else if (tMax_y < tMax_z) {
+            // in y:
+            Float dt = tMax_y - t;
+            Float dz_segment = dt * dir_z;
+            t = tMax_y;
+            tilted_path.push_back({i, j, k});
+            dz_tilted.push_back(dz_segment);
+
+            if (dir_y >= 0)
+                j = (j + 1) % n_y;
+            else
+                j = (j - 1 + n_y) % n_y;
+            y = next_boundary_y;
+            if (dir_y >= 0)
+                next_boundary_y = yh[j+1];
+            else
+                next_boundary_y = yh[j];
+            tMax_y += tDelta_y;
+            x += dt * dir_x;
+            zpos += dt * dir_z;
+        }
+        else {
+            // in z:
+            Float dt = tMax_z - t;
+            Float dz_segment = dt * dir_z;
+            t = tMax_z;
+            tilted_path.push_back({i, j, k});
+            dz_tilted.push_back(dz_segment);
+
+            int new_k = k + (dir_z >= 0 ? 1 : -1);
+            Float current_z = zpos + dt * dir_z;
+            // if we've hit the upper boundary, exit.
+            if (new_k < 0 || new_k >= n_z)
+                break;
+            k = new_k;
+            // z spacing is different now, so update tMax_z
+            zpos = current_z;
+            tMax_z = compute_tMax_not_uniform(zh, dir_z, zpos, t, k);
+            x += dt * dir_x;
+            y += dt * dir_y;
+        }
+    }
+    zh_tilted.push_back(0.0);
+    for (size_t idx = 0; idx < dz_tilted.size(); ++idx) {
+        zh_tilted.push_back(zh_tilted.back() + dz_tilted[idx]);
+    }
+}
+
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
                  Float sza, Float azi,
@@ -12,7 +171,6 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
     const Float dx = xh[1]-xh[0]; 
     const Float dy = yh[1]-yh[0]; 
     const Float z_top = *std::max_element(zh.begin(), zh.end());
-    const Float azi_deg = azi*Float(360.)/Float(2*3.14159);
     const int n_x = xh.size()-1;
     const int n_y = yh.size()-1;
     int i = 0;
@@ -28,8 +186,8 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
     zh_tilted.clear();
     std::vector<Float> dz_tilted;
 
-    Float dir_x = std::sin(sza) * std::cos(azi);
-    Float dir_y = std::sin(sza) * std::sin(azi);
+    Float dir_x = std::sin(sza) * std::sin(azi); // azi 0 is from the north
+    Float dir_y = std::sin(sza) * std::cos(azi);
     Float dir_z = std::cos(sza);  
 
     int z_idx = 0;

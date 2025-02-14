@@ -318,7 +318,7 @@ void tilt_input(int argc, char** argv)
     Status::print_message("###### Starting Tilting ######");
     auto time_start = std::chrono::high_resolution_clock::now();
     
-    tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,path.v(),zh_tilt.v());
+    tilted_path_dda(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,path.v(),zh_tilt.v());
 
     n_lev_tilt = zh_tilt.v().size();
     n_lay_tilt = n_lev_tilt - 1;
@@ -344,15 +344,15 @@ void tilt_input(int argc, char** argv)
         }
         if (switch_liq_cloud_optics)
         {
-            create_tilted_columns(n_col_x, n_col_y, n_lay, n_lev, zh_tilt.v(), path.v(), lwp.v());
-            create_tilted_columns(n_col_x, n_col_y, n_lay, n_lev, zh_tilt.v(), path.v(), rel.v());
+            create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), lwp.v());
+            create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), rel.v());
             lwp.expand_dims({n_col, n_lay_tilt});
             rel.expand_dims({n_col, n_lay_tilt});
         }
         if (switch_ice_cloud_optics)
         {
-            create_tilted_columns(n_col_x, n_col_y, n_lay, n_lev, zh_tilt.v(), path.v(), iwp.v());
-            create_tilted_columns(n_col_x, n_col_y, n_lay, n_lev, zh_tilt.v(), path.v(), dei.v());
+            create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), iwp.v());
+            create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), dei.v());
 
             iwp.expand_dims({n_col, n_lay_tilt});
             dei.expand_dims({n_col, n_lay_tilt});
@@ -389,7 +389,7 @@ void tilt_input(int argc, char** argv)
 
         if (gas.size() == n_lay*n_col) {
             Array<Float,2> gas_tmp(gas);
-            create_tilted_columns(n_col_x, n_col_y, n_lay, n_lev, zh_tilt.v(), path.v(), gas_tmp.v());
+            create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
             gas_tmp.expand_dims({n_col, n_lay_tilt});
             gas_concs.set_vmr(gas_name, gas_tmp);
         } 
@@ -403,8 +403,8 @@ void tilt_input(int argc, char** argv)
 
 
     // create tilted columns of T and p. Important, create T first!!
-    create_tilted_columns_levlay(n_col_x, n_col_y, n_lay, n_lev, zh.v(), z.v(), zh_tilt.v(), path.v(), t_lay.v(), t_lev.v());
-    create_tilted_columns_levlay(n_col_x, n_col_y, n_lay, n_lev, zh.v(), z.v(), zh_tilt.v(), path.v(), p_lay.v(), p_lev.v());
+    create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), t_lay.v(), t_lev.v());
+    create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), p_lay.v(), p_lev.v());
     t_lay.expand_dims({n_col, n_lay_tilt});
     t_lev.expand_dims({n_col, n_lev_tilt});
     p_lay.expand_dims({n_col, n_lay_tilt});
