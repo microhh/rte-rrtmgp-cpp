@@ -472,6 +472,11 @@ void tilt_input(int argc, char** argv)
     nc_emis_sfc.insert(emis_sfc.v(), {0, 0, 0});
     nc_t_sfc.insert(t_sfc.v(), {0, 0});
     
+    // Create and write tsi scaling
+    auto nc_tsi_scaling = output_nc.add_variable<Float>("tsi_scaling", {"y", "x"});
+    std::vector<Float> tsi_scaling(n_col_y * n_col_x, std::cos(sza));
+    nc_tsi_scaling.insert(tsi_scaling, {0, 0});
+
     // Create and write the variables for the tilted data
     std::vector<Float> midpoints(n_lev_tilt - 1);
     std::vector<Float> z_tilt(n_lev_tilt - 1);
