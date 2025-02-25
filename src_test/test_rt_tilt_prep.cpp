@@ -318,7 +318,7 @@ void tilt_input(int argc, char** argv)
     Status::print_message("###### Starting Tilting ######");
     auto time_start = std::chrono::high_resolution_clock::now();
     
-    tilted_path_dda(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,path.v(),zh_tilt.v());
+    tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,path.v(),zh_tilt.v());
 
     n_lev_tilt = zh_tilt.v().size();
     n_lay_tilt = n_lev_tilt - 1;
@@ -477,13 +477,13 @@ void tilt_input(int argc, char** argv)
     nc_tsi_scaling.insert(std::cos(sza), {0});
 
     // Create and write the variables for the tilted data
-    std::vector<Float> midpoints(n_lev_tilt - 1);
-    std::vector<Float> z_tilt(n_lev_tilt - 1);
+    std::vector<Float> midpoints(n_lay_tilt);
+    std::vector<Float> z_tilt(n_lay_tilt);
     for (int i = 1; i < n_lev_tilt; ++i) {
-        midpoints[i - 1] = (zh_tilt({i}) - zh_tilt({i - 1})) / 2.0;
+        midpoints[i - 1] = (zh_tilt.v()[i] - zh_tilt.v()[i - 1]) / 2.0;
     }
-    for (int i = 0; i < n_lev_tilt - 1; ++i) {
-        z_tilt[i] = zh_tilt({i}) + midpoints[i];
+    for (int i = 0; i < n_lay_tilt; ++i) {
+        z_tilt[i] = zh_tilt.v()[i] + midpoints[i];
     }
 
     auto nc_z = output_nc.add_variable<Float>("z", {"z"});

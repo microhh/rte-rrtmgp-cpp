@@ -22,15 +22,6 @@ inline int sign(Float value)
     return (Float(0.) < value) - (value < Float(0.));
 }
 
-std::pair<Float, Float> compute_tMax_uniform(std::vector<Float>& half_grid, Float dir, Float start);
-Float compute_tMax_not_uniform(std::vector<Float>& half_grid, Float dir_z, Float zpos, Float t, int k);
-
-void tilted_path_dda(std::vector<Float>& xh, std::vector<Float>& yh,
-                 std::vector<Float>& zh, std::vector<Float>& z,
-                 Float sza, Float azi,
-                 std::vector<ijk>& tilted_path,
-                 std::vector<Float>& dz_tilted);
-
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
                  Float sza, Float azi,
