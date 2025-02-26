@@ -157,81 +157,6 @@ void print_command_line_options(
    }
 }
 
-void reshape_to_const_dz(
-    Array<Float,2>* lwp, std::vector<double>* z, std::vector<double>* zh,
-    const int n_col, const int n_lay, const int n_lev)
-{
-    Float z_end = (*z)[n_lay - 1]; 
-    Float zh_end = (*zh)[n_lev - 1];  
-    Float z_start = (*z)[0]; 
-    Float zh_start = (*zh)[0]; 
-    
-    std::vector<Float> dz_orig(n_lay - 1);
-    for (int i = 1; i < n_lay; ++i) {
-        dz_orig[i - 1] = (*z)[i] - (*z)[i - 1]; 
-    }
-    
-    Array<Float,1> integrated_lwp_orig({n_col});
-    integrated_lwp_orig.fill(0.0);
-    
-    for (int icol = 0; icol < n_col; ++icol) { 
-        for (int i = 1; i < n_lay; ++i) {
-            integrated_lwp_orig({icol}) += (*lwp)({icol, i + 1}) * dz_orig[i];
-        }
-    }
-    
-    std::vector<Float> z_new(n_lay);
-    std::vector<Float> zh_new(n_lev);
-    
-    Float z_step = (z_end - z_start) / (n_lay - 1);
-    Float zh_step = (zh_end - zh_start) / (n_lev - 1);
-    
-    for (int i = 0; i < n_lay; ++i) {
-        z_new[i] = z_start + i * z_step;
-    }
-    
-    for (int i = 0; i < n_lev; ++i) {
-        zh_new[i] = zh_start + i * zh_step;
-    }
-    
-    for (int i = 0; i < n_lay; ++i) {
-        (*z)[i] = z_new[i];  
-    }
-    
-    for (int i = 0; i < n_lev; ++i) {
-        (*zh)[i] = zh_new[i];  
-    }
-    
-    std::vector<Float> dz(n_lay - 1);
-    for (int i = 1; i < n_lay; ++i) {
-        dz[i - 1] = (*z)[i] - (*z)[i - 1];  
-    }
-    
-    Array<Float,1> integrated_lwp({n_col});
-    integrated_lwp.fill(0.0);
-    
-    for (int icol = 0; icol < n_col; ++icol) { 
-        for (int i = 1; i < n_lay; ++i) {
-            integrated_lwp({icol}) += (*lwp)({icol, i + 1}) * dz[i];
-            (*lwp)({icol, i + 1}) = (*lwp)({icol, i + 1}) * dz[i] / dz_orig[i];
-        }
-    }
-    
-    for (int icol = 0; icol < n_col; ++icol) {  
-        Float scale = 1.0;
-        if (integrated_lwp({icol}) > 0) {
-            scale = integrated_lwp_orig({icol}) / integrated_lwp({icol});
-            if (std::isnan(scale)) {
-                scale = 1.0;
-            }
-        }
-        
-        for (int i = 0; i < n_lay; ++i) { 
-            (*lwp)({icol, i + 1}) *= scale;  
-        }
-    }
-}
-
 void tilt_input(int argc, char** argv)
 {
     Status::print_message("###### Starting Script ######");
@@ -493,8 +418,6 @@ void tilt_input(int argc, char** argv)
     for (int i = 0; i < n_lay_tilt; ++i) {
         z_tilt[i] = zh_tilt.v()[i] + midpoints[i];
     }
-
-    reshape_to_const_dz(&lwp, &z_tilt, &zh_tilt.v(), n_col, n_lay_tilt, n_lev_tilt); // messy vector and array mixing here ..
 
     auto time_end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
