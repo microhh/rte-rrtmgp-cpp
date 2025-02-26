@@ -238,7 +238,8 @@ void solve_radiation(int argc, char** argv)
         {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }}};
+        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
+        {"attenuate-path"     , { false, "for doing an overhead 1D calculation of tilted input"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
@@ -262,6 +263,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
+    const bool switch_attenuate_path     = command_line_switches.at("attenuate-path"     ).first;
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
@@ -322,8 +324,21 @@ void solve_radiation(int argc, char** argv)
     Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
     Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z_in}), {n_z_in});
 
+    Float target_dz;
+    Array<Float,1> dz({n_z_in});
+    if (switch_attenuate_path){
+        for (int i = 1; i < n_z_in; ++i) {
+            dz({i}) = grid_z({i+1}) - grid_z({i});
+        }
+        target_dz = 100;
+    } else {
+
+        target_dz = grid_z({2}) - grid_z({1});
+    }
+
+
     const Vector<int> grid_cells = {n_col_x, n_col_y, n_z};
-    const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), grid_z({2}) - grid_z({1})};
+    const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), target_dz};
     const Vector<int> kn_grid = {input_nc.get_variable<int>("ngrid_x"),
                                  input_nc.get_variable<int>("ngrid_y"),
                                  input_nc.get_variable<int>("ngrid_z")};
@@ -805,10 +820,12 @@ void solve_radiation(int argc, char** argv)
                     switch_single_gpt,
                     switch_delta_cloud,
                     switch_delta_aerosol,
+                    switch_attenuate_path,
                     single_gpt,
                     photons_per_pixel,
                     grid_cells,
                     grid_d,
+                    dz,
                     kn_grid,
                     gas_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
