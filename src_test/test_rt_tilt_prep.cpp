@@ -158,29 +158,28 @@ void print_command_line_options(
 }
 
 void reshape_to_const_dz(
-    Array<Float,2>* lwp, Array<Float,1>* z, Array<Float,1>* zh,
+    Array<Float,2>* lwp, std::vector<double>* z, std::vector<double>* zh,
     const int n_col, const int n_lay, const int n_lev)
 {
-    Float z_end = (*z)({n_lay});
-    Float zh_end = (*zh)({n_lev});
-    Float z_start = (*z)({1});
-    Float zh_start = (*zh)({1});
+    Float z_end = (*z)[n_lay - 1]; 
+    Float zh_end = (*zh)[n_lev - 1];  
+    Float z_start = (*z)[0]; 
+    Float zh_start = (*zh)[0]; 
     
     std::vector<Float> dz_orig(n_lay - 1);
     for (int i = 1; i < n_lay; ++i) {
-        dz_orig[i-1] = (*z)({i+1}) - (*z)({i});
+        dz_orig[i - 1] = (*z)[i] - (*z)[i - 1]; 
     }
     
     Array<Float,1> integrated_lwp_orig({n_col});
     integrated_lwp_orig.fill(0.0);
     
-    for (int icol = 1; icol <= n_col; ++icol) {
-        for (int i = 2; i <= n_lay; ++i) {
-            integrated_lwp_orig({icol}) += (*lwp)({icol, i}) * dz_orig[i-2];
+    for (int icol = 0; icol < n_col; ++icol) { 
+        for (int i = 1; i < n_lay; ++i) {
+            integrated_lwp_orig({icol}) += (*lwp)({icol, i + 1}) * dz_orig[i];
         }
     }
     
-    // evenly spaced z coordinates
     std::vector<Float> z_new(n_lay);
     std::vector<Float> zh_new(n_lev);
     
@@ -195,30 +194,30 @@ void reshape_to_const_dz(
         zh_new[i] = zh_start + i * zh_step;
     }
     
-    for (int i = 1; i <= n_lay; ++i) {
-        (*z)({i}) = z_new[i-1];
+    for (int i = 0; i < n_lay; ++i) {
+        (*z)[i] = z_new[i];  
     }
     
-    for (int i = 1; i <= n_lev; ++i) {
-        (*zh)({i}) = zh_new[i-1];
+    for (int i = 0; i < n_lev; ++i) {
+        (*zh)[i] = zh_new[i];  
     }
     
     std::vector<Float> dz(n_lay - 1);
     for (int i = 1; i < n_lay; ++i) {
-        dz[i-1] = (*z)({i+1}) - (*z)({i});
+        dz[i - 1] = (*z)[i] - (*z)[i - 1];  
     }
     
     Array<Float,1> integrated_lwp({n_col});
     integrated_lwp.fill(0.0);
     
-    for (int icol = 1; icol <= n_col; ++icol) {
-        for (int i = 2; i <= n_lay; ++i) {
-            integrated_lwp({icol}) += lwp({icol, i}) * dz[i-2];
-            (*lwp)({icol, i}) = (*lwp)({icol, i}) * dz[i-2]/dz_orig[i-2];
+    for (int icol = 0; icol < n_col; ++icol) { 
+        for (int i = 1; i < n_lay; ++i) {
+            integrated_lwp({icol}) += (*lwp)({icol, i + 1}) * dz[i];
+            (*lwp)({icol, i + 1}) = (*lwp)({icol, i + 1}) * dz[i] / dz_orig[i];
         }
     }
     
-    for (int icol = 1; icol <= n_col; ++icol) {
+    for (int icol = 0; icol < n_col; ++icol) {  
         Float scale = 1.0;
         if (integrated_lwp({icol}) > 0) {
             scale = integrated_lwp_orig({icol}) / integrated_lwp({icol});
@@ -227,8 +226,8 @@ void reshape_to_const_dz(
             }
         }
         
-        for (int i = 1; i <= n_lay; ++i) {
-            (*lwp)({icol, i}) *= scale;
+        for (int i = 0; i < n_lay; ++i) { 
+            (*lwp)({icol, i + 1}) *= scale;  
         }
     }
 }
@@ -486,7 +485,16 @@ void tilt_input(int argc, char** argv)
     p_lay.expand_dims({n_col, n_lay_tilt});
     p_lev.expand_dims({n_col, n_lev_tilt});
 
-    reshape_to_const_dz(&lwp, &zh.v(), &zh_tilt.v(), n_col, n_lay_tilt, n_lev_tilt);
+    std::vector<Float> midpoints(n_lay_tilt);
+    std::vector<Float> z_tilt(n_lay_tilt);
+    for (int i = 1; i < n_lev_tilt; ++i) {
+        midpoints[i - 1] = (zh_tilt.v()[i] - zh_tilt.v()[i - 1]) / 2.0;
+    }
+    for (int i = 0; i < n_lay_tilt; ++i) {
+        z_tilt[i] = zh_tilt.v()[i] + midpoints[i];
+    }
+
+    reshape_to_const_dz(&lwp, &z_tilt, &zh_tilt.v(), n_col, n_lay_tilt, n_lev_tilt); // messy vector and array mixing here ..
 
     auto time_end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
@@ -555,15 +563,6 @@ void tilt_input(int argc, char** argv)
     nc_tsi_scaling.insert(std::cos(sza), {0});
 
     // Create and write the variables for the tilted data
-    std::vector<Float> midpoints(n_lay_tilt);
-    std::vector<Float> z_tilt(n_lay_tilt);
-    for (int i = 1; i < n_lev_tilt; ++i) {
-        midpoints[i - 1] = (zh_tilt.v()[i] - zh_tilt.v()[i - 1]) / 2.0;
-    }
-    for (int i = 0; i < n_lay_tilt; ++i) {
-        z_tilt[i] = zh_tilt.v()[i] + midpoints[i];
-    }
-
     auto nc_z = output_nc.add_variable<Float>("z", {"z"});
     auto nc_zh = output_nc.add_variable<Float>("zh", {"zh"});
     nc_zh.insert(zh_tilt.v(), {0});
