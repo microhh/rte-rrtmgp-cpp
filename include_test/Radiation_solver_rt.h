@@ -113,7 +113,6 @@ class Radiation_solver_shortwave
                 const Int ray_count,
                 const Vector<int> grid_cells,
                 const Vector<Float> grid_d,
-                const Array<Float,1> dz,
                 const Vector<int> kn_grid,
                 const Gas_concs_gpu& gas_concs,
                 const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,

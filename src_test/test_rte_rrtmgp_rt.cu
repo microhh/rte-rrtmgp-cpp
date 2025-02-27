@@ -324,21 +324,8 @@ void solve_radiation(int argc, char** argv)
     Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
     Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z_in}), {n_z_in});
 
-    Float target_dz;
-    Array<Float,1> dz({n_z_in});
-    if (switch_attenuate_path){
-        for (int i = 1; i < n_z_in; ++i) {
-            dz({i}) = grid_z({i+1}) - grid_z({i});
-        }
-        target_dz = 100;
-    } else {
-
-        target_dz = grid_z({2}) - grid_z({1});
-    }
-
-
     const Vector<int> grid_cells = {n_col_x, n_col_y, n_z};
-    const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), target_dz};
+    const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), grid_z({2}) - grid_z({1})};
     const Vector<int> kn_grid = {input_nc.get_variable<int>("ngrid_x"),
                                  input_nc.get_variable<int>("ngrid_y"),
                                  input_nc.get_variable<int>("ngrid_z")};
@@ -825,7 +812,6 @@ void solve_radiation(int argc, char** argv)
                     photons_per_pixel,
                     grid_cells,
                     grid_d,
-                    dz,
                     kn_grid,
                     gas_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
