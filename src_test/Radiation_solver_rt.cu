@@ -794,6 +794,16 @@ void Radiation_solver_shortwave::solve_gpu(
         {
                 attenuate_scale_factor = 1.0/mu0({0});
                 scale_tau(dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
+                // add if
+                if (switch_cloud_optics)
+                {
+                        scale_tau(dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
+                }
+                if (switch_aerosol_optics)
+                {
+                        scale_tau(dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
+                }
+                
         }
 
 

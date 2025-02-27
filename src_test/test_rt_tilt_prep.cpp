@@ -401,8 +401,15 @@ void tilt_input(int argc, char** argv)
         }
     }
 
-
     // create tilted columns of T and p. Important, create T first!!
+    if (*std::max_element(t_lev.v().begin(), t_lev.v().end()) <= 0) {
+        for (int i = 0; i < n_col; ++i) {
+            for (int j = 1; j < n_lay; ++j) {
+                t_lev({i, j}) = (t_lay({i, j}) + t_lay({i, j - 1})) / 2.0;
+            }
+            t_lev({i, n_lev - 1}) = t_lay({i, n_lay - 1});        
+        }
+    }
     create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), t_lay.v(), t_lev.v());
     create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), p_lay.v(), p_lev.v());
     t_lay.expand_dims({n_col, n_lay_tilt});
