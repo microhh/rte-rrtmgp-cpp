@@ -31,7 +31,7 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
     Float dir_y = std::sin(sza) * std::cos(azi);
     Float dir_z = std::cos(sza);  
 
-    int z_idx = 0;
+    int z_idx = -1;
     while (zp < z_top)
     {   
         // Check bounds before accessing zh[k+1]
@@ -67,28 +67,19 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
         // Move along axes:
         zp += l*dir_z;
         yp += l*dir_y;
-        xp += l*dir_x;   
+        xp += l*dir_x;  
 
         if (l < 1e-2) // ignore cell if crossed for less than 2 cm
         {
-            
             dl = dz0/Float(2.);
-            if(z_idx >= dz_tilted.size()){
-                std::cerr << "Warning: z_idx (" << z_idx << ") out of bounds for dz_tilted (size=" << dz_tilted.size() << ")." << std::endl;
-                // TODO how to handle this? push_back a new value instead of accessing an element?
-                dz_tilted.push_back(dl);
-                std::cout << "Pushed new dl into dz_tilted: " << dl << std::endl;
-            } else {
-                dz_tilted[z_idx] += dl;
-            }
+            dz_tilted[z_idx] += dl;
         }
         else
         {
-            dz_tilted.push_back(dz0+dl);    
+            dz_tilted.push_back(dz0+dl);
             tilted_path.push_back({i,j,k});
-            z_idx += 1;
+            z_idx =+ 1;
         }
-
         //new indices + making sure we start at hor. domain bndry once crossed
         if (l==lz)
         {
