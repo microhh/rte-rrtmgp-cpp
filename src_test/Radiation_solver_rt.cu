@@ -64,30 +64,6 @@ namespace
         dim3 block_gpu(block_col, block_lay);
         scale_tau_kernel<<<grid_gpu, block_gpu>>>(tau, ncol, nlay, scale_factor);
     }
-
-        __global__
-    void scale_tau_dynamic_kernel(Float* tau, const int ncol, const int nlay, Float* scale_factor_array) {
-        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-        const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
-
-        if ( (icol < ncol) && (ilay < nlay) )
-        {
-            const int idx = icol + ilay*ncol;
-            tau[idx] = tau[idx] * scale_factor_array[ilay];
-        }
-    }    
-    
-    void scale_tau_dynamic(Float* tau, const int ncol, const int nlay, Float* scale_factor_array) {
-        const int block_col = 64;
-        const int block_lay = 1;
-        const int grid_col  = ncol/block_col + (ncol%block_col > 0);
-        const int grid_lay  = nlay/block_lay + (nlay%block_lay > 0);
-
-        dim3 grid_gpu(grid_col, grid_lay);
-        dim3 block_gpu(block_col, block_lay);
-        scale_tau_dynamic_kernel<<<grid_gpu, block_gpu>>>(tau, ncol, nlay, scale_factor_array);
-    }
-
     std::vector<std::string> get_variable_string(
             const std::string& var_name,
             std::vector<int> i_count,
@@ -819,11 +795,6 @@ void Radiation_solver_shortwave::solve_gpu(
         {
                 attenuate_scale_factor = 1.0/mu0({0});
                 scale_tau(dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
-                // for (int i = 1; i < grid_cells.z; ++i) {
-                //         spacing_scale_factor({i}) = dz({i})/grid_d.z;
-                // }
-                // scale_tau_dynamic(dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau().ptr(), n_col, n_lay, spacing_scale_factor.ptr());
-                
         }
 
 
