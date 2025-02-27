@@ -157,6 +157,23 @@ void print_command_line_options(
    }
 }
 
+std::vector<Float> linspace(Float start, Float end, int num_points) {
+    std::vector<Float> result;
+    if (num_points <= 0) {
+        return result; // Return empty vector for invalid input
+    }
+    if (num_points == 1) {
+        result.push_back(start);
+        return result;
+    }
+
+    Float step = (end - start) / (num_points - 1);
+    for (int i = 0; i < num_points; ++i) {
+        result.push_back(start + i * step);
+    }
+    return result;
+}
+
 void tilt_input(int argc, char** argv)
 {
     Status::print_message("###### Starting Script ######");
@@ -402,6 +419,7 @@ void tilt_input(int argc, char** argv)
     }
 
     // create tilted columns of T and p. Important, create T first!!
+    // if t lev all 0, interpolate from t lay
     if (*std::max_element(t_lev.v().begin(), t_lev.v().end()) <= 0) {
         for (int i = 0; i < n_col; ++i) {
             for (int j = 1; j < n_lay; ++j) {
@@ -431,6 +449,94 @@ void tilt_input(int argc, char** argv)
 
     Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
 
+    ////// INTERPOLATE TO CONSTANT DZ GRID //////
+    Status::print_message("Start z grid regularization.");
+
+    std::vector<Float> z_out = linspace(z_tilt[0], z_tilt[n_lay_tilt - 1], z_tilt.size());
+    std::vector<Float> zh_out = linspace(zh_tilt.v()[0], zh_tilt.v()[n_lev_tilt - 1], zh_tilt.v().size());
+    int n_lay_out = z_out.size();
+    int n_lev_out = zh_out.size();
+    
+    // Intrinsic Variables //
+    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, t_lay.v());
+    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, p_lay.v());    
+    interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, t_lev.v());
+    interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, p_lev.v());
+
+    // for (int i = 0; i < n_lay_tilt; i++)
+    // {
+    //     std::cout << gas({1, i}) << std::endl;
+    // }
+
+    for (const auto& gas_name : gas_names) {
+        if (!gas_concs.exists(gas_name)) {
+            continue;
+        }
+        const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
+        std::string var_name = "vmr_" + gas_name;
+        if (gas.size() > 1) {
+            Array<Float,2> gas_tmp(gas);
+            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, gas_tmp.v());
+            gas_concs.set_vmr(gas_name, gas_tmp);
+        }
+    }    
+    
+    if (switch_liq_cloud_optics)
+    {
+        interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, rel.v());
+    }
+    if (switch_ice_cloud_optics)
+    {
+        interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, dei.v());
+    }
+
+
+    // Extrinsic Variables //
+
+    if (switch_cloud_optics)
+    {
+        for (int ilay=1; ilay<=n_lay_tilt; ++ilay)    
+        {
+            Float dz = zh_tilt({ilay+1}) - zh_tilt({ilay});
+            for (int icol=1; icol<=n_col; ++icol)    
+            {
+                if (switch_liq_cloud_optics)
+                {
+                    lwp({icol, ilay}) /= dz;
+                }
+                if (switch_ice_cloud_optics)
+                {
+                    iwp({icol, ilay}) /= dz;
+                }
+            }
+        }
+        if (switch_liq_cloud_optics)
+        {
+            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp.v());
+        }
+        if (switch_ice_cloud_optics)
+        {
+            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp.v());
+        }
+
+        const Float dz_out = zh_out[1] - zh_out[0];
+        
+        for (int ilay=1; ilay<=n_lay_out; ++ilay)    
+        {
+            for (int icol=1; icol<=n_col; ++icol)    
+            {
+                if (switch_liq_cloud_optics)
+                {
+                    lwp({icol, ilay}) *= dz_out;
+                }
+                if (switch_ice_cloud_optics)
+                {
+                    iwp({icol, ilay}) *= dz_out;
+                }
+            }
+        }
+    }
+
     ////// CREATE THE OUTPUT FILE //////
     // Create the general dimensions and arrays.
 
@@ -445,8 +551,8 @@ void tilt_input(int argc, char** argv)
     output_nc.add_dimension("band_sw", n_bnd_sw);
     output_nc.add_dimension("band_lw", n_bnd_lw);
 
-    output_nc.add_dimension("lay", n_lay_tilt);
-    output_nc.add_dimension("lev", n_lev_tilt);
+    output_nc.add_dimension("lay", n_lay_out);
+    output_nc.add_dimension("lev", n_lev_out);
 
     output_nc.add_dimension("x", n_col_x);
     output_nc.add_dimension("y", n_col_y);
@@ -454,7 +560,7 @@ void tilt_input(int argc, char** argv)
 
     output_nc.add_dimension("xh", n_col_x+1);
     output_nc.add_dimension("yh", n_col_y+1);
-    output_nc.add_dimension("zh", n_lev_tilt);
+    output_nc.add_dimension("zh", n_lev_out);
 
     Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {n_col_x}), {n_col_x});
     Array<Float,1> grid_xh(input_nc.get_variable<Float>("xh", {n_col_x+1}), {n_col_x+1});
@@ -495,8 +601,8 @@ void tilt_input(int argc, char** argv)
     // Create and write the variables for the tilted data
     auto nc_z = output_nc.add_variable<Float>("z", {"z"});
     auto nc_zh = output_nc.add_variable<Float>("zh", {"zh"});
-    nc_zh.insert(zh_tilt.v(), {0});
-    nc_z.insert(z_tilt, {0}); 
+    nc_zh.insert(zh_out, {0});
+    nc_z.insert(z_out, {0}); 
 
     // Write the atmospheric fields
     auto nc_play = output_nc.add_variable<Float>("p_lay", {"lay", "y", "x"});

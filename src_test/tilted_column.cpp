@@ -128,7 +128,82 @@ void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, con
 
     var.resize(var_tmp.size());
     var = var_tmp;
-}   
+}
+
+void interpolate_col(const int n_in, const int n_out,
+                    const std::vector<Float>& z_in,
+                    const std::vector<Float>& z_out, 
+                    const std::vector<Float>& var_lay_in, 
+                    Float* var_out)
+{
+    int idx2; int idx1; Float z1; Float z2; Float v1; Float v2; Float z;
+    Float val;
+    std::vector<int> z_compare(n_in);
+    for (int i=0; i < n_out; ++i)
+    {
+        z = z_out[i];
+        auto it = std::upper_bound(z_in.begin(), z_in.end(), z);
+        idx2 = std::distance(z_in.begin(), it);
+        if (idx2 == 0) {
+            idx1 = 0;
+            idx2 = 1;
+        } else if (idx2 >= n_in) {
+            idx1 = n_in - 2;
+            idx2 = n_in - 1;
+        } else {
+            idx1 = idx2 - 1;
+        }
+
+        z1 = z_in[idx1];
+        z2 = z_in[idx2];
+        v1 = var_lay_in[idx1];
+        v2 = var_lay_in[idx2];
+
+        // Propagate nans
+        if (!std::isfinite(z1) || !std::isfinite(z2) || 
+            !std::isfinite(v1) || !std::isfinite(v2)) {
+            var_out[i] = std::numeric_limits<Float>::quiet_NaN();
+            continue;
+        }
+        if (z2 == z1) {
+            var_out[i] = v1;
+            continue;
+        }
+
+        val = (v1*(z2 - z) + v2*(z - z1))/(z2 - z1);
+
+        if (!std::isfinite(val) || std::abs(val) > 1e8 * std::max(std::abs(v1), std::abs(v2))) {
+            val = std::numeric_limits<Float>::quiet_NaN();
+        }
+        var_out[i] = val;
+    }
+}
+
+void interpolate_3D_field(const int n_x, const int n_y,
+                            const std::vector<Float>& z_in,
+                            const std::vector<Float>& z_out,
+                            std::vector<Float>& var_in
+                            )
+{
+    const int n_col = n_x*n_y;
+    const int n_in = z_in.size();
+    const int n_out = z_out.size();
+    std::vector<Float> var_tmp(n_out*n_col);
+
+    #pragma omp parallel for
+    for (int i = 0; i < n_col; i++) 
+    {
+        std::vector<Float> col_in(n_in);
+        for (int j = 0; j < n_in; j++)
+        {
+            col_in[j] = var_in[i*n_in + j];
+        }
+        interpolate_col(n_in, n_out, z_in, z_out, col_in, &var_tmp[i*n_out]);
+    }
+
+    var_in.resize(n_out*n_col);
+    var_in = var_tmp;
+}
 
 void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                  const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
