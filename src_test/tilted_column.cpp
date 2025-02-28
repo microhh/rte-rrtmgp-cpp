@@ -46,7 +46,7 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
             std::cerr << "Error: j+1 (" << j + 1 << ") out of bounds for yh (size=" << yh.size() << ")" << std::endl;
             break;
         }
-        Float ly = (dir_y < 0) ? (yp - yh[j]) / dir_y 
+        Float ly = (dir_y < 0) ? std::abs(yp - yh[j]) / std::abs(dir_y) 
                             : (dir_y > 0) ? (yh[j+1] - yp) / dir_y 
                             : 100000.;
 
@@ -55,7 +55,7 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
             std::cerr << "Error: i+1 (" << i + 1 << ") out of bounds for xh (size=" << xh.size() << ")" << std::endl;
             break;
         }
-        Float lx = (dir_x < 0) ? (xp - xh[i]) / dir_x 
+        Float lx = (dir_x < 0) ? std::abs(xp - xh[i]) / std::abs(dir_x) 
                             : (dir_x > 0) ? (xh[i+1] - xp) / dir_x 
                             : 100000.;
 

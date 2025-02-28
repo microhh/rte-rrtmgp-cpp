@@ -336,6 +336,7 @@ void tilt_input(int argc, char** argv)
     auto time_start = std::chrono::high_resolution_clock::now();
     
     tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,path.v(),zh_tilt.v());
+    std::cout << "finish tilted path" << std::endl;
 
     n_lev_tilt = zh_tilt.v().size();
     n_lay_tilt = n_lev_tilt - 1;
@@ -463,10 +464,6 @@ void tilt_input(int argc, char** argv)
     interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, t_lev.v());
     interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, p_lev.v());
 
-    // for (int i = 0; i < n_lay_tilt; i++)
-    // {
-    //     std::cout << gas({1, i}) << std::endl;
-    // }
 
     for (const auto& gas_name : gas_names) {
         if (!gas_concs.exists(gas_name)) {
