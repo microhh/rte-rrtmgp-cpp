@@ -184,8 +184,9 @@ void tilt_input(int argc, char** argv)
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
-        {"tilt-sza"     , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
-        {"tilt-azi"     , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
+        {"interpolation"     , { true, "interpolate to constant dz grid."                    }},
+        {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
+        {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"tilt-sza", {0, "sza in degrees."}},
@@ -197,10 +198,9 @@ void tilt_input(int argc, char** argv)
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
+    const bool switch_interpolation             = command_line_switches.at("interpolation").first;
     const bool tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
-
-    
 
     if (switch_cloud_optics)
     {

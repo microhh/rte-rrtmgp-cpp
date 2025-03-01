@@ -130,54 +130,102 @@ void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, con
     var = var_tmp;
 }
 
-void interpolate_col(const int n_in, const int n_out,
+void weighted_avg_col(const int n_in, const int n_out,
                     const std::vector<Float>& z_in,
                     const std::vector<Float>& z_out, 
                     const std::vector<Float>& var_lay_in, 
                     Float* var_out)
 {
-    int idx2; int idx1; Float z1; Float z2; Float v1; Float v2; Float z;
-    Float val;
-    std::vector<int> z_compare(n_in);
-    for (int i=0; i < n_out; ++i)
-    {
-        z = z_out[i];
-        auto it = std::upper_bound(z_in.begin(), z_in.end(), z);
-        idx2 = std::distance(z_in.begin(), it);
-        if (idx2 == 0) {
-            idx1 = 0;
-            idx2 = 1;
-        } else if (idx2 >= n_in) {
-            idx1 = n_in - 2;
-            idx2 = n_in - 1;
-        } else {
-            idx1 = idx2 - 1;
-        }
-
-        z1 = z_in[idx1];
-        z2 = z_in[idx2];
-        v1 = var_lay_in[idx1];
-        v2 = var_lay_in[idx2];
-
-        // Propagate nans
-        if (!std::isfinite(z1) || !std::isfinite(z2) || 
-            !std::isfinite(v1) || !std::isfinite(v2)) {
-            var_out[i] = std::numeric_limits<Float>::quiet_NaN();
+    for (int i = 0; i < n_out; ++i) {
+        Float z_start = z_out[i];
+        Float z_end = (i < (n_out - 1)) ? z_out[i + 1] : z_in.back();
+        
+        auto idx_start = std::lower_bound(z_in.begin(), z_in.end(), z_start) - z_in.begin();
+        auto idx_end = std::upper_bound(z_in.begin(), z_in.end(), z_end) - z_in.begin();
+        
+        if (idx_start == idx_end) {
+            var_out[i] = var_lay_in[idx_start];
             continue;
         }
-        if (z2 == z1) {
-            var_out[i] = v1;
+        if (idx_start == n_out - 1) {
+            var_out[i] = var_lay_in.back();
+            continue;
+        }
+        if (idx_end == 0) {
+            var_out[i] = var_lay_in[0];
             continue;
         }
 
-        val = (v1*(z2 - z) + v2*(z - z1))/(z2 - z1);
+        Float weighted_avg = 0.0;
+        Float dz_in_total = 0.0;
 
-        if (!std::isfinite(val) || std::abs(val) > 1e8 * std::max(std::abs(v1), std::abs(v2))) {
-            val = std::numeric_limits<Float>::quiet_NaN();
+        for (int j = idx_start; j < idx_end; ++j) {
+            Float z1 = std::max(z_start, z_in[j]);
+            Float z2 = std::min(z_end, z_in[j + 1]);
+            Float dz_in = z2 - z1;
+            dz_in_total += dz_in;
+            weighted_avg += var_lay_in[j] * dz_in;
         }
-        var_out[i] = val;
+
+        if (dz_in_total > 0.0) {
+            weighted_avg /= dz_in_total;
+        }
+
+        if (!std::isfinite(weighted_avg) || std::abs(weighted_avg) > 1e8 * std::abs(var_lay_in[idx_start])) {
+            weighted_avg = std::nan("");
+        }
+
+        var_out[i] = weighted_avg;
     }
 }
+
+// void interpolate_col(const int n_in, const int n_out,
+//                     const std::vector<Float>& z_in,
+//                     const std::vector<Float>& z_out, 
+//                     const std::vector<Float>& var_lay_in, 
+//                     Float* var_out)
+// {
+//     int idx2; int idx1; Float z1; Float z2; Float v1; Float v2; Float z;
+//     Float val;
+//     for (int i=0; i < n_out; ++i)
+//     {
+//         z = z_out[i];
+//         auto it = std::upper_bound(z_in.begin(), z_in.end(), z);
+//         idx2 = std::distance(z_in.begin(), it);
+//         if (idx2 == 0) {
+//             idx1 = 0;
+//             idx2 = 1;
+//         } else if (idx2 >= n_in) {
+//             idx1 = n_in - 2;
+//             idx2 = n_in - 1;
+//         } else {
+//             idx1 = idx2 - 1;
+//         }
+
+//         z1 = z_in[idx1];
+//         z2 = z_in[idx2];
+//         v1 = var_lay_in[idx1];
+//         v2 = var_lay_in[idx2];
+
+//         // Propagate nans
+//         if (!std::isfinite(z1) || !std::isfinite(z2) || 
+//             !std::isfinite(v1) || !std::isfinite(v2)) {
+//             var_out[i] = std::numeric_limits<Float>::quiet_NaN();
+//             continue;
+//         }
+//         if (z2 == z1) {
+//             var_out[i] = v1;
+//             continue;
+//         }
+
+//         val = (v1*(z2 - z) + v2*(z - z1))/(z2 - z1);
+
+//         if (!std::isfinite(val) || std::abs(val) > 1e8 * std::max(std::abs(v1), std::abs(v2))) {
+//             val = std::numeric_limits<Float>::quiet_NaN();
+//         }
+//         var_out[i] = val;
+//     }
+// }
 
 void interpolate_3D_field(const int n_x, const int n_y,
                             const std::vector<Float>& z_in,
@@ -198,7 +246,7 @@ void interpolate_3D_field(const int n_x, const int n_y,
         {
             col_in[j] = var_in[i*n_in + j];
         }
-        interpolate_col(n_in, n_out, z_in, z_out, col_in, &var_tmp[i*n_out]);
+        weighted_avg_col(n_in, n_out, z_in, z_out, col_in, &var_tmp[i*n_out]);
     }
 
     var_in.resize(n_out*n_col);

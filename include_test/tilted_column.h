@@ -44,7 +44,7 @@ void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_l
                  Float* p_out);
 
 
-void interpolate_col(const int n_in, const int n_out,
+void weighted_avg_col(const int n_in, const int n_out,
                     const std::vector<Float>& z_in,
                     const Float z_out, 
                     const std::vector<Float>& var_lay_in, 
