@@ -326,41 +326,60 @@ void tilt_input(int argc, char** argv)
         }
     }
 
-
-    int n_lev_tilt;
-    int n_lay_tilt;
-    Array<ijk,1> path;
-    Array<Float,1> zh_tilt;
-
-    std::array<std::pair<Float, Float>, 1> x_y_start_arr;
+    std::array<std::pair<Float, Float>, 5> x_y_start_arr;
     x_y_start_arr[0] = std::make_pair(.5, .5);
-    // x_y_start_arr[1] = std::make_pair(0, 0);
-    // x_y_start_arr[2] = std::make_pair(0, 1);
-    // x_y_start_arr[3] = std::make_pair(1, 1);
-    // x_y_start_arr[4] = std::make_pair(1, 0);
+    x_y_start_arr[1] = std::make_pair(0.01, 0.01);
+    x_y_start_arr[2] = std::make_pair(0.01, 0.99);
+    x_y_start_arr[3] = std::make_pair(0.99, 0.99);
+    x_y_start_arr[4] = std::make_pair(0.99, 0.01);
 
     Float x_start;
     Float y_start;
-    
 
     std::vector<std::string> gas_names = {
         "h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "n2", "ccl4", "cfc11", 
         "cfc12", "cfc22", "hfc143a", "hfc125", "hfc23", "hfc32", "hfc134a", 
         "cf4", "no2"
     };
-    std::vector<Float> z_out;
-    std::vector<Float> zh_out;
-    int n_lay_out;
-    int n_lev_out;
 
-    int file_index = 0;
+    // this is a choice, user can pass a value or keep n_z_in and n_zh_in ? filler vals for now.
+    int n_lay_out = 183;
+    int n_lev_out = 184;
+    std::vector<Float> z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_out);
+    std::vector<Float> zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_out);
+
+    // Initialize containers for averaging
+    std::vector<Array<Float,2>> rel_list, dei_list, lwp_list, iwp_list, t_lay_list, t_lev_list, p_lay_list, p_lev_list;
+    std::map<std::string, std::vector<Array<Float,2>>> gas_concs_list;
+
+    int n_lev_tilt;
+    int n_lay_tilt;
+
+    int loop_index = 0;
     for (const auto& pair : x_y_start_arr) {
-        if (sza == 0 && file_index > 0) {
+        std::cout << "loop_index: " << loop_index << std::endl;
+        Array<ijk,1> path;
+        Array<Float,1> zh_tilt;
+
+        Array<Float,2> lwp_copy = lwp;
+        Array<Float,2> iwp_copy = iwp;
+        Array<Float,2> rel_copy = rel;
+        Array<Float,2> dei_copy = dei;
+        Array<Float,2> t_lay_copy = t_lay;
+        Array<Float,2> t_lev_copy = t_lev;
+        Array<Float,2> p_lay_copy = p_lay;
+        Array<Float,2> p_lev_copy = p_lev;
+        Gas_concs gas_concs_copy = gas_concs;
+
+        if (sza == 0 && loop_index > 0) {
             break;
         }
-        file_index++;
+        loop_index++;
         x_start = pair.first;
         y_start = pair.second;
+
+        std::cout << "x_start: " << x_start << std::endl;
+        std::cout << "y_start: " << y_start << std::endl;
 
         Status::print_message("###### Starting Tilting ######");
         auto time_start = std::chrono::high_resolution_clock::now();
@@ -370,7 +389,7 @@ void tilt_input(int argc, char** argv)
 
         n_lev_tilt = zh_tilt.v().size();
         n_lay_tilt = n_lev_tilt - 1;
-
+        
         path.set_dims({n_lay_tilt}); 
         zh_tilt.set_dims({n_lev_tilt}); 
         if (switch_cloud_optics)
@@ -382,28 +401,28 @@ void tilt_input(int argc, char** argv)
                 {
                     if (switch_liq_cloud_optics)
                     {
-                        lwp({icol, ilay}) /= dz;
+                        lwp_copy({icol, ilay}) /= dz;
                     }
                     if (switch_ice_cloud_optics)
                     {
-                        iwp({icol, ilay}) /= dz;
+                        iwp_copy({icol, ilay}) /= dz;
                     }
                 }
             }
             if (switch_liq_cloud_optics)
             {
-                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), lwp.v());
-                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), rel.v());
-                lwp.expand_dims({n_col, n_lay_tilt});
-                rel.expand_dims({n_col, n_lay_tilt});
+                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), lwp_copy.v());
+                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), rel_copy.v());
+                lwp_copy.expand_dims({n_col, n_lay_tilt});
+                rel_copy.expand_dims({n_col, n_lay_tilt});
             }
             if (switch_ice_cloud_optics)
             {
-                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), iwp.v());
-                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), dei.v());
+                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), iwp_copy.v());
+                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), dei_copy.v());
 
-                iwp.expand_dims({n_col, n_lay_tilt});
-                dei.expand_dims({n_col, n_lay_tilt});
+                iwp_copy.expand_dims({n_col, n_lay_tilt});
+                dei_copy.expand_dims({n_col, n_lay_tilt});
             }
 
             for (int ilay=1; ilay<=n_lay_tilt; ++ilay)    
@@ -413,27 +432,27 @@ void tilt_input(int argc, char** argv)
                 {
                     if (switch_liq_cloud_optics)
                     {
-                        lwp({icol, ilay}) *= dz;
+                        lwp_copy({icol, ilay}) *= dz;
                     }
                     if (switch_ice_cloud_optics)
                     {
-                        iwp({icol, ilay}) *= dz;
+                        iwp_copy({icol, ilay}) *= dz;
                     }
                 }
             }
         }
 
         for (const auto& gas_name : gas_names) {
-            if (!gas_concs.exists(gas_name)) {
+            if (!gas_concs_copy.exists(gas_name)) {
                 continue;
             }
-            const Array<Float,2>& gas = gas_concs.get_vmr(gas_name); 
+            const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name); 
 
             if (gas.size() == n_lay*n_col) {
                 Array<Float,2> gas_tmp(gas);
                 create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
                 gas_tmp.expand_dims({n_col, n_lay_tilt});
-                gas_concs.set_vmr(gas_name, gas_tmp);
+                gas_concs_copy.set_vmr(gas_name, gas_tmp);
             } 
             else if (gas.size() == 1) {
                 // Do nothing for single profiles
@@ -445,20 +464,21 @@ void tilt_input(int argc, char** argv)
 
         // create tilted columns of T and p. Important, create T first!!
         // if t lev all 0, interpolate from t lay
-        if (*std::max_element(t_lev.v().begin(), t_lev.v().end()) <= 0) {
+        if (*std::max_element(t_lev_copy.v().begin(), t_lev_copy.v().end()) <= 0) {
             for (int i = 0; i < n_col; ++i) {
                 for (int j = 1; j < n_lay; ++j) {
-                    t_lev({i, j}) = (t_lay({i, j}) + t_lay({i, j - 1})) / 2.0;
+                    t_lev_copy({i, j}) = (t_lay_copy({i, j}) + t_lay_copy({i, j - 1})) / 2.0;
                 }
-                t_lev({i, n_lev - 1}) = t_lay({i, n_lay - 1});        
+                t_lev_copy({i, n_lev - 1}) = t_lay_copy({i, n_lay - 1});        
             }
         }
-        create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), t_lay.v(), t_lev.v());
-        create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), p_lay.v(), p_lev.v());
-        t_lay.expand_dims({n_col, n_lay_tilt});
-        t_lev.expand_dims({n_col, n_lev_tilt});
-        p_lay.expand_dims({n_col, n_lay_tilt});
-        p_lev.expand_dims({n_col, n_lev_tilt});
+        // finish copies
+        create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), t_lay_copy.v(), t_lev_copy.v());
+        create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), p_lay_copy.v(), p_lev_copy.v());
+        t_lay_copy.expand_dims({n_col, n_lay_tilt});
+        t_lev_copy.expand_dims({n_col, n_lev_tilt});
+        p_lay_copy.expand_dims({n_col, n_lay_tilt});
+        p_lev_copy.expand_dims({n_col, n_lev_tilt});
 
         std::vector<Float> midpoints(n_lay_tilt);
         std::vector<Float> z_tilt(n_lay_tilt);
@@ -473,45 +493,47 @@ void tilt_input(int argc, char** argv)
         auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
 
         Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
-
-        // this is a choice, perhaps user can pass a value.
-        z_out = linspace(z_tilt[0], z_tilt[n_lay_tilt - 1], z_tilt.size());
-        zh_out = linspace(zh_tilt.v()[0], zh_tilt.v()[n_lev_tilt - 1], zh_tilt.v().size());
-
-        n_lay_out = z_out.size();
-        n_lev_out = zh_out.size();
-
         if (switch_interpolation) {
             ////// INTERPOLATE TO CONSTANT DZ GRID //////
             Status::print_message("Start z grid regularization.");
     
             // Intrinsic Variables //
-            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, t_lay.v());
-            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, p_lay.v());    
-            interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, t_lev.v());
-            interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, p_lev.v());
+            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, t_lay_copy.v());
+            t_lay_copy.expand_dims({n_col, n_lay_out});
+
+            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, p_lay_copy.v());    
+            p_lay_copy.expand_dims({n_col, n_lay_out});
+
+            interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, t_lev_copy.v());
+            t_lev_copy.expand_dims({n_col, n_lev_out});
+
+            interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, p_lev_copy.v());
+            p_lev_copy.expand_dims({n_col, n_lev_out});
 
 
             for (const auto& gas_name : gas_names) {
-                if (!gas_concs.exists(gas_name)) {
+                if (!gas_concs_copy.exists(gas_name)) {
                     continue;
                 }
-                const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
+                const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
                 std::string var_name = "vmr_" + gas_name;
                 if (gas.size() > 1) {
                     Array<Float,2> gas_tmp(gas);
                     interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, gas_tmp.v());
-                    gas_concs.set_vmr(gas_name, gas_tmp);
+                    gas_tmp.expand_dims({n_col, n_lay_out});
+                    gas_concs_copy.set_vmr(gas_name, gas_tmp);
                 }
             }    
             
             if (switch_liq_cloud_optics)
             {
-                interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, rel.v());
+                interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, rel_copy.v());
+                rel_copy.expand_dims({n_col, n_lay_out});
             }
             if (switch_ice_cloud_optics)
             {
-                interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, dei.v());
+                interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, dei_copy.v());
+                dei_copy.expand_dims({n_col, n_lay_out});
             }
 
 
@@ -526,21 +548,23 @@ void tilt_input(int argc, char** argv)
                     {
                         if (switch_liq_cloud_optics)
                         {
-                            lwp({icol, ilay}) /= dz;
+                            lwp_copy({icol, ilay}) /= dz;
                         }
                         if (switch_ice_cloud_optics)
                         {
-                            iwp({icol, ilay}) /= dz;
+                            iwp_copy({icol, ilay}) /= dz;
                         }
                     }
                 }
                 if (switch_liq_cloud_optics)
                 {
-                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp.v());
+                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
+                    lwp_copy.expand_dims({n_col, n_lay_out});
                 }
                 if (switch_ice_cloud_optics)
                 {
-                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp.v());
+                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
+                    iwp_copy.expand_dims({n_col, n_lay_out});
                 }
 
                 const Float dz_out = zh_out[1] - zh_out[0];
@@ -551,14 +575,92 @@ void tilt_input(int argc, char** argv)
                     {
                         if (switch_liq_cloud_optics)
                         {
-                            lwp({icol, ilay}) *= dz_out;
+                            lwp_copy({icol, ilay}) *= dz_out;
                         }
                         if (switch_ice_cloud_optics)
                         {
-                            iwp({icol, ilay}) *= dz_out;
+                            iwp_copy({icol, ilay}) *= dz_out;
                         }
                     }
                 }
+            }
+            Status::print_message("Finish z grid regularization.");
+        }
+    
+        // append lwp, iwp, gases, t_lay, t_lev, p_lay, p_lev to list of arrays for averaging after we complete the loops
+        if (switch_liq_cloud_optics) {
+            lwp_list.push_back(lwp_copy);
+            rel_list.push_back(rel_copy);
+        }
+        if (switch_ice_cloud_optics) {
+            iwp_list.push_back(iwp_copy);
+            dei_list.push_back(dei_copy);
+        }
+        t_lay_list.push_back(t_lay_copy);
+        t_lev_list.push_back(t_lev_copy);
+        p_lay_list.push_back(p_lay_copy);
+        p_lev_list.push_back(p_lev_copy);
+
+        for (const auto& gas_name : gas_names) {
+            if (gas_concs_copy.exists(gas_name)) {
+                const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
+                if (gas.size() > 1) 
+                {
+                    gas_concs_list[gas_name].push_back(gas_concs_copy.get_vmr(gas_name));
+                }
+            }
+        }
+        Status::print_message("Finish appending.");
+    }
+
+    Array<Float,2> lwp_avg({n_col, n_lay_out});
+    Array<Float,2> rel_avg({n_col, n_lay_out});
+    if (switch_liq_cloud_optics) {
+        
+        lwp_avg.fill(0.0);
+        average_3D_field_list(n_col, n_lay_out, lwp_list, &lwp_avg);
+
+        rel_avg.fill(0.0);
+        average_3D_field_list(n_col, n_lay_out, rel_list, &rel_avg);
+        Status::print_message("finish rel.");
+        
+    }
+    Array<Float,2> iwp_avg({n_col, n_lay_out});
+    Array<Float,2> dei_avg({n_col, n_lay_out});
+    if (switch_ice_cloud_optics) {
+        
+        iwp_avg.fill(0.0);
+        average_3D_field_list(n_col, n_lay_out, iwp_list, &iwp_avg);
+        dei_avg.fill(0.0);
+        average_3D_field_list(n_col, n_lay_out, dei_list, &dei_avg);
+    }
+
+    Array<Float,2> t_lay_avg({n_col, n_lay_out});
+    t_lay_avg.fill(0.0);
+    average_3D_field_list(n_col, n_lay_out, t_lay_list, &t_lay_avg);
+
+    Array<Float,2> t_lev_avg({n_col, n_lev_out});
+    t_lev_avg.fill(0.0);
+    average_3D_field_list(n_col, n_lev_out, t_lev_list, &t_lev_avg);
+
+    Array<Float,2> p_lay_avg({n_col, n_lay_out});
+    p_lay_avg.fill(0.0);
+    average_3D_field_list(n_col, n_lay_out, p_lay_list, &p_lay_avg);
+
+    Array<Float,2> p_lev_avg({n_col, n_lev_out});
+    p_lev_avg.fill(0.0);
+    average_3D_field_list(n_col, n_lev_out, p_lev_list, &p_lev_avg);
+
+    Status::print_message("Average the gases.");
+    for (const auto& gas_name : gas_names) {
+        if (gas_concs.exists(gas_name)) {
+            const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
+            if (gas.size() > 1) 
+            {
+                Array<Float,2> gas_avg({n_col, n_lay_out});
+                gas_avg.fill(0.0);
+                average_3D_field_list(n_col, n_lay_out, gas_concs_list[gas_name], &gas_avg);
+                gas_concs.set_vmr(gas_name, gas_avg);
             }
         }
     }
@@ -634,14 +736,14 @@ void tilt_input(int argc, char** argv)
     auto nc_play = output_nc.add_variable<Float>("p_lay", {"lay", "y", "x"});
     auto nc_plev = output_nc.add_variable<Float>("p_lev", {"lev", "y", "x"});
 
-    nc_play.insert(p_lay.v(), {0, 0, 0});
-    nc_plev.insert(p_lev.v(), {0, 0, 0});
+    nc_play.insert(p_lay_avg.v(), {0, 0, 0});
+    nc_plev.insert(p_lev_avg.v(), {0, 0, 0});
 
     auto nc_tlay = output_nc.add_variable<Float>("t_lay", {"lay", "y", "x"});
     auto nc_tlev = output_nc.add_variable<Float>("t_lev", {"lev", "y", "x"});
 
-    nc_tlay.insert(t_lay.v(), {0, 0, 0});
-    nc_tlev.insert(t_lev.v(), {0, 0, 0});
+    nc_tlay.insert(t_lay_avg.v(), {0, 0, 0});
+    nc_tlev.insert(t_lev_avg.v(), {0, 0, 0});
 
     // Write the cloud optical properties if applicable
     if (switch_cloud_optics) {
@@ -649,18 +751,18 @@ void tilt_input(int argc, char** argv)
         {
             std::cout << "Add LWP" << std::endl;
             auto nc_lwp = output_nc.add_variable<Float>("lwp", {"lay", "y", "x"});
-            nc_lwp.insert(lwp.v(), {0, 0, 0});
+            nc_lwp.insert(lwp_avg.v(), {0, 0, 0});
             std::cout << "Add REL" << std::endl;
             auto nc_rel = output_nc.add_variable<Float>("rel", {"lay", "y", "x"});
-            nc_rel.insert(rel.v(), {0, 0, 0});
+            nc_rel.insert(rel_avg.v(), {0, 0, 0});
         }
 
         if (switch_ice_cloud_optics) 
         {
             auto nc_iwp = output_nc.add_variable<Float>("iwp", {"lay", "y", "x"});
             auto nc_dei = output_nc.add_variable<Float>("dei", {"lay", "y", "x"});
-            nc_iwp.insert(iwp.v(), {0, 0, 0});
-            nc_dei.insert(dei.v(), {0, 0, 0});
+            nc_iwp.insert(iwp_avg.v(), {0, 0, 0});
+            nc_dei.insert(dei_avg.v(), {0, 0, 0});
         }
     }
 

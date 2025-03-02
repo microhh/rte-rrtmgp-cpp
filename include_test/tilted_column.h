@@ -22,6 +22,8 @@ inline int sign(Float value)
     return (Float(0.) < value) - (value < Float(0.));
 }
 
+void average_3D_field_list(int n_col, int n, std::vector<Array<Float,2>> var_list, Array<Float,2>* var_avg);
+
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
                  Float sza, Float azi,
@@ -43,6 +45,12 @@ void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_l
                  const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
                  const Float zp, const ijk offset,
                  Float* p_out);
+
+void interpolate_col(const int n_in, const int n_out,
+                    const std::vector<Float>& z_in,
+                    const std::vector<Float>& z_out, 
+                    const std::vector<Float>& var_lay_in, 
+                    Float* var_out);
 
 
 void weighted_avg_col(const int n_in, const int n_out,
