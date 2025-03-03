@@ -184,9 +184,9 @@ void tilt_input(int argc, char** argv)
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
-        {"multi-start-point" , { true, "average tilted grids for different tilt path start points within bottom cell."  }},
+        {"multi-start-point" , { false, "average tilted grids for different tilt path start points within bottom cell."  }},
         {"interpolation"     , { true, "interpolate to constant dz grid."                    }},
-        {"match-lay-size"      , { false, "keep input file size" }},
+        {"match-lay-size"    , { false, "keep input file size" }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
