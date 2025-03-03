@@ -560,6 +560,7 @@ void tilt_input(int argc, char** argv)
 
             // Extrinsic Variables //
 
+            Array<Float,2> lwp_test = lwp_copy; // debugging
             if (switch_cloud_optics)
             {
                 for (int ilay=1; ilay<=n_lay_tilt; ++ilay)    
@@ -601,6 +602,32 @@ void tilt_input(int argc, char** argv)
                         if (switch_ice_cloud_optics)
                         {
                             iwp_copy({icol, ilay}) *= dz_out;
+                        }
+                    }
+                }
+
+                for (int icol=1; icol<=n_col; ++icol)
+                {
+                    Float lwp_sum_before = 0.0;
+                    Float lwp_sum_after = 0.0;
+                    if (switch_liq_cloud_optics)
+                    {
+                        for (int ilay=1; ilay<=n_lay_tilt; ++ilay)
+                        {
+                            lwp_sum_before += lwp_test({icol, ilay});
+                        }
+                        for (int ilay=1; ilay<=n_lay_out; ++ilay)
+                        {
+                            lwp_sum_after += lwp_copy({icol, ilay});
+                        }
+
+                        if (std::abs(lwp_sum_before - lwp_sum_after) > 1e-6)
+                        {
+                            std::cout << "NOT CONSERVED! before: " << lwp_sum_before << " after: " << lwp_sum_after << std::endl;
+                        }
+                        else 
+                        {
+                            std::cout << "CONSERVED! before: " << lwp_sum_before << " after: " << lwp_sum_after << std::endl;
                         }
                     }
                 }
