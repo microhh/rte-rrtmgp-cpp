@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <vector>
+#include <numeric>
 
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
@@ -179,57 +180,50 @@ void interpolate_col(const int n_in, const int n_out,
     }
 }
 
-void weighted_avg_col(const int n_in, const int n_out,
-                      const std::vector<Float>& z_in,
-                      const std::vector<Float>& z_out, 
-                      const std::vector<Float>& var_lay_in, 
-                      Float* var_out)
-{
-    for (int i = 0; i < n_out; ++i) {
+void interp_col_conserve(const std::vector<Float>& z_out, 
+                            const std::vector<Float>& z_in, 
+                            const std::vector<Float>& var_lay_in, 
+                            Float* var_out) {
+    std::vector<Float> f_interp(z_out.size(), 0.0);
 
-        if (i == n_out - 1) {
-            var_out[i] = var_lay_in.back();
-            continue;
+    if (std::all_of(var_lay_in.begin(), var_lay_in.end(), [](Float val) { return val == 0; })) {
+        std::fill(var_out, var_out + z_out.size(), 0.0); 
+        return;
+    }
+    else
+    {
+        std::vector<Float> dz(z_in.size() - 1);
+        std::vector<Float> mass_z_in(z_in.size() - 1);
+        
+        for (size_t i = 0; i < dz.size(); ++i) {
+            dz[i] = z_in[i + 1] - z_in[i];
+            mass_z_in[i] = var_lay_in[i] * dz[i];
         }
-
-        Float z_start = z_out[i];
-        Float z_end = (i < n_out - 1) ? z_out[i + 1] : z_in.back();
-
-        int idx_start = std::upper_bound(z_in.begin(), z_in.end() - 1, z_start) - z_in.begin() - 1;
-        if (idx_start < 0) { 
-            idx_start = 0;
+        std::vector<Float> cdf_z_in(mass_z_in.size() + 1, 0.0);
+        for (size_t i = 1; i < cdf_z_in.size(); ++i) {
+            cdf_z_in[i] = cdf_z_in[i - 1] + mass_z_in[i - 1];
         }
-        int idx_end = std::lower_bound(z_in.begin() + 1, z_in.end(), z_end) - z_in.begin();
-        if (idx_end < 1) { 
-            idx_end = 1;
+        std::vector<Float> cdf_z(z_out.size(), 0.0);
+        for (size_t i = 0; i < z_out.size(); ++i) {
+            auto it = std::lower_bound(z_in.begin(), z_in.end(), z_out[i]);
+            size_t idx = std::max(static_cast<size_t>(0), static_cast<size_t>(it - z_in.begin() - 1));
+            Float t = (z_out[i] - z_in[idx]) / (z_in[idx + 1] - z_in[idx]);
+            cdf_z[i] = cdf_z_in[idx] + t * (cdf_z_in[idx + 1] - cdf_z_in[idx]);
         }
-        if (idx_start == idx_end - 1) {
-            var_out[i] = var_lay_in[idx_start];
-            continue;
+        for (size_t i = 0; i < z_out.size() - 1; ++i) {
+            Float dx = z_out[i + 1] - z_out[i];
+            f_interp[i] = (cdf_z[i + 1] - cdf_z[i]) / dx;
         }
+        f_interp.back() = f_interp[f_interp.size() - 2];
 
-        Float weighted_avg = 0.0;
-        Float dz_total = 0.0;
-
-        for (int j = idx_start; j < idx_end; ++j) {
-            Float cell_lower = z_in[j];
-            Float cell_upper = z_in[j + 1];
-            Float lower = std::max(z_start, cell_lower);
-            Float upper = std::min(z_end, cell_upper);
-            Float overlap = upper - lower;
-            if (overlap > 0) {
-                weighted_avg += var_lay_in[j] * overlap;
-                dz_total += overlap;
+        Float sum_fp = std::accumulate(var_lay_in.begin(), var_lay_in.end(), 0.0);
+        Float sum_interp = std::accumulate(f_interp.begin(), f_interp.end(), 0.0);
+        if (sum_interp > 1e-10) {  // Avoid numerical instability
+            for (Float& val : f_interp) {
+                val *= sum_fp / sum_interp;
             }
         }
-
-        if (dz_total > 0.0) {
-            weighted_avg /= dz_total;
-        } else {
-            weighted_avg = std::nan("");
-        }
-
-        var_out[i] = weighted_avg;
+        std::copy(f_interp.begin(), f_interp.end(), var_out);
     }
 }
 
@@ -252,7 +246,34 @@ void interpolate_3D_field(const int n_x, const int n_y,
         {
             col_in[j] = var_in[i*n_in + j];
         }
-        weighted_avg_col(n_in, n_out, z_in, z_out, col_in, &var_tmp[i*n_out]);
+        interpolate_col(n_in, n_out, z_in, z_out, col_in, &var_tmp[i*n_out]);
+    }
+
+    var_in.resize(n_out*n_col);
+    var_in = var_tmp;
+}
+
+void conserv_interpolate_3D_field(const int n_x, const int n_y,
+                            const std::vector<Float>& z_in,
+                            const std::vector<Float>& z_out,
+                            std::vector<Float>& var_in
+                            )
+{
+    const int n_col = n_x*n_y;
+    const int n_in = z_in.size();
+    const int n_out = z_out.size();
+    std::vector<Float> var_tmp(n_out*n_col);
+
+    #pragma omp parallel for
+    for (int i = 0; i < n_col; i++) 
+    {
+        std::vector<Float> col_in(n_in);
+        for (int j = 0; j < n_in; j++)
+        {
+            col_in[j] = var_in[i*n_in + j];
+        }
+        interp_col_conserve(z_out, z_in, col_in, &var_tmp[i*n_out]);
+        // weighted_avg_col(n_in, n_out, z_in, z_out, col_in, &var_tmp[i*n_out]);
     }
 
     var_in.resize(n_out*n_col);

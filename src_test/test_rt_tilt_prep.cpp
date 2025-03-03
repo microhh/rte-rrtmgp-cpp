@@ -555,7 +555,7 @@ void tilt_input(int argc, char** argv)
         zh_tilt.set_dims({n_lev_tilt}); 
         if (switch_cloud_optics)
         {
-            for (int ilay=1; ilay<=n_lay; ++ilay)    
+            for (int ilay=1; ilay<=n_zh_in; ++ilay)    
             {
                 Float dz = zh({ilay+1}) - zh({ilay});
                 for (int icol=1; icol<=n_col; ++icol)    
@@ -680,7 +680,7 @@ void tilt_input(int argc, char** argv)
                 std::string var_name = "vmr_" + gas_name;
                 if (gas.size() > 1) {
                     Array<Float,2> gas_tmp(gas);
-                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, gas_tmp.v());
+                    conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, gas_tmp.v());
                     gas_tmp.expand_dims({n_col, n_lay_out});
                     gas_concs_copy.set_vmr(gas_name, gas_tmp);
                 }
@@ -699,8 +699,6 @@ void tilt_input(int argc, char** argv)
 
 
             // Extrinsic Variables //
-
-            Array<Float,2> lwp_test = lwp_copy; // debugging
             if (switch_cloud_optics)
             {
                 for (int ilay=1; ilay<=n_lay_tilt; ++ilay)    
@@ -720,12 +718,12 @@ void tilt_input(int argc, char** argv)
                 }
                 if (switch_liq_cloud_optics)
                 {
-                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
+                    conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
                     lwp_copy.expand_dims({n_col, n_lay_out});
                 }
                 if (switch_ice_cloud_optics)
                 {
-                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
+                    conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
                     iwp_copy.expand_dims({n_col, n_lay_out});
                 }
 
@@ -742,32 +740,6 @@ void tilt_input(int argc, char** argv)
                         if (switch_ice_cloud_optics)
                         {
                             iwp_copy({icol, ilay}) *= dz_out;
-                        }
-                    }
-                }
-
-                for (int icol=1; icol<=n_col; ++icol)
-                {
-                    Float lwp_sum_before = 0.0;
-                    Float lwp_sum_after = 0.0;
-                    if (switch_liq_cloud_optics)
-                    {
-                        for (int ilay=1; ilay<=n_lay_tilt; ++ilay)
-                        {
-                            lwp_sum_before += lwp_test({icol, ilay});
-                        }
-                        for (int ilay=1; ilay<=n_lay_out; ++ilay)
-                        {
-                            lwp_sum_after += lwp_copy({icol, ilay});
-                        }
-
-                        if (std::abs(lwp_sum_before - lwp_sum_after) > 1e-6)
-                        {
-                            std::cout << "NOT CONSERVED! before: " << lwp_sum_before << " after: " << lwp_sum_after << std::endl;
-                        }
-                        else 
-                        {
-                            std::cout << "CONSERVED! before: " << lwp_sum_before << " after: " << lwp_sum_after << std::endl;
                         }
                     }
                 }
