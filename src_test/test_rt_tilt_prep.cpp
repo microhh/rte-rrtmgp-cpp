@@ -184,7 +184,9 @@ void tilt_input(int argc, char** argv)
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
+        {"multi-start-point" , { true, "average tilted grids for different tilt path start points within bottom cell."  }},
         {"interpolation"     , { true, "interpolate to constant dz grid."                    }},
+        {"match-lay-size"      , { false, "keep input file size" }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
@@ -198,7 +200,9 @@ void tilt_input(int argc, char** argv)
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
-    const bool switch_interpolation             = command_line_switches.at("interpolation").first;
+    const bool switch_multi = command_line_switches.at("multi-start-point").first;
+    const bool switch_interpolation = command_line_switches.at("interpolation").first;
+    const bool switch_match_lay_size = command_line_switches.at("match-lay-size").first;
     const bool tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
 
@@ -342,11 +346,17 @@ void tilt_input(int argc, char** argv)
         "cf4", "no2"
     };
 
-    // this is a choice, user can pass a value or keep n_z_in and n_zh_in ? filler vals for now.
-    int n_lay_out = 183;
-    int n_lev_out = 184;
-    std::vector<Float> z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_out);
-    std::vector<Float> zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_out);
+    // this is a choice, user can pass a value or keep n_z_in and n_zh_in ?
+    int n_lay_out;
+    int n_lev_out;
+    std::vector<Float> z_out;
+    std::vector<Float> zh_out;
+    if (switch_match_lay_size) {
+        n_lay_out = n_z_in;
+        n_lev_out = n_zh_in;
+        z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_out);
+        zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_out);
+    }
 
     // Initialize containers for averaging
     std::vector<Array<Float,2>> rel_list, dei_list, lwp_list, iwp_list, t_lay_list, t_lev_list, p_lay_list, p_lev_list;
@@ -374,6 +384,10 @@ void tilt_input(int argc, char** argv)
         if (sza == 0 && loop_index > 0) {
             break;
         }
+        if (!switch_multi && loop_index > 0)
+        {
+            break;
+        }
         loop_index++;
         x_start = pair.first;
         y_start = pair.second;
@@ -386,6 +400,13 @@ void tilt_input(int argc, char** argv)
         
         tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,x_start, y_start, path.v(),zh_tilt.v());
         std::cout << "finish tilted path" << std::endl;
+
+        if (!switch_match_lay_size && loop_index == 1) {  
+            n_lev_out = zh_tilt.v().size();
+            n_lay_out = n_lev_out - 1;
+            z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_out);
+            zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_out);
+        }
 
         n_lev_tilt = zh_tilt.v().size();
         n_lay_tilt = n_lev_tilt - 1;
