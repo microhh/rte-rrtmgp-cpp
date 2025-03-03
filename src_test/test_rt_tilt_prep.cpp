@@ -174,6 +174,147 @@ std::vector<Float> linspace(Float start, Float end, int num_points) {
     return result;
 }
 
+bool prepare_netcdf(Netcdf_handle& input_nc, std::string file_name, int n_lay_tilt, int n_lev_tilt, int n_col_x, int n_col_y,
+                    Float sza, std::vector<Float> zh_tilt, std::vector<Float> z_tilt,
+                    Array<Float,2> p_lay, Array<Float,2> t_lay, Array<Float,2> p_lev, Array<Float,2> t_lev, 
+                    Array<Float,2> lwp, Array<Float,2> iwp, Array<Float,2> rel, Array<Float,2> dei, 
+                    Gas_concs& gas_concs, std::vector<std::string> gas_names,
+                    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics) {
+    const int n_col = n_col_x * n_col_y;
+
+    // Create the new NetCDF file
+    Netcdf_file output_nc(file_name, Netcdf_mode::Create);
+    // Copy dimensions from the input file  
+    const int n_bnd_sw = 14;
+    const int n_bnd_lw = 16;
+    output_nc.add_dimension("band_sw", n_bnd_sw);
+    output_nc.add_dimension("band_lw", n_bnd_lw);
+
+    output_nc.add_dimension("lay", n_lay_tilt);
+    output_nc.add_dimension("lev", n_lev_tilt);
+
+    output_nc.add_dimension("x", n_col_x);
+    output_nc.add_dimension("y", n_col_y);
+    output_nc.add_dimension("z", n_lay_tilt);
+
+    output_nc.add_dimension("xh", n_col_x+1);
+    output_nc.add_dimension("yh", n_col_y+1);
+    output_nc.add_dimension("zh", n_lev_tilt);
+
+    Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {n_col_x}), {n_col_x});
+    Array<Float,1> grid_xh(input_nc.get_variable<Float>("xh", {n_col_x+1}), {n_col_x+1});
+    Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {n_col_y}), {n_col_y});
+    Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
+
+    // Create and write the grid coordinate variables
+    auto nc_x = output_nc.add_variable<Float>("x", {"x"});
+    auto nc_y = output_nc.add_variable<Float>("y", {"y"});
+    auto nc_xh = output_nc.add_variable<Float>("xh", {"xh"});
+    auto nc_yh = output_nc.add_variable<Float>("yh", {"yh"});
+
+    nc_x.insert(grid_x.v(), {0});
+    nc_y.insert(grid_y.v(), {0});
+    nc_xh.insert(grid_xh.v(), {0});
+    nc_yh.insert(grid_yh.v(), {0});
+
+    // Create and write surface properties
+    Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
+    Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
+    Array<Float,2> emis_sfc(input_nc.get_variable<Float>("emis_sfc", {n_col_y, n_col_x, n_bnd_lw}), {n_bnd_lw, n_col});
+    Array<Float,1> t_sfc(input_nc.get_variable<Float>("t_sfc", {n_col_y, n_col_x}), {n_col});
+
+    auto nc_sfc_alb_dir = output_nc.add_variable<Float>("sfc_alb_dir", {"y", "x", "band_sw"});
+    auto nc_sfc_alb_dif = output_nc.add_variable<Float>("sfc_alb_dif", {"y", "x", "band_sw"});
+    auto nc_emis_sfc = output_nc.add_variable<Float>("emis_sfc", {"y", "x", "band_lw"});
+    auto nc_t_sfc = output_nc.add_variable<Float>("t_sfc", {"y", "x"});
+
+    nc_sfc_alb_dir.insert(sfc_alb_dir.v(), {0, 0, 0});
+    nc_sfc_alb_dif.insert(sfc_alb_dif.v(), {0, 0, 0});
+    nc_emis_sfc.insert(emis_sfc.v(), {0, 0, 0});
+    nc_t_sfc.insert(t_sfc.v(), {0, 0});
+
+    // Write tsi scaling
+    auto nc_tsi_scaling = output_nc.add_variable<Float>("tsi_scaling", {});
+    nc_tsi_scaling.insert(std::cos(sza), {0});
+
+    // Write the grid coordinates
+    auto nc_z = output_nc.add_variable<Float>("z", {"z"});
+    auto nc_zh = output_nc.add_variable<Float>("zh", {"zh"});
+    nc_zh.insert(zh_tilt, {0});
+    nc_z.insert(z_tilt, {0}); 
+
+    // Write the atmospheric fields
+    auto nc_play = output_nc.add_variable<Float>("p_lay", {"lay", "y", "x"});
+    auto nc_plev = output_nc.add_variable<Float>("p_lev", {"lev", "y", "x"});
+
+    nc_play.insert(p_lay.v(), {0, 0, 0});
+    nc_plev.insert(p_lev.v(), {0, 0, 0});
+
+    auto nc_tlay = output_nc.add_variable<Float>("t_lay", {"lay", "y", "x"});
+    auto nc_tlev = output_nc.add_variable<Float>("t_lev", {"lev", "y", "x"});
+
+    nc_tlay.insert(t_lay.v(), {0, 0, 0});
+    nc_tlev.insert(t_lev.v(), {0, 0, 0});
+
+    // Write the cloud optical properties if applicable
+    if (switch_cloud_optics) {
+        if (switch_liq_cloud_optics) 
+        {
+            auto nc_lwp = output_nc.add_variable<Float>("lwp", {"lay", "y", "x"});
+            nc_lwp.insert(lwp.v(), {0, 0, 0});
+            auto nc_rel = output_nc.add_variable<Float>("rel", {"lay", "y", "x"});
+            nc_rel.insert(rel.v(), {0, 0, 0});
+        }
+
+        if (switch_ice_cloud_optics) 
+        {
+            auto nc_iwp = output_nc.add_variable<Float>("iwp", {"lay", "y", "x"});
+            auto nc_dei = output_nc.add_variable<Float>("dei", {"lay", "y", "x"});
+            nc_iwp.insert(iwp.v(), {0, 0, 0});
+            nc_dei.insert(dei.v(), {0, 0, 0});
+        }
+    }
+
+    // Write the gas concentrations
+    for (const auto& gas_name : gas_names) {
+        if (!gas_concs.exists(gas_name)) {
+            continue;
+        }
+        const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
+        std::string var_name = "vmr_" + gas_name;
+        if (gas.size() == 1) {
+            auto nc_gas = output_nc.add_variable<Float>(var_name);
+            nc_gas.insert(gas.v(), {}); 
+        } else {
+            auto nc_gas = output_nc.add_variable<Float>(var_name, {"lay", "y", "x"});
+            const std::vector<Float>& flat_data = gas.v();
+            nc_gas.insert(flat_data, {0, 0, 0});
+        }
+    }
+    auto nc_mu = output_nc.add_variable<Float>("mu0", {"y", "x"});
+    auto nc_azi = output_nc.add_variable<Float>("azi", {"y", "x"});
+
+    Array<Float, 2> mu_array(std::array<int, 2>{n_col_y, n_col_x});
+    Array<Float, 2> azi_array(std::array<int, 2>{n_col_y, n_col_x});
+
+    mu_array.fill(1.0);
+    azi_array.fill(0.0);
+
+    nc_mu.insert(mu_array.v(), {0, 0});
+    nc_azi.insert(azi_array.v(), {0, 0});
+
+    auto nc_ng_x = output_nc.add_variable<Float>("ngrid_x", {});
+    auto nc_ng_y = output_nc.add_variable<Float>("ngrid_y", {});
+    auto nc_ng_z = output_nc.add_variable<Float>("ngrid_z", {});
+
+    nc_ng_x.insert(48, {0});
+    nc_ng_y.insert(48, {0});
+    nc_ng_z.insert(32, {0});
+
+    output_nc.sync();
+    return true;
+}
+
 void tilt_input(int argc, char** argv)
 {
     Status::print_message("###### Starting Script ######");
@@ -359,9 +500,7 @@ void tilt_input(int argc, char** argv)
     }
 
     // Initialize containers for averaging
-    std::vector<Array<Float,2>> rel_list, dei_list, lwp_list, iwp_list, t_lay_list, t_lev_list, p_lay_list, p_lev_list;
-    std::map<std::string, std::vector<Array<Float,2>>> gas_concs_list;
-
+    std::string file_name;
     int n_lev_tilt;
     int n_lay_tilt;
 
@@ -389,6 +528,7 @@ void tilt_input(int argc, char** argv)
             break;
         }
         loop_index++;
+        file_name = "rte_rrtmgp_input_" + std::to_string(loop_index) + ".nc";
         x_start = pair.first;
         y_start = pair.second;
 
@@ -633,229 +773,24 @@ void tilt_input(int argc, char** argv)
                 }
             }
             Status::print_message("Finish z grid regularization.");
-        }
-    
-        // append lwp, iwp, gases, t_lay, t_lev, p_lay, p_lev to list of arrays for averaging after we complete the loops
-        if (switch_liq_cloud_optics) {
-            lwp_list.push_back(lwp_copy);
-            rel_list.push_back(rel_copy);
-        }
-        if (switch_ice_cloud_optics) {
-            iwp_list.push_back(iwp_copy);
-            dei_list.push_back(dei_copy);
-        }
-        t_lay_list.push_back(t_lay_copy);
-        t_lev_list.push_back(t_lev_copy);
-        p_lay_list.push_back(p_lay_copy);
-        p_lev_list.push_back(p_lev_copy);
 
-        for (const auto& gas_name : gas_names) {
-            if (gas_concs_copy.exists(gas_name)) {
-                const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
-                if (gas.size() > 1) 
-                {
-                    gas_concs_list[gas_name].push_back(gas_concs_copy.get_vmr(gas_name));
-                }
-            }
+            prepare_netcdf(input_nc, file_name, n_lay_out, n_lev_out, n_col_x, n_col_y,
+                        sza, zh_out, z_out,
+                        p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
+                        lwp_copy, iwp_copy, rel_copy, dei_copy, 
+                        gas_concs_copy, gas_names, 
+                        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
         }
-        Status::print_message("Finish appending.");
+        else {
+            prepare_netcdf(input_nc, file_name, n_lay_tilt, n_lev_tilt, n_col_x, n_col_y,
+                        sza, zh_tilt.v(), z_tilt,
+                        p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
+                        lwp_copy, iwp_copy, rel_copy, dei_copy, 
+                        gas_concs_copy, gas_names, 
+                        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
+        }    
     }
 
-    Array<Float,2> lwp_avg({n_col, n_lay_out});
-    Array<Float,2> rel_avg({n_col, n_lay_out});
-    if (switch_liq_cloud_optics) {
-        
-        lwp_avg.fill(0.0);
-        average_3D_field_list(n_col, n_lay_out, lwp_list, &lwp_avg);
-
-        rel_avg.fill(0.0);
-        average_3D_field_list(n_col, n_lay_out, rel_list, &rel_avg);
-        Status::print_message("finish rel.");
-        
-    }
-    Array<Float,2> iwp_avg({n_col, n_lay_out});
-    Array<Float,2> dei_avg({n_col, n_lay_out});
-    if (switch_ice_cloud_optics) {
-        
-        iwp_avg.fill(0.0);
-        average_3D_field_list(n_col, n_lay_out, iwp_list, &iwp_avg);
-        dei_avg.fill(0.0);
-        average_3D_field_list(n_col, n_lay_out, dei_list, &dei_avg);
-    }
-
-    Array<Float,2> t_lay_avg({n_col, n_lay_out});
-    t_lay_avg.fill(0.0);
-    average_3D_field_list(n_col, n_lay_out, t_lay_list, &t_lay_avg);
-
-    Array<Float,2> t_lev_avg({n_col, n_lev_out});
-    t_lev_avg.fill(0.0);
-    average_3D_field_list(n_col, n_lev_out, t_lev_list, &t_lev_avg);
-
-    Array<Float,2> p_lay_avg({n_col, n_lay_out});
-    p_lay_avg.fill(0.0);
-    average_3D_field_list(n_col, n_lay_out, p_lay_list, &p_lay_avg);
-
-    Array<Float,2> p_lev_avg({n_col, n_lev_out});
-    p_lev_avg.fill(0.0);
-    average_3D_field_list(n_col, n_lev_out, p_lev_list, &p_lev_avg);
-
-    Status::print_message("Average the gases.");
-    for (const auto& gas_name : gas_names) {
-        if (gas_concs.exists(gas_name)) {
-            const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
-            if (gas.size() > 1) 
-            {
-                Array<Float,2> gas_avg({n_col, n_lay_out});
-                gas_avg.fill(0.0);
-                average_3D_field_list(n_col, n_lay_out, gas_concs_list[gas_name], &gas_avg);
-                gas_concs.set_vmr(gas_name, gas_avg);
-            }
-        }
-    }
-
-    ////// CREATE THE OUTPUT FILE //////
-    // Create the general dimensions and arrays.
-
-    Status::print_message("Preparing NetCDF output file.");
-
-    // Create the new NetCDF file
-    Netcdf_file output_nc("rte_rrtmgp_tilted_input.nc", Netcdf_mode::Create);
-
-    // Copy dimensions from the input file  
-    const int n_bnd_sw = 14;
-    const int n_bnd_lw = 16;
-    output_nc.add_dimension("band_sw", n_bnd_sw);
-    output_nc.add_dimension("band_lw", n_bnd_lw);
-
-    output_nc.add_dimension("lay", n_lay_out);
-    output_nc.add_dimension("lev", n_lev_out);
-
-    output_nc.add_dimension("x", n_col_x);
-    output_nc.add_dimension("y", n_col_y);
-    output_nc.add_dimension("z", n_lay_out);
-
-    output_nc.add_dimension("xh", n_col_x+1);
-    output_nc.add_dimension("yh", n_col_y+1);
-    output_nc.add_dimension("zh", n_lev_out);
-
-    Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {n_col_x}), {n_col_x});
-    Array<Float,1> grid_xh(input_nc.get_variable<Float>("xh", {n_col_x+1}), {n_col_x+1});
-    Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {n_col_y}), {n_col_y});
-    Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
-
-    // Create and write the grid coordinate variables
-    auto nc_x = output_nc.add_variable<Float>("x", {"x"});
-    auto nc_y = output_nc.add_variable<Float>("y", {"y"});
-    auto nc_xh = output_nc.add_variable<Float>("xh", {"xh"});
-    auto nc_yh = output_nc.add_variable<Float>("yh", {"yh"});
-
-    nc_x.insert(grid_x.v(), {0});
-    nc_y.insert(grid_y.v(), {0});
-    nc_xh.insert(grid_xh.v(), {0});
-    nc_yh.insert(grid_yh.v(), {0});
-
-    // Create and write surface properties
-    Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
-    Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
-    Array<Float,2> emis_sfc(input_nc.get_variable<Float>("emis_sfc", {n_col_y, n_col_x, n_bnd_lw}), {n_bnd_lw, n_col});
-    Array<Float,1> t_sfc(input_nc.get_variable<Float>("t_sfc", {n_col_y, n_col_x}), {n_col});
-
-    auto nc_sfc_alb_dir = output_nc.add_variable<Float>("sfc_alb_dir", {"y", "x", "band_sw"});
-    auto nc_sfc_alb_dif = output_nc.add_variable<Float>("sfc_alb_dif", {"y", "x", "band_sw"});
-    auto nc_emis_sfc = output_nc.add_variable<Float>("emis_sfc", {"y", "x", "band_lw"});
-    auto nc_t_sfc = output_nc.add_variable<Float>("t_sfc", {"y", "x"});
-
-    nc_sfc_alb_dir.insert(sfc_alb_dir.v(), {0, 0, 0});
-    nc_sfc_alb_dif.insert(sfc_alb_dif.v(), {0, 0, 0});
-    nc_emis_sfc.insert(emis_sfc.v(), {0, 0, 0});
-    nc_t_sfc.insert(t_sfc.v(), {0, 0});
-    
-    // Write tsi scaling
-    auto nc_tsi_scaling = output_nc.add_variable<Float>("tsi_scaling", {});
-    nc_tsi_scaling.insert(std::cos(sza), {0});
-
-    // Create and write the variables for the tilted data
-    auto nc_z = output_nc.add_variable<Float>("z", {"z"});
-    auto nc_zh = output_nc.add_variable<Float>("zh", {"zh"});
-    nc_zh.insert(zh_out, {0});
-    nc_z.insert(z_out, {0}); 
-
-    // Write the atmospheric fields
-    auto nc_play = output_nc.add_variable<Float>("p_lay", {"lay", "y", "x"});
-    auto nc_plev = output_nc.add_variable<Float>("p_lev", {"lev", "y", "x"});
-
-    nc_play.insert(p_lay_avg.v(), {0, 0, 0});
-    nc_plev.insert(p_lev_avg.v(), {0, 0, 0});
-
-    auto nc_tlay = output_nc.add_variable<Float>("t_lay", {"lay", "y", "x"});
-    auto nc_tlev = output_nc.add_variable<Float>("t_lev", {"lev", "y", "x"});
-
-    nc_tlay.insert(t_lay_avg.v(), {0, 0, 0});
-    nc_tlev.insert(t_lev_avg.v(), {0, 0, 0});
-
-    // Write the cloud optical properties if applicable
-    if (switch_cloud_optics) {
-        if (switch_liq_cloud_optics) 
-        {
-            std::cout << "Add LWP" << std::endl;
-            auto nc_lwp = output_nc.add_variable<Float>("lwp", {"lay", "y", "x"});
-            nc_lwp.insert(lwp_avg.v(), {0, 0, 0});
-            std::cout << "Add REL" << std::endl;
-            auto nc_rel = output_nc.add_variable<Float>("rel", {"lay", "y", "x"});
-            nc_rel.insert(rel_avg.v(), {0, 0, 0});
-        }
-
-        if (switch_ice_cloud_optics) 
-        {
-            auto nc_iwp = output_nc.add_variable<Float>("iwp", {"lay", "y", "x"});
-            auto nc_dei = output_nc.add_variable<Float>("dei", {"lay", "y", "x"});
-            nc_iwp.insert(iwp_avg.v(), {0, 0, 0});
-            nc_dei.insert(dei_avg.v(), {0, 0, 0});
-        }
-    }
-
-    // Write the gas concentrations
-    for (const auto& gas_name : gas_names) {
-        if (!gas_concs.exists(gas_name)) {
-            continue;
-        }
-        const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
-        std::string var_name = "vmr_" + gas_name;
-        if (gas.size() == 1) {
-            std::cout << "Adding scalar variable for " << gas_name << std::endl;
-            auto nc_gas = output_nc.add_variable<Float>(var_name);
-            nc_gas.insert(gas.v(), {});
-        } else {
-            std::cout << "Adding array variable for " << gas_name << std::endl;
-            auto nc_gas = output_nc.add_variable<Float>(var_name, {"lay", "y", "x"});
-            const std::vector<Float>& flat_data = gas.v();
-            nc_gas.insert(flat_data, {0, 0, 0});
-        }
-    }
-    auto nc_mu = output_nc.add_variable<Float>("mu0", {"y", "x"});
-    auto nc_azi = output_nc.add_variable<Float>("azi", {"y", "x"});
-
-    Array<Float, 2> mu_array(std::array<int, 2>{n_col_y, n_col_x});
-    Array<Float, 2> azi_array(std::array<int, 2>{n_col_y, n_col_x});
-
-    mu_array.fill(1.0);
-    azi_array.fill(0.0);
-
-    nc_mu.insert(mu_array.v(), {0, 0});
-    nc_azi.insert(azi_array.v(), {0, 0});
-
-    auto nc_ng_x = output_nc.add_variable<Float>("ngrid_x", {});
-    auto nc_ng_y = output_nc.add_variable<Float>("ngrid_y", {});
-    auto nc_ng_z = output_nc.add_variable<Float>("ngrid_z", {});
-
-    nc_ng_x.insert(48, {0});
-    nc_ng_y.insert(48, {0});
-    nc_ng_z.insert(32, {0});
-
-
-    output_nc.sync();
-
-    Status::print_message("###### Finished tilting ######");
 }
 
 

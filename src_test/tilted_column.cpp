@@ -3,20 +3,6 @@
 #include <iostream>
 #include <vector>
 
-void average_3D_field_list(int n_col, int n, std::vector<Array<Float,2>> var_list, Array<Float,2>* var_avg)
-{    
-    // n can be either n_lay_out or n_lev_out
-    for (const auto& var : var_list) {
-        for (int i = 0; i < var.size(); ++i) {
-            var_avg->v()[i] += var.v()[i];
-        }
-    }
-
-    for (int i = 0; i < var_avg->size(); ++i) {
-        var_avg->v()[i] /= var_list.size();
-    }
-}
-
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
                  Float sza, Float azi,

@@ -22,8 +22,6 @@ inline int sign(Float value)
     return (Float(0.) < value) - (value < Float(0.));
 }
 
-void average_3D_field_list(int n_col, int n, std::vector<Array<Float,2>> var_list, Array<Float,2>* var_avg);
-
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
                  Float sza, Float azi,
