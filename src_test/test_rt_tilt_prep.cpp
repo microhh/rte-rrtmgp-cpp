@@ -690,17 +690,11 @@ void tilt_input(int argc, char** argv)
             {
                 interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, rel_copy.v());
                 rel_copy.expand_dims({n_col, n_lay_out});
-
-                // conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
-                // lwp_copy.expand_dims({n_col, n_lay_out});
             }
             if (switch_ice_cloud_optics)
             {
                 interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, dei_copy.v());
                 dei_copy.expand_dims({n_col, n_lay_out});
-
-                // conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
-                // iwp_copy.expand_dims({n_col, n_lay_out});
             }
 
 
