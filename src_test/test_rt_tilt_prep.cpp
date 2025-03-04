@@ -626,7 +626,7 @@ void tilt_input(int argc, char** argv)
         // create tilted columns of T and p. Important, create T first!!
         // if t lev all 0, interpolate from t lay
         if (*std::max_element(t_lev_copy.v().begin(), t_lev_copy.v().end()) <= 0) {
-            for (int i = 0; i < n_col; ++i) {
+            for (int i = 1; i < n_col; ++i) {
                 for (int j = 1; j < n_lay; ++j) {
                     t_lev_copy({i, j}) = (t_lay_copy({i, j}) + t_lay_copy({i, j - 1})) / 2.0;
                 }
@@ -680,7 +680,7 @@ void tilt_input(int argc, char** argv)
                 std::string var_name = "vmr_" + gas_name;
                 if (gas.size() > 1) {
                     Array<Float,2> gas_tmp(gas);
-                    conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, gas_tmp.v());
+                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, gas_tmp.v());
                     gas_tmp.expand_dims({n_col, n_lay_out});
                     gas_concs_copy.set_vmr(gas_name, gas_tmp);
                 }
@@ -690,60 +690,66 @@ void tilt_input(int argc, char** argv)
             {
                 interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, rel_copy.v());
                 rel_copy.expand_dims({n_col, n_lay_out});
+
+                // conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
+                // lwp_copy.expand_dims({n_col, n_lay_out});
             }
             if (switch_ice_cloud_optics)
             {
                 interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, dei_copy.v());
                 dei_copy.expand_dims({n_col, n_lay_out});
+
+                // conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
+                // iwp_copy.expand_dims({n_col, n_lay_out});
             }
 
 
             // Extrinsic Variables //
-            if (switch_cloud_optics)
-            {
-                for (int ilay=1; ilay<=n_lay_tilt; ++ilay)    
-                {
-                    Float dz = zh_tilt({ilay+1}) - zh_tilt({ilay});
-                    for (int icol=1; icol<=n_col; ++icol)    
-                    {
-                        if (switch_liq_cloud_optics)
-                        {
-                            lwp_copy({icol, ilay}) /= dz;
-                        }
-                        if (switch_ice_cloud_optics)
-                        {
-                            iwp_copy({icol, ilay}) /= dz;
-                        }
-                    }
-                }
-                if (switch_liq_cloud_optics)
-                {
-                    conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
-                    lwp_copy.expand_dims({n_col, n_lay_out});
-                }
-                if (switch_ice_cloud_optics)
-                {
-                    conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
-                    iwp_copy.expand_dims({n_col, n_lay_out});
-                }
+            // if (switch_cloud_optics)
+            // {
+            //     for (int ilay=1; ilay<=n_lay_tilt; ++ilay)    
+            //     {
+            //         Float dz = zh_tilt({ilay+1}) - zh_tilt({ilay});
+            //         for (int icol=1; icol<=n_col; ++icol)    
+            //         {
+            //             if (switch_liq_cloud_optics)
+            //             {
+            //                 lwp_copy({icol, ilay}) /= dz;
+            //             }
+            //             if (switch_ice_cloud_optics)
+            //             {
+            //                 iwp_copy({icol, ilay}) /= dz;
+            //             }
+            //         }
+            //     }
+            //     if (switch_liq_cloud_optics)
+            //     {
+            //         conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
+            //         lwp_copy.expand_dims({n_col, n_lay_out});
+            //     }
+            //     if (switch_ice_cloud_optics)
+            //     {
+            //         conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
+            //         iwp_copy.expand_dims({n_col, n_lay_out});
+            //     }
 
-                const Float dz_out = zh_out[1] - zh_out[0];
+            //     const Float dz_out = zh_out[1] - zh_out[0];
                 
-                for (int ilay=1; ilay<=n_lay_out; ++ilay)    
-                {
-                    for (int icol=1; icol<=n_col; ++icol)    
-                    {
-                        if (switch_liq_cloud_optics)
-                        {
-                            lwp_copy({icol, ilay}) *= dz_out;
-                        }
-                        if (switch_ice_cloud_optics)
-                        {
-                            iwp_copy({icol, ilay}) *= dz_out;
-                        }
-                    }
-                }
-            }
+            //     for (int ilay=1; ilay<=n_lay_out; ++ilay)    
+            //     {
+            //         for (int icol=1; icol<=n_col; ++icol)    
+            //         {
+            //             if (switch_liq_cloud_optics)
+            //             {
+            //                 lwp_copy({icol, ilay}) *= dz_out;
+            //             }
+            //             if (switch_ice_cloud_optics)
+            //             {
+            //                 iwp_copy({icol, ilay}) *= dz_out;
+            //             }
+            //         }
+            //     }
+            // }
             Status::print_message("Finish z grid regularization.");
 
             prepare_netcdf(input_nc, file_name, n_lay_out, n_lev_out, n_col_x, n_col_y,
