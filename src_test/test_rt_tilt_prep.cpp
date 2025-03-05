@@ -327,7 +327,6 @@ void tilt_input(int argc, char** argv)
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
         {"multi-start-point" , { false, "average tilted grids for different tilt path start points within bottom cell."  }},
         {"interpolation"     , { true, "interpolate to constant dz grid."                    }},
-        {"match-lay-size"    , { false, "keep input file size" }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
@@ -343,7 +342,6 @@ void tilt_input(int argc, char** argv)
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_multi = command_line_switches.at("multi-start-point").first;
     const bool switch_interpolation = command_line_switches.at("interpolation").first;
-    const bool switch_match_lay_size = command_line_switches.at("match-lay-size").first;
     const bool tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
 
@@ -492,12 +490,6 @@ void tilt_input(int argc, char** argv)
     int n_lev_out;
     std::vector<Float> z_out;
     std::vector<Float> zh_out;
-    if (switch_match_lay_size) {
-        n_lay_out = n_z_in;
-        n_lev_out = n_zh_in;
-        z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_out);
-        zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_out);
-    }
 
     // Initialize containers for averaging
     std::string file_name;
@@ -541,7 +533,7 @@ void tilt_input(int argc, char** argv)
         tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,x_start, y_start, path.v(),zh_tilt.v());
         std::cout << "finish tilted path" << std::endl;
 
-        if (!switch_match_lay_size && loop_index == 1) {  
+        if (loop_index == 1) {  
             n_lev_out = zh_tilt.v().size();
             n_lay_out = n_lev_out - 1;
             z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_out);
@@ -685,63 +677,6 @@ void tilt_input(int argc, char** argv)
                     gas_concs_copy.set_vmr(gas_name, gas_tmp);
                 }
             }    
-            
-            // if (switch_liq_cloud_optics)
-            // {
-            //     interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, rel_copy.v());
-            //     rel_copy.expand_dims({n_col, n_lay_out});
-            // }
-            // if (switch_ice_cloud_optics)
-            // {
-            //     interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, dei_copy.v());
-            //     dei_copy.expand_dims({n_col, n_lay_out});
-            // }
-            // Extrinsic Variables //
-            // if (switch_cloud_optics)
-            // {
-            //     for (int ilay=1; ilay<=n_lay_tilt; ++ilay)    
-            //     {
-            //         Float dz = zh_tilt({ilay+1}) - zh_tilt({ilay});
-            //         for (int icol=1; icol<=n_col; ++icol)    
-            //         {
-            //             if (switch_liq_cloud_optics)
-            //             {
-            //                 lwp_copy({icol, ilay}) /= dz;
-            //             }
-            //             if (switch_ice_cloud_optics)
-            //             {
-            //                 iwp_copy({icol, ilay}) /= dz;
-            //             }
-            //         }
-            //     }
-            //     if (switch_liq_cloud_optics)
-            //     {
-            //         conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, lwp_copy.v());
-            //         lwp_copy.expand_dims({n_col, n_lay_out});
-            //     }
-            //     if (switch_ice_cloud_optics)
-            //     {
-            //         conserv_interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, iwp_copy.v());
-            //         iwp_copy.expand_dims({n_col, n_lay_out});
-            //     }
-
-            //     const Float dz_out = zh_out[1] - zh_out[0];
-                
-            //     for (int ilay=1; ilay<=n_lay_out; ++ilay)    
-            //     {
-            //         for (int icol=1; icol<=n_col; ++icol)    
-            //         {
-            //             if (switch_liq_cloud_optics)
-            //             {
-            //                 lwp_copy({icol, ilay}) *= dz_out;
-            //             }
-            //             if (switch_ice_cloud_optics)
-            //             {
-            //                 iwp_copy({icol, ilay}) *= dz_out;
-            //             }
-            //         }
-            //     }
-            // }
             Status::print_message("Finish z grid regularization.");
 
             prepare_netcdf(input_nc, file_name, n_lay_out, n_lev_out, n_col_x, n_col_y,
