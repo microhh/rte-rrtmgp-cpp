@@ -50,21 +50,10 @@ void interpolate_col(const int n_in, const int n_out,
                     const std::vector<Float>& var_lay_in, 
                     Float* var_out);
 
-void interp_col_conserve(const std::vector<Float>& z_out, 
-        const std::vector<Float>& z_in, 
-        const std::vector<Float>& var_lay_in, 
-        Float* var_out);
-
 void interpolate_3D_field(const int n_x, const int n_y,
                             const std::vector<Float>& z_in,
                             const std::vector<Float>& z_out,
                             std::vector<Float>& var_in);
-
-void conserv_interpolate_3D_field(const int n_x, const int n_y,
-                            const std::vector<Float>& z_in,
-                            const std::vector<Float>& z_out,
-                            std::vector<Float>& var_in
-                            );
 
 void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                              const std::vector<ijk>& tilted_path, std::vector<Float>& heat);
