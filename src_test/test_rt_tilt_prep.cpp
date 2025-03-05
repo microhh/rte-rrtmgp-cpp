@@ -618,11 +618,12 @@ void tilt_input(int argc, char** argv)
         // create tilted columns of T and p. Important, create T first!!
         // if t lev all 0, interpolate from t lay
         if (*std::max_element(t_lev_copy.v().begin(), t_lev_copy.v().end()) <= 0) {
-            for (int i = 1; i < n_col; ++i) {
-                for (int j = 1; j < n_lay; ++j) {
+            for (int i = 1; i <= n_col; ++i) {
+                for (int j = 2; j <= n_lay; ++j) {
                     t_lev_copy({i, j}) = (t_lay_copy({i, j}) + t_lay_copy({i, j - 1})) / 2.0;
                 }
-                t_lev_copy({i, n_lev - 1}) = t_lay_copy({i, n_lay - 1});        
+                t_lev_copy({i, n_lev}) = 2 * t_lay_copy({i, n_lay}) - t_lev_copy({i,n_lay});
+                t_lev_copy({i, 1}) = 2 * t_lay_copy({i, 1}) - t_lev_copy({i,2});
             }
         }
         // finish copies
