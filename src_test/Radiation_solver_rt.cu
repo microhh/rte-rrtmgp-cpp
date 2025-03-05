@@ -680,6 +680,7 @@ void Radiation_solver_shortwave::solve_gpu(
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
     int previous_band = 0;
+    Float attenuate_scale_factor = 1/tsi_scaling({1});
 
     for (int igpt=1; igpt<=n_gpt; ++igpt)
     {
@@ -788,24 +789,10 @@ void Radiation_solver_shortwave::solve_gpu(
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_g().ptr());
         }
 
-        Float attenuate_scale_factor;
-        Array<Float,1> spacing_scale_factor({grid_cells.z});
         if (switch_attenuate_path)
         {
-                attenuate_scale_factor = 1.0/mu0({0});
                 scale_tau(dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
-                // add if
-                if (switch_cloud_optics)
-                {
-                        scale_tau(dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
-                }
-                if (switch_aerosol_optics)
-                {
-                        scale_tau(dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
-                }
-                
         }
-
 
         // Store the optical properties, if desired
         if (switch_single_gpt && igpt == single_gpt)
