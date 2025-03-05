@@ -411,10 +411,13 @@ void solve_radiation(int argc, char** argv)
 
             cudaEventRecord(start, 0);
             // do something.
-            
+            const bool switch_attenuate_path = false;
+            const Float attenuate_scale_factor = 0;
 	        raytracer.trace_rays(
                    0,
                    switch_independent_column,
+                   switch_attenuate_path,
+                   attenuate_scale_factor,
                    photons_per_pixel,
                    grid_cells,
                    grid_d,

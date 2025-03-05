@@ -42,28 +42,6 @@
 
 namespace
 {
-    __global__
-    void scale_tau_kernel(Float* tau, const int ncol, const int nlay, Float scale_factor) {
-        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-        const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
-
-        if ( (icol < ncol) && (ilay < nlay) )
-        {
-            const int idx = icol + ilay*ncol;
-            tau[idx] = tau[idx] * scale_factor;
-        }
-    }    
-    
-    void scale_tau(Float* tau, const int ncol, const int nlay, Float scale_factor) {
-        const int block_col = 64;
-        const int block_lay = 1;
-        const int grid_col  = ncol/block_col + (ncol%block_col > 0);
-        const int grid_lay  = nlay/block_lay + (nlay%block_lay > 0);
-
-        dim3 grid_gpu(grid_col, grid_lay);
-        dim3 block_gpu(block_col, block_lay);
-        scale_tau_kernel<<<grid_gpu, block_gpu>>>(tau, ncol, nlay, scale_factor);
-    }
     std::vector<std::string> get_variable_string(
             const std::string& var_name,
             std::vector<int> i_count,
@@ -789,11 +767,6 @@ void Radiation_solver_shortwave::solve_gpu(
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_g().ptr());
         }
 
-        if (switch_attenuate_path)
-        {
-                scale_tau(dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
-        }
-
         // Store the optical properties, if desired
         if (switch_single_gpt && igpt == single_gpt)
         {
@@ -842,6 +815,8 @@ void Radiation_solver_shortwave::solve_gpu(
                 raytracer.trace_rays(
                         igpt,
                         switch_independent_column,
+                        switch_attenuate_path,
+                        attenuate_scale_factor,
                         ray_count,
                         grid_cells,
                         grid_d,
