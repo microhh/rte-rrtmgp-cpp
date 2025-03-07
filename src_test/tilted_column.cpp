@@ -132,78 +132,156 @@ void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, con
     var = var_tmp;
 }
 
-void interpolate_col(const int n_in, const int n_out,
-                    const std::vector<Float>& z_in,
-                    const std::vector<Float>& z_out, 
-                    const std::vector<Float>& var_lay_in, 
-                    Float* var_out)
+void compress_columns(const int n_x, const int n_y, 
+                      const int n_out, 
+                      const int compress_lay_start_idx,
+                      std::vector<Float>& var)
 {
-    int idx2; int idx1; Float z1; Float z2; Float v1; Float v2; Float z;
-    Float val;
-    for (int i=0; i < n_out; ++i)
+    std::vector<Float> var_tmp(n_out * n_x * n_y);    
+    #pragma omp parallel for
+    for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
     {
-        z = z_out[i];
-        auto it = std::upper_bound(z_in.begin(), z_in.end(), z);
-        idx2 = std::distance(z_in.begin(), it);
-        if (idx2 == 0) {
-            idx1 = 0;
-            idx2 = 1;
-        } else if (idx2 >= n_in) {
-            idx1 = n_in - 2;
-            idx2 = n_in - 1;
-        } else {
-            idx1 = idx2 - 1;
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                var_tmp[out_idx] = var[out_idx];
+            }
         }
-
-        z1 = z_in[idx1];
-        z2 = z_in[idx2];
-        v1 = var_lay_in[idx1];
-        v2 = var_lay_in[idx2];
-
-        // Propagate nans
-        if (!std::isfinite(z1) || !std::isfinite(z2) || 
-            !std::isfinite(v1) || !std::isfinite(v2)) {
-            var_out[i] = std::numeric_limits<Float>::quiet_NaN();
-            continue;
-        }
-        if (z2 == z1) {
-            var_out[i] = v1;
-            continue;
-        }
-
-        val = (v1*(z2 - z) + v2*(z - z1))/(z2 - z1);
-
-        if (!std::isfinite(val) || std::abs(val) > 1e8 * std::max(std::abs(v1), std::abs(v2))) {
-            val = std::numeric_limits<Float>::quiet_NaN();
-        }
-        var_out[i] = val;
     }
+    
+    #pragma omp parallel for
+    for (int ilay = compress_lay_start_idx; ilay < n_out; ++ilay)
+    {
+        const int in_offset = ilay - compress_lay_start_idx;
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                const int in_idx1 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset) * n_x * n_y;
+                const int in_idx2 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset + 1) * n_x * n_y;
+                var_tmp[out_idx] = var[in_idx1] + var[in_idx2];
+            }
+        }
+    }
+
+    var = var_tmp;
 }
 
-void interpolate_3D_field(const int n_x, const int n_y,
-                            const std::vector<Float>& z_in,
-                            const std::vector<Float>& z_out,
-                            std::vector<Float>& var_in
-                            )
+void compress_columns_weighted_avg(const int n_x, const int n_y,  
+                      const int n_out, 
+                      const int compress_lay_start_idx,
+                      std::vector<Float>& var, std::vector<Float>& var_weighting)
 {
-    const int n_col = n_x*n_y;
-    const int n_in = z_in.size();
-    const int n_out = z_out.size();
-    std::vector<Float> var_tmp(n_out*n_col);
+    std::vector<Float> var_tmp(n_out * n_x * n_y);
 
     #pragma omp parallel for
-    for (int i = 0; i < n_col; i++) 
+    for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
     {
-        std::vector<Float> col_in(n_in);
-        for (int j = 0; j < n_in; j++)
+        for (int iy = 0; iy < n_y; ++iy)
         {
-            col_in[j] = var_in[i*n_in + j];
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                var_tmp[out_idx] = var[out_idx];
+            }
         }
-        interpolate_col(n_in, n_out, z_in, z_out, col_in, &var_tmp[i*n_out]);
     }
 
-    var_in.resize(n_out*n_col);
-    var_in = var_tmp;
+    #pragma omp parallel for
+    for (int ilay = compress_lay_start_idx; ilay < n_out; ++ilay)
+    {
+        const int in_offset = ilay - compress_lay_start_idx;
+
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                const int in_idx1 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset) * n_x * n_y;
+                const int in_idx2 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset + 1) * n_x * n_y;
+                Float t_sum = var[in_idx1]*var_weighting[in_idx1] + var[in_idx2]*var_weighting[in_idx2];
+                Float w_sum = var_weighting[in_idx1] + var_weighting[in_idx2];
+                if (w_sum > 1e-6)
+                {
+                    var_tmp[out_idx] = t_sum/w_sum;
+                } else 
+                {
+                    var_tmp[out_idx] = 0.5*var[in_idx1] + 0.5*var[in_idx2];
+                }
+            }
+        }
+    }
+    var = var_tmp;
+}
+
+void compress_columns_p_or_t(const int n_x, const int n_y, 
+                      const int n_out_lay, 
+                      const int compress_lay_start_idx,
+                      std::vector<Float>& var_lev, std::vector<Float>& var_lay)
+{
+    std::vector<Float> var_tmp_lay(n_out_lay * n_x * n_y);
+    std::vector<Float> var_tmp_lev((n_out_lay + 1) * n_x * n_y);
+
+    #pragma omp parallel for
+    for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
+    {
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                var_tmp_lay[out_idx] = var_lev[out_idx];
+                var_tmp_lev[out_idx] = var_lev[out_idx];
+            }
+        }
+    }
+
+    int ilay = compress_lay_start_idx;
+    for (int iy = 0; iy < n_y; ++iy)
+    {
+        for (int ix = 0; ix < n_x; ++ix)
+        {
+            const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+            var_tmp_lev[out_idx] = var_lev[out_idx];
+        }
+    }
+
+    #pragma omp parallel for
+    for (int ilev = (compress_lay_start_idx + 1); ilev < (n_out_lay + 1); ++ilev)
+    {
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilev * n_x * n_y;
+                const int i_hold = (compress_lay_start_idx + 2) + 2 * (ilev - (compress_lay_start_idx + 1));
+                const int in_idx = ix + iy * n_x + i_hold * n_x * n_y;
+                var_tmp_lev[out_idx] = var_lev[in_idx];
+            }
+        }
+    }
+
+    #pragma omp parallel for
+    for (int ilay = compress_lay_start_idx; ilay < n_out_lay; ++ilay)
+    {
+        const int in_offset = ilay - compress_lay_start_idx;
+        
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                const int in_idx_lev_to_lay = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset - 1) * n_x * n_y;
+                
+                var_tmp_lay[out_idx] = var_lev[in_idx_lev_to_lay];
+            }
+        }
+    }
+    var_lev = var_tmp_lev;
+    var_lay = var_tmp_lay;
 }
 
 void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,

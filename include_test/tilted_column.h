@@ -44,16 +44,20 @@ void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_l
                  const Float zp, const ijk offset,
                  Float* p_out);
 
-void interpolate_col(const int n_in, const int n_out,
-                    const std::vector<Float>& z_in,
-                    const std::vector<Float>& z_out, 
-                    const std::vector<Float>& var_lay_in, 
-                    Float* var_out);
+void compress_columns(const int n_x, const int n_y, 
+                      const int n_out, 
+                      const int compress_lay_start_idx,
+                      std::vector<Float>& var);
 
-void interpolate_3D_field(const int n_x, const int n_y,
-                            const std::vector<Float>& z_in,
-                            const std::vector<Float>& z_out,
-                            std::vector<Float>& var_in);
+void compress_columns_weighted_avg(const int n_x, const int n_y,  
+                      const int n_out, 
+                      const int compress_lay_start_idx,
+                      std::vector<Float>& var, std::vector<Float>& var_weighting);
+
+void compress_columns_p_or_t(const int n_x, const int n_y, 
+                      const int n_out_lay, 
+                      const int compress_lay_start_idx,
+                      std::vector<Float>& var_lev, std::vector<Float>& var_lay);
 
 void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                              const std::vector<ijk>& tilted_path, std::vector<Float>& heat);

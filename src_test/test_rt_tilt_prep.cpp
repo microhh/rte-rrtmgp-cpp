@@ -22,7 +22,6 @@
 #include <iomanip>
 #include <cuda_profiler_api.h>
 
-
 #include "Status.h"
 #include "Netcdf_interface.h"
 #include "Array.h"
@@ -326,7 +325,7 @@ void tilt_input(int argc, char** argv)
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
         {"multi-start-point" , { false, "average tilted grids for different tilt path start points within bottom cell."  }},
-        {"interpolation"     , { true, "interpolate to constant dz grid."                    }},
+        {"compress"          , { true,  "compress upper lays to keep number of z and zh the same"                    }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
@@ -340,8 +339,8 @@ void tilt_input(int argc, char** argv)
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
-    const bool switch_multi = command_line_switches.at("multi-start-point").first;
-    const bool switch_interpolation = command_line_switches.at("interpolation").first;
+    const bool switch_multi       = command_line_switches.at("multi-start-point").first;
+    const bool switch_compress    = command_line_switches.at("compress").first;
     const bool tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
 
@@ -485,7 +484,6 @@ void tilt_input(int argc, char** argv)
         "cf4", "no2"
     };
 
-    // this is a choice, user can pass a value or keep n_z_in and n_zh_in ?
     int n_lay_out;
     int n_lev_out;
     std::vector<Float> z_out;
@@ -495,6 +493,12 @@ void tilt_input(int argc, char** argv)
     std::string file_name;
     int n_lev_tilt;
     int n_lay_tilt;
+
+    std::vector<Float> z_out_compress;
+    std::vector<Float> zh_out_compress;
+    int n_lev_compress;
+    int n_lay_compress;
+    int compress_lay_start_idx;
 
     int loop_index = 0;
     for (const auto& pair : x_y_start_arr) {
@@ -533,15 +537,32 @@ void tilt_input(int argc, char** argv)
         tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,x_start, y_start, path.v(),zh_tilt.v());
         std::cout << "finish tilted path" << std::endl;
 
+        n_lev_tilt = zh_tilt.v().size();
+        n_lay_tilt = n_lev_tilt - 1;
         if (loop_index == 1) {  
             n_lev_out = zh_tilt.v().size();
             n_lay_out = n_lev_out - 1;
             z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_out);
             zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_out);
+            if (switch_compress){
+
+                int idx_hold = 2*(n_lay_tilt - n_z_in);
+                if ((z_out.size() - idx_hold) % 2 != 0) {
+                    idx_hold--;
+                }
+
+                n_lay_compress = (n_lay_tilt - idx_hold) + (idx_hold)/2;
+                n_lev_compress = n_lay_compress + 1;
+                compress_lay_start_idx = (n_lay_tilt - idx_hold) ;
+
+                z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
+                zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
+
+                assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
+            }
         }
 
-        n_lev_tilt = zh_tilt.v().size();
-        n_lay_tilt = n_lev_tilt - 1;
+        
         
         path.set_dims({n_lay_tilt}); 
         zh_tilt.set_dims({n_lev_tilt}); 
@@ -647,22 +668,32 @@ void tilt_input(int argc, char** argv)
         auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
 
         Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
-        if (switch_interpolation) {
-            ////// INTERPOLATE TO CONSTANT DZ GRID //////
-            Status::print_message("Start z grid regularization.");
-    
-            // Intrinsic Variables //
-            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, t_lay_copy.v());
-            t_lay_copy.expand_dims({n_col, n_lay_out});
+        if (switch_compress){
+            Status::print_message("Compress.");
+            if (switch_liq_cloud_optics)
+            {
+                compress_columns_weighted_avg(n_col_x, n_col_y, 
+                                                n_z_in, compress_lay_start_idx, 
+                                                rel_copy.v(), lwp_copy.v());
+                rel_copy.expand_dims({n_col, n_z_in});
 
-            interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, p_lay_copy.v());    
-            p_lay_copy.expand_dims({n_col, n_lay_out});
-
-            interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, t_lev_copy.v());
-            t_lev_copy.expand_dims({n_col, n_lev_out});
-
-            interpolate_3D_field(n_col_x, n_col_y, zh_tilt.v(), zh_out, p_lev_copy.v());
-            p_lev_copy.expand_dims({n_col, n_lev_out});
+                compress_columns(n_col_x, n_col_y, 
+                                    n_z_in, 
+                                    compress_lay_start_idx, lwp_copy.v());
+                lwp_copy.expand_dims({n_col, n_z_in}); 
+            }
+            if (switch_ice_cloud_optics)
+            {
+                compress_columns_weighted_avg(n_col_x, n_col_y, 
+                                                n_z_in, compress_lay_start_idx, 
+                                                dei_copy.v(), iwp_copy.v());
+                dei_copy.expand_dims({n_col, n_z_in});
+                
+                compress_columns(n_col_x, n_col_y, 
+                                    n_z_in, 
+                                    compress_lay_start_idx, iwp_copy.v());
+                iwp_copy.expand_dims({n_col, n_z_in}); 
+            }
 
 
             for (const auto& gas_name : gas_names) {
@@ -673,19 +704,38 @@ void tilt_input(int argc, char** argv)
                 std::string var_name = "vmr_" + gas_name;
                 if (gas.size() > 1) {
                     Array<Float,2> gas_tmp(gas);
-                    interpolate_3D_field(n_col_x, n_col_y, z_tilt, z_out, gas_tmp.v());
-                    gas_tmp.expand_dims({n_col, n_lay_out});
+                    compress_columns_weighted_avg(n_col_x, n_col_y,
+                                                    n_z_in, 
+                                                    compress_lay_start_idx, 
+                                                    gas_tmp.v(), 
+                                                    p_lay_copy.v());
+                    gas_tmp.expand_dims({n_col, n_z_in});
                     gas_concs_copy.set_vmr(gas_name, gas_tmp);
                 }
-            }    
-            Status::print_message("Finish z grid regularization.");
+            } 
 
-            prepare_netcdf(input_nc, file_name, n_lay_out, n_lev_out, n_col_x, n_col_y,
-                        sza, zh_out, z_out,
-                        p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
-                        lwp_copy, iwp_copy, rel_copy, dei_copy, 
-                        gas_concs_copy, gas_names, 
-                        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
+            compress_columns_p_or_t(n_col_x, n_col_y, n_z_in, 
+                                    compress_lay_start_idx, 
+                                    p_lev_copy.v(), p_lay_copy.v());
+            p_lay_copy.expand_dims({n_col, n_z_in});
+            p_lev_copy.expand_dims({n_col, n_zh_in});
+            compress_columns_p_or_t(n_col_x, n_col_y, n_z_in, 
+                                    compress_lay_start_idx, 
+                                    t_lev_copy.v(), t_lay_copy.v());
+            t_lay_copy.expand_dims({n_col, n_z_in});
+            t_lev_copy.expand_dims({n_col, n_zh_in});
+
+            Status::print_message("Finish z grid compression.");
+
+            // add background profile back on
+
+            prepare_netcdf(input_nc, file_name, n_lay_compress, n_lev_compress, n_col_x, n_col_y,
+                    sza, zh_out_compress, z_out_compress,
+                    p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
+                    lwp_copy, iwp_copy, rel_copy, dei_copy, 
+                    gas_concs_copy, gas_names, 
+                    switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
+
         }
         else {
             prepare_netcdf(input_nc, file_name, n_lay_tilt, n_lev_tilt, n_col_x, n_col_y,
