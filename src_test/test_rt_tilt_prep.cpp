@@ -324,12 +324,13 @@ void tilt_input(int argc, char** argv)
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
-        {"multi-start-point" , { false, "average tilted grids for different tilt path start points within bottom cell."  }},
+        {"multi-start-points", { true,  "int to determine number of start points, total points used = i**2. Default value is 1."  }},
         {"compress"          , { true,  "compress upper lays to keep number of z and zh the same"                    }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
+        {"multi-start-points", {1, "i**2 start points."}},
         {"tilt-sza", {0, "sza in degrees."}},
         {"tilt-azi", {0 , "azi in degrees" }}};
 
@@ -339,7 +340,7 @@ void tilt_input(int argc, char** argv)
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
-    const bool switch_multi       = command_line_switches.at("multi-start-point").first;
+    const bool switch_multi       = command_line_switches.at("multi-start-points").first;
     const bool switch_compress    = command_line_switches.at("compress").first;
     const bool tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
@@ -361,9 +362,14 @@ void tilt_input(int argc, char** argv)
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
+    int n_points_sqrt = 1;
+    if (switch_multi) 
+    {
+        n_points_sqrt = Int(command_line_ints.at("multi-start-points").first);
+    }
+
     Float sza = 0;
     Float azi = 0;
-
     if (tilt_sza) 
     {
         int sza_deg = Int(command_line_ints.at("tilt-sza").first);
@@ -468,12 +474,14 @@ void tilt_input(int argc, char** argv)
         }
     }
 
-    std::array<std::pair<Float, Float>, 5> x_y_start_arr;
-    x_y_start_arr[0] = std::make_pair(.5, .5);
-    x_y_start_arr[1] = std::make_pair(0.01, 0.01);
-    x_y_start_arr[2] = std::make_pair(0.01, 0.99);
-    x_y_start_arr[3] = std::make_pair(0.99, 0.99);
-    x_y_start_arr[4] = std::make_pair(0.99, 0.01);
+    std::vector<std::pair<Float, Float>> x_y_start_arr(n_points_sqrt*n_points_sqrt);
+    Float d = 1.0f / n_points_sqrt;
+    int idx = 0;
+    for (int i = 0; i < n_points_sqrt; i++){
+        for (int j = 0; j < n_points_sqrt; j++){
+            x_y_start_arr[idx++] = std::make_pair(i*d+d/2, j*d+d/2);
+        }
+    }
 
     Float x_start;
     Float y_start;
@@ -517,10 +525,7 @@ void tilt_input(int argc, char** argv)
         Gas_concs gas_concs_copy = gas_concs;
 
         if (sza == 0 && loop_index > 0) {
-            break;
-        }
-        if (!switch_multi && loop_index > 0)
-        {
+            Status::print_message("Multiple Start Points Unnecessary with Sun Overhead.");
             break;
         }
         loop_index++;
