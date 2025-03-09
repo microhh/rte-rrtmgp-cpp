@@ -809,13 +809,14 @@ void tilt_input(int argc, char** argv)
 
                 std::string var_name = "vmr_" + gas_name;
                 if (gas.size() > 1) {
-
-                    Array<Float,2> gas_tmp(gas);
                     std::vector<Float> gas_copy = gas.v();
                     std::vector<Float> gas_full_copy = gas_full.v();
-                    restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, gas_copy, gas_full_copy);
+                    restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, gas_copy, gas_full_copy);
                     
+                    Array<Float,2> gas_tmp({n_col, n_lay});
+                    gas_tmp = std::move(gas_copy);
                     gas_tmp.expand_dims({n_col, n_lay});
+                    
                     gas_concs_copy.set_vmr(gas_name, gas_tmp);
                     
                 }
