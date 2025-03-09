@@ -728,8 +728,54 @@ void tilt_input(int argc, char** argv)
             Status::print_message("Finish z grid compression.");
 
             // add background profile back on
+            if (switch_liq_cloud_optics)
+            {
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, lwp_copy.v(), lwp.v());
+                lwp_copy.expand_dims({n_col, n_lay});
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, rel_copy.v(), rel.v());
+                rel_copy.expand_dims({n_col, n_lay});
+            }
+            if (switch_ice_cloud_optics)
+            {
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, iwp_copy.v(), iwp.v());
+                iwp_copy.expand_dims({n_col, n_lay});
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, dei_copy.v(), dei.v());
+                dei_copy.expand_dims({n_col, n_lay});
+            }
 
-            prepare_netcdf(input_nc, file_name, n_lay_compress, n_lev_compress, n_col_x, n_col_y,
+            for (const auto& gas_name : gas_names) {
+                if (!gas_concs_copy.exists(gas_name)) {
+                    continue;
+                }
+                const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
+                const Array<Float,2>& gas_full = gas_concs.get_vmr(gas_name);
+
+                std::string var_name = "vmr_" + gas_name;
+                if (gas.size() > 1) {
+                    std::vector<Float> gas_copy = gas.v();
+                    std::vector<Float> gas_full_copy = gas_full.v();
+                    restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, gas_copy, gas_full_copy);
+                    
+                    Array<Float,2> gas_tmp({n_col, n_lay});
+                    gas_tmp = std::move(gas_copy);
+                    gas_tmp.expand_dims({n_col, n_lay});
+                    
+                    gas_concs_copy.set_vmr(gas_name, gas_tmp);
+                    
+                }
+            }
+
+            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, p_lay_copy.v(), p_lay.v());
+            p_lay_copy.expand_dims({n_col, n_lay});
+            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, t_lay_copy.v(), t_lay.v());
+            t_lay_copy.expand_dims({n_col, n_lay});
+
+            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_in, p_lev_copy.v(), p_lev.v());
+            p_lev_copy.expand_dims({n_col, n_lev});
+            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_in, t_lev_copy.v(), t_lev.v());
+            t_lev_copy.expand_dims({n_col, n_lev});
+
+            prepare_netcdf(input_nc, file_name, n_lay, n_lev, n_col_x, n_col_y,
                     sza, zh_out_compress, z_out_compress,
                     p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
                     lwp_copy, iwp_copy, rel_copy, dei_copy, 
@@ -738,7 +784,54 @@ void tilt_input(int argc, char** argv)
 
         }
         else {
-            prepare_netcdf(input_nc, file_name, n_lay_tilt, n_lev_tilt, n_col_x, n_col_y,
+            // add background profile back on
+            if (switch_liq_cloud_optics)
+            {
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, lwp_copy.v(), lwp.v());
+                lwp_copy.expand_dims({n_col, n_lay});
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, rel_copy.v(), rel.v());
+                rel_copy.expand_dims({n_col, n_lay});
+            }
+            if (switch_ice_cloud_optics)
+            {
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, iwp_copy.v(), iwp.v());
+                iwp_copy.expand_dims({n_col, n_lay});
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, dei_copy.v(), dei.v());
+                dei_copy.expand_dims({n_col, n_lay});
+            }
+
+            for (const auto& gas_name : gas_names) {
+                if (!gas_concs_copy.exists(gas_name)) {
+                    continue;
+                }
+                const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
+                const Array<Float,2>& gas_full = gas_concs.get_vmr(gas_name);
+
+                std::string var_name = "vmr_" + gas_name;
+                if (gas.size() > 1) {
+
+                    Array<Float,2> gas_tmp(gas);
+                    std::vector<Float> gas_copy = gas.v();
+                    std::vector<Float> gas_full_copy = gas_full.v();
+                    restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, gas_copy, gas_full_copy);
+                    
+                    gas_tmp.expand_dims({n_col, n_lay});
+                    gas_concs_copy.set_vmr(gas_name, gas_tmp);
+                    
+                }
+            }
+
+            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, p_lay_copy.v(), p_lay.v());
+            p_lay_copy.expand_dims({n_col, n_lay});
+            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_lay_tilt, t_lay_copy.v(), t_lay.v());
+            t_lay_copy.expand_dims({n_col, n_lay});
+
+            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_lev_tilt, p_lev_copy.v(), p_lev.v());
+            p_lev_copy.expand_dims({n_col, n_lev});
+            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_lev_tilt, t_lev_copy.v(), t_lev.v());
+            t_lev_copy.expand_dims({n_col, n_lev});
+
+            prepare_netcdf(input_nc, file_name, n_lay, n_lev, n_col_x, n_col_y,
                         sza, zh_tilt.v(), z_tilt,
                         p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
                         lwp_copy, iwp_copy, rel_copy, dei_copy, 

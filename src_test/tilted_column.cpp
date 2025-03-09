@@ -284,6 +284,41 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
     var_lay = var_tmp_lay;
 }
 
+void restore_bkg_profile(const int n_x, const int n_y, 
+                      const int n_full,
+                      const int n_tilt, 
+                      std::vector<Float>& var,
+                      std::vector<Float>& var_w_bkg)
+{
+    std::vector<Float> var_tmp(n_full * n_x * n_y);    
+    #pragma omp parallel for
+    for (int ilay = 0; ilay < n_tilt; ++ilay)
+    {
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                var_tmp[out_idx] = var[out_idx];
+            }
+        }
+    }
+    
+    #pragma omp parallel for
+    for (int ilay = n_tilt; ilay < n_full; ++ilay)
+    {
+        for (int iy = 0; iy < n_y; ++iy)
+        {
+            for (int ix = 0; ix < n_x; ++ix)
+            {
+                const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
+                var_tmp[out_idx] = var_w_bkg[out_idx];
+            }
+        }
+    }
+    var = var_tmp;
+}
+
 void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                  const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
                  const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
