@@ -286,14 +286,18 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
 
 void restore_bkg_profile(const int n_x, const int n_y, 
                       const int n_full,
-                      const int n_tilt, 
+                      const int n_tilt,
+                      const int bkg_start, 
                       std::vector<Float>& var,
                       std::vector<Float>& var_w_bkg)
 {
-    std::vector<Float> var_tmp(n_full * n_x * n_y);    
+
+    const int n_out = n_tilt + (n_full - bkg_start);
+
+    std::vector<Float> var_tmp(n_out * n_x * n_y);    
     #pragma omp parallel for
     for (int ilay = 0; ilay < n_tilt; ++ilay)
-    {
+    {        
         for (int iy = 0; iy < n_y; ++iy)
         {
             for (int ix = 0; ix < n_x; ++ix)
@@ -307,12 +311,14 @@ void restore_bkg_profile(const int n_x, const int n_y,
     #pragma omp parallel for
     for (int ilay = n_tilt; ilay < n_full; ++ilay)
     {
+        int ilay_in = ilay - (n_tilt - bkg_start);
         for (int iy = 0; iy < n_y; ++iy)
         {
             for (int ix = 0; ix < n_x; ++ix)
             {
                 const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
-                var_tmp[out_idx] = var_w_bkg[out_idx];
+                const int in_idx = ix + iy * n_x + ilay_in * n_x * n_y;
+                var_tmp[out_idx] = var_w_bkg[in_idx];
             }
         }
     }

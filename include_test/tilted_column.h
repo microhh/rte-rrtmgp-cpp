@@ -62,6 +62,7 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
 void restore_bkg_profile(const int n_x, const int n_y, 
                       const int n_full,
                       const int n_tilt, 
+                      const int bkg_start, 
                       std::vector<Float>& var,
                       std::vector<Float>& var_w_bkg);
 
