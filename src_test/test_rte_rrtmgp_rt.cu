@@ -239,7 +239,7 @@ void solve_radiation(int argc, char** argv)
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
-        {"attenuate-path"     , { false, "for doing an overhead 1D calculation of tilted input"   }}};
+        {"tica"              , { false, "attenuate path when doing an overhead 1D calculation of tilted input"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
@@ -263,7 +263,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
-    const bool switch_attenuate_path     = command_line_switches.at("attenuate-path"     ).first;
+    const bool switch_attenuate_tica     = command_line_switches.at("tica"     ).first;
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
@@ -807,7 +807,7 @@ void solve_radiation(int argc, char** argv)
                     switch_single_gpt,
                     switch_delta_cloud,
                     switch_delta_aerosol,
-                    switch_attenuate_path,
+                    switch_attenuate_tica,
                     single_gpt,
                     photons_per_pixel,
                     grid_cells,

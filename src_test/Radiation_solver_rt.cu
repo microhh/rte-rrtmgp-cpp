@@ -576,7 +576,7 @@ void Radiation_solver_shortwave::solve_gpu(
         const bool switch_single_gpt,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
-        const bool switch_attenuate_path,
+        const bool switch_attenuate_tica,
         const int single_gpt,
         const Int ray_count,
         const Vector<int> grid_cells,
@@ -815,7 +815,7 @@ void Radiation_solver_shortwave::solve_gpu(
                 raytracer.trace_rays(
                         igpt,
                         switch_independent_column,
-                        switch_attenuate_path,
+                        switch_attenuate_tica,
                         attenuate_scale_factor,
                         ray_count,
                         grid_cells,
