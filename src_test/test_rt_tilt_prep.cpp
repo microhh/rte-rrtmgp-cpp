@@ -500,6 +500,7 @@ void tilt_input(int argc, char** argv)
     int n_lev_HOLD;
     const int bkg_start_idx = n_z_in;
     int start_idx;
+    int bkg_reduction_len;
     if (switch_compress_bkg)
     {
         if ((n_lay_init - n_z_in) % 2 != 0) {
@@ -509,10 +510,10 @@ void tilt_input(int argc, char** argv)
         {
             start_idx = n_z_in;
         }
+        bkg_reduction_len = (n_lay_init - start_idx)/2;
         int n_lay_new = start_idx + (n_lay_init - start_idx)/2;
         int n_lev_new = n_lay_new + 1.0;
 
-        std::cout << "lay background size: " << (n_lay_init - start_idx)/2 << std::endl;
         Status::print_message("Compress Background Profile.");
         if (switch_liq_cloud_optics)
         {
@@ -657,7 +658,12 @@ void tilt_input(int argc, char** argv)
 
                 n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
                 n_lev_compress = n_lay_compress + 1;
-                compress_lay_start_idx = (n_z_tilt - idx_hold) ;
+                compress_lay_start_idx = (n_z_tilt - idx_hold);
+                std::cout << "n_z_tilt: " << n_z_tilt << " idx_hold: " << idx_hold << " compress_lay_start_idx: "<< compress_lay_start_idx << std::endl;
+                if (switch_compress_bkg) {
+                    compress_lay_start_idx = compress_lay_start_idx + bkg_reduction_len;
+                }
+                std::cout << "compress_lay_start_idx: "<< compress_lay_start_idx << std::endl;
                 if (compress_lay_start_idx < 0) {
                     throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
                 }
@@ -880,7 +886,6 @@ void tilt_input(int argc, char** argv)
 
             if (switch_liq_cloud_optics)
             {
-                std::cout << "n_lay: " << n_lay << " n_z_tilt: " << n_z_tilt << " start_idx: " << bkg_start_idx << std::endl;
                 restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, lwp_copy.v(), lwp.v());
                 lwp_copy.expand_dims({n_col, n_lay_tot});
                 
