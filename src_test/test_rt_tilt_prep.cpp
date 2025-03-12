@@ -315,6 +315,95 @@ bool prepare_netcdf(Netcdf_handle& input_nc, std::string file_name, int n_lay, i
     return true;
 }
 
+void compress_background_profile(
+    const int n_col_x, 
+    const int n_col_y,
+    const int n_lay_init, 
+    const int n_z_in,
+    const bool switch_liq_cloud_optics,
+    const bool switch_ice_cloud_optics,
+    const std::vector<std::string>& gas_names,
+    Gas_concs& gas_concs,
+    Array<Float,2>& rel,
+    Array<Float,2>& lwp,
+    Array<Float,2>& dei,
+    Array<Float,2>& iwp,
+    Array<Float,2>& p_lay,
+    Array<Float,2>& p_lev,
+    Array<Float,2>& t_lay,
+    Array<Float,2>& t_lev,
+    int& n_lay_out,
+    int& n_lev_out)
+{
+    const int n_col = n_col_x * n_col_y;
+    int start_idx;
+    if ((n_lay_init - n_z_in) % 2 != 0) {
+        start_idx = n_z_in + 1;
+    }
+    else {
+        start_idx = n_z_in;
+    }
+    
+    int n_lay_new = start_idx + (n_lay_init - start_idx) / 2;
+    int n_lev_new = n_lay_new + 1;
+
+    if (switch_liq_cloud_optics)
+    {
+        compress_columns_weighted_avg(n_col_x, n_col_y, 
+                                    n_lay_new, start_idx, 
+                                    rel.v(), lwp.v());
+        rel.expand_dims({n_col, n_lay_new});
+
+        compress_columns(n_col_x, n_col_y, 
+                        n_lay_new, 
+                        start_idx, lwp.v());
+        lwp.expand_dims({n_col, n_lay_new}); 
+    }
+    if (switch_ice_cloud_optics)
+    {
+        compress_columns_weighted_avg(n_col_x, n_col_y, 
+                                    n_lay_new, start_idx, 
+                                    dei.v(), iwp.v());
+        dei.expand_dims({n_col, n_lay_new});
+        
+        compress_columns(n_col_x, n_col_y, 
+                        n_lay_new, 
+                        start_idx, iwp.v());
+        iwp.expand_dims({n_col, n_lay_new}); 
+    }
+    for (const auto& gas_name : gas_names) {
+        if (!gas_concs.exists(gas_name)) {
+            continue;
+        }
+        const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
+        std::string var_name = "vmr_" + gas_name;
+        if (gas.size() > 1) {
+            Array<Float,2> gas_tmp(gas);
+            compress_columns_weighted_avg(n_col_x, n_col_y,
+                                        n_lay_new, 
+                                        start_idx, 
+                                        gas_tmp.v(), 
+                                        p_lay.v());
+            gas_tmp.expand_dims({n_col, n_lay_new});
+            gas_concs.set_vmr(gas_name, gas_tmp);
+        }
+    }
+
+    compress_columns_p_or_t(n_col_x, n_col_y, n_lay_new, 
+                            start_idx, 
+                            p_lev.v(), p_lay.v());
+    p_lay.expand_dims({n_col, n_lay_new});
+    p_lev.expand_dims({n_col, n_lev_new});
+    compress_columns_p_or_t(n_col_x, n_col_y, n_lay_new, 
+                            start_idx, 
+                            t_lev.v(), t_lay.v());
+    t_lay.expand_dims({n_col, n_lay_new});
+    t_lev.expand_dims({n_col, n_lev_new});
+
+    n_lay_out = n_lay_new;
+    n_lev_out = n_lev_new;
+}
+
 void tilt_input(int argc, char** argv)
 {
     std::vector<std::string> gas_names = {
@@ -339,6 +428,7 @@ void tilt_input(int argc, char** argv)
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"multi-start-points", {1, "i**2 start points."}},
+        {"compress-bkg", {1, "compress background by (i*2)x."}},
         {"tilt-sza", {0, "sza in degrees."}},
         {"tilt-azi", {0 , "azi in degrees" }}};
 
@@ -371,10 +461,16 @@ void tilt_input(int argc, char** argv)
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
-    int n_points_sqrt = 1;
+    int n_points_sqrt;
     if (switch_multi) 
     {
         n_points_sqrt = Int(command_line_ints.at("multi-start-points").first);
+    }
+
+    int n_bkg_compressions;
+    if (switch_compress_bkg) 
+    {
+        n_bkg_compressions = Int(command_line_ints.at("compress-bkg").first);
     }
 
     Float sza = 0;
@@ -499,80 +595,30 @@ void tilt_input(int argc, char** argv)
     int n_lay_HOLD;
     int n_lev_HOLD;
     const int bkg_start_idx = n_z_in;
-    int start_idx;
     int bkg_reduction_len;
+
     if (switch_compress_bkg)
     {
-        if ((n_lay_init - n_z_in) % 2 != 0) {
-            start_idx = n_z_in + 1;
-        }
-        else
-        {
-            start_idx = n_z_in;
-        }
-        bkg_reduction_len = (n_lay_init - start_idx)/2;
-        int n_lay_new = start_idx + (n_lay_init - start_idx)/2;
-        int n_lev_new = n_lay_new + 1.0;
-
         Status::print_message("Compress Background Profile.");
-        if (switch_liq_cloud_optics)
-        {
-            compress_columns_weighted_avg(n_col_x, n_col_y, 
-                                            n_lay_new, start_idx, 
-                                            rel.v(), lwp.v());
-            rel.expand_dims({n_col, n_lay_new});
-
-            compress_columns(n_col_x, n_col_y, 
-                                n_lay_new, 
-                                start_idx, lwp.v());
-            lwp.expand_dims({n_col, n_lay_new}); 
-        }
-        if (switch_ice_cloud_optics)
-        {
-            compress_columns_weighted_avg(n_col_x, n_col_y, 
-                                            n_lay_new, start_idx, 
-                                            dei.v(), iwp.v());
-            dei.expand_dims({n_col, n_lay_new});
-            
-            compress_columns(n_col_x, n_col_y, 
-                                n_lay_new, 
-                                start_idx, iwp.v());
-            iwp.expand_dims({n_col, n_lay_new}); 
-        }
-
-
-        for (const auto& gas_name : gas_names) {
-            if (!gas_concs.exists(gas_name)) {
-                continue;
+        for (int j = 0; j < n_bkg_compressions; j++){
+            if (j == 0){
+                compress_background_profile(
+                    n_col_x, n_col_y, n_lay_init, n_z_in,
+                    switch_liq_cloud_optics, switch_ice_cloud_optics,
+                    gas_names, gas_concs, rel, lwp, dei, iwp,
+                    p_lay, p_lev, t_lay, t_lev,
+                    n_lay_HOLD, n_lev_HOLD);
+            } else{
+                compress_background_profile(
+                    n_col_x, n_col_y, n_lay_HOLD, n_z_in,
+                    switch_liq_cloud_optics, switch_ice_cloud_optics,
+                    gas_names, gas_concs, rel, lwp, dei, iwp,
+                    p_lay, p_lev, t_lay, t_lev,
+                    n_lay_HOLD, n_lev_HOLD);
             }
-            const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
-            std::string var_name = "vmr_" + gas_name;
-            if (gas.size() > 1) {
-                Array<Float,2> gas_tmp(gas);
-                compress_columns_weighted_avg(n_col_x, n_col_y,
-                                                n_lay_new, 
-                                                start_idx, 
-                                                gas_tmp.v(), 
-                                                p_lay.v());
-                gas_tmp.expand_dims({n_col, n_lay_new});
-                gas_concs.set_vmr(gas_name, gas_tmp);
-            }
-        } 
 
-        compress_columns_p_or_t(n_col_x, n_col_y, n_lay_new, 
-                                start_idx, 
-                                p_lev.v(), p_lay.v());
-        p_lay.expand_dims({n_col, n_lay_new});
-        p_lev.expand_dims({n_col, n_lev_new});
-        compress_columns_p_or_t(n_col_x, n_col_y, n_lay_new, 
-                                start_idx, 
-                                t_lev.v(), t_lay.v());
-        t_lay.expand_dims({n_col, n_lay_new});
-        t_lev.expand_dims({n_col, n_lev_new});
-
-        n_lay_HOLD = n_lay_new;
-        n_lev_HOLD = n_lev_new;
-
+        }
+        bkg_reduction_len = n_lay_init - n_lay_HOLD;
         Status::print_message("Finish background compression.");
 
     } else{
@@ -641,7 +687,7 @@ void tilt_input(int argc, char** argv)
         auto time_start = std::chrono::high_resolution_clock::now();
         
         tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,x_start, y_start, path.v(),zh_tilt.v());
-        std::cout << "finish tilted path" << std::endl;
+        Status::print_message("Finish tilted path creation.");
 
         n_zh_tilt = zh_tilt.v().size();
         n_z_tilt = n_zh_tilt - 1;
@@ -659,11 +705,9 @@ void tilt_input(int argc, char** argv)
                 n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
                 n_lev_compress = n_lay_compress + 1;
                 compress_lay_start_idx = (n_z_tilt - idx_hold);
-                std::cout << "n_z_tilt: " << n_z_tilt << " idx_hold: " << idx_hold << " compress_lay_start_idx: "<< compress_lay_start_idx << std::endl;
                 if (switch_compress_bkg) {
                     compress_lay_start_idx = compress_lay_start_idx + bkg_reduction_len;
                 }
-                std::cout << "compress_lay_start_idx: "<< compress_lay_start_idx << std::endl;
                 if (compress_lay_start_idx < 0) {
                     throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
                 }
@@ -674,7 +718,6 @@ void tilt_input(int argc, char** argv)
             }
         }
 
-        
         
         path.set_dims({n_z_tilt}); 
         zh_tilt.set_dims({n_zh_tilt}); 
@@ -760,6 +803,8 @@ void tilt_input(int argc, char** argv)
         auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
 
         Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
+        Status::print_message("###### Finish Tilting ######");
+
         if (switch_compress){
             Status::print_message("Compress.");
             if (switch_liq_cloud_optics)
@@ -867,7 +912,7 @@ void tilt_input(int argc, char** argv)
             restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_in, n_zh_in, t_lev_copy.v(), t_lev.v());
             t_lev_copy.expand_dims({n_col, n_lev});
 
-            Status::print_message("prepare_netcdf.");
+            Status::print_message("Prepare Netcdf.");
             prepare_netcdf(input_nc, file_name, n_lay, n_lev, n_col_x, n_col_y, n_zh_in, n_z_in,
                     sza, zh_out_compress, z_out_compress,
                     p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
@@ -935,7 +980,7 @@ void tilt_input(int argc, char** argv)
             restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_tilt, (bkg_start_idx + 1), t_lev_copy.v(), t_lev.v());
             t_lev_copy.expand_dims({n_col, n_lev_tot});
 
-            Status::print_message("prepare_netcdf.");
+            Status::print_message("Prepare Netcdf.");
             prepare_netcdf(input_nc, file_name, n_lay_tot, n_lev_tot, n_col_x, n_col_y, n_zh_tilt, n_z_tilt, 
                         sza, zh_out, z_out,
                         p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
