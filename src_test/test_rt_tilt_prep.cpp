@@ -706,7 +706,7 @@ void tilt_input(int argc, char** argv)
                 n_lev_compress = n_lay_compress + 1;
                 compress_lay_start_idx = (n_z_tilt - idx_hold);
                 if (switch_compress_bkg) {
-                    compress_lay_start_idx = std::min((compress_lay_start_idx + bkg_reduction_len), n_z_tilt);
+                    compress_lay_start_idx = std::min((compress_lay_start_idx + bkg_reduction_len), n_lay_compress);
                 }
                 if (compress_lay_start_idx < 0) {
                     throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
@@ -809,7 +809,6 @@ void tilt_input(int argc, char** argv)
             Status::print_message("Compress.");
             if (switch_liq_cloud_optics)
             {
-                std::cout << n_z_in << " " << compress_lay_start_idx << std::endl;
                 compress_columns_weighted_avg(n_col_x, n_col_y, 
                                                 n_z_in, compress_lay_start_idx, 
                                                 rel_copy.v(), lwp_copy.v());
