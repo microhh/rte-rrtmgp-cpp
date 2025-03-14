@@ -233,7 +233,7 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
             for (int ix = 0; ix < n_x; ++ix)
             {
                 const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
-                var_tmp_lay[out_idx] = var_lev[out_idx];
+                var_tmp_lay[out_idx] = var_lay[out_idx];
                 var_tmp_lev[out_idx] = var_lev[out_idx];
             }
         }
@@ -307,9 +307,9 @@ void restore_bkg_profile(const int n_x, const int n_y,
             }
         }
     }
-    
+
     #pragma omp parallel for
-    for (int ilay = n_tilt; ilay < n_full; ++ilay)
+    for (int ilay = n_tilt; ilay < n_out; ++ilay)
     {
         int ilay_in = ilay - (n_tilt - bkg_start);
         for (int iy = 0; iy < n_y; ++iy)

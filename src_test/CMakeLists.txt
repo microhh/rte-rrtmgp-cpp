@@ -29,13 +29,13 @@ if(USECUDA)
   target_link_libraries(test_rte_rrtmgp_gpu rte_rrtmgp rte_rrtmgp_cuda ${LIBS} m)
   
   add_executable(test_rte_rrtmgp_rt_gpu Radiation_solver_rt.cu test_rte_rrtmgp_rt.cu)
-  target_link_libraries(test_rte_rrtmgp_rt_gpu rte_rrtmgp rte_rrtmgp_cuda rte_rrtmgp_cuda_rt curand ${LIBS} m)
+  target_link_libraries(test_rte_rrtmgp_rt_gpu rte_rrtmgp rte_rrtmgp_cuda rte_rrtmgp_cuda_rt  ${LIBS} m) # curand
   
   add_executable(test_rte_rrtmgp_bw_gpu Radiation_solver_bw.cu test_rte_rrtmgp_bw.cu)
-  target_link_libraries(test_rte_rrtmgp_bw_gpu rte_rrtmgp rte_rrtmgp_cuda rte_rrtmgp_cuda_rt curand ${LIBS} m)
+  target_link_libraries(test_rte_rrtmgp_bw_gpu rte_rrtmgp rte_rrtmgp_cuda rte_rrtmgp_cuda_rt  ${LIBS} m) # curand
 
   add_executable(test_rt_lite_gpu test_rt_lite.cu)
-  target_link_libraries(test_rt_lite_gpu rte_rrtmgp_cuda rte_rrtmgp_cuda_rt curand ${LIBS} m)
+  target_link_libraries(test_rt_lite_gpu rte_rrtmgp_cuda rte_rrtmgp_cuda_rt  ${LIBS} m) # curand
 endif()
 
 add_executable(test_rte_rrtmgp Radiation_solver.cpp test_rte_rrtmgp.cpp)

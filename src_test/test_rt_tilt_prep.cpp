@@ -315,95 +315,6 @@ bool prepare_netcdf(Netcdf_handle& input_nc, std::string file_name, int n_lay, i
     return true;
 }
 
-void compress_background_profile(
-    const int n_col_x, 
-    const int n_col_y,
-    const int n_lay_init, 
-    const int n_z_in,
-    const bool switch_liq_cloud_optics,
-    const bool switch_ice_cloud_optics,
-    const std::vector<std::string>& gas_names,
-    Gas_concs& gas_concs,
-    Array<Float,2>& rel,
-    Array<Float,2>& lwp,
-    Array<Float,2>& dei,
-    Array<Float,2>& iwp,
-    Array<Float,2>& p_lay,
-    Array<Float,2>& p_lev,
-    Array<Float,2>& t_lay,
-    Array<Float,2>& t_lev,
-    int& n_lay_out,
-    int& n_lev_out)
-{
-    const int n_col = n_col_x * n_col_y;
-    int start_idx;
-    if ((n_lay_init - n_z_in) % 2 != 0) {
-        start_idx = n_z_in + 1;
-    }
-    else {
-        start_idx = n_z_in;
-    }
-    
-    int n_lay_new = start_idx + (n_lay_init - start_idx) / 2;
-    int n_lev_new = n_lay_new + 1;
-
-    if (switch_liq_cloud_optics)
-    {
-        compress_columns_weighted_avg(n_col_x, n_col_y, 
-                                    n_lay_new, start_idx, 
-                                    rel.v(), lwp.v());
-        rel.expand_dims({n_col, n_lay_new});
-
-        compress_columns(n_col_x, n_col_y, 
-                        n_lay_new, 
-                        start_idx, lwp.v());
-        lwp.expand_dims({n_col, n_lay_new}); 
-    }
-    if (switch_ice_cloud_optics)
-    {
-        compress_columns_weighted_avg(n_col_x, n_col_y, 
-                                    n_lay_new, start_idx, 
-                                    dei.v(), iwp.v());
-        dei.expand_dims({n_col, n_lay_new});
-        
-        compress_columns(n_col_x, n_col_y, 
-                        n_lay_new, 
-                        start_idx, iwp.v());
-        iwp.expand_dims({n_col, n_lay_new}); 
-    }
-    for (const auto& gas_name : gas_names) {
-        if (!gas_concs.exists(gas_name)) {
-            continue;
-        }
-        const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
-        std::string var_name = "vmr_" + gas_name;
-        if (gas.size() > 1) {
-            Array<Float,2> gas_tmp(gas);
-            compress_columns_weighted_avg(n_col_x, n_col_y,
-                                        n_lay_new, 
-                                        start_idx, 
-                                        gas_tmp.v(), 
-                                        p_lay.v());
-            gas_tmp.expand_dims({n_col, n_lay_new});
-            gas_concs.set_vmr(gas_name, gas_tmp);
-        }
-    }
-
-    compress_columns_p_or_t(n_col_x, n_col_y, n_lay_new, 
-                            start_idx, 
-                            p_lev.v(), p_lay.v());
-    p_lay.expand_dims({n_col, n_lay_new});
-    p_lev.expand_dims({n_col, n_lev_new});
-    compress_columns_p_or_t(n_col_x, n_col_y, n_lay_new, 
-                            start_idx, 
-                            t_lev.v(), t_lay.v());
-    t_lay.expand_dims({n_col, n_lay_new});
-    t_lev.expand_dims({n_col, n_lev_new});
-
-    n_lay_out = n_lay_new;
-    n_lev_out = n_lev_new;
-}
-
 void tilt_input(int argc, char** argv)
 {
     std::vector<std::string> gas_names = {
@@ -422,7 +333,6 @@ void tilt_input(int argc, char** argv)
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
         {"multi-start-points", { true,  "int to determine number of start points, total points used = i**2. Default value is 1."  }},
         {"compress"          , { true,  "compress upper lays to keep number of z and zh the same" }},
-        {"compress-bkg"      , { true,  "compress background profile" }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
@@ -440,7 +350,6 @@ void tilt_input(int argc, char** argv)
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_multi       = command_line_switches.at("multi-start-points").first;
     const bool switch_compress    = command_line_switches.at("compress").first;
-    const bool switch_compress_bkg = command_line_switches.at("compress-bkg").first;
     const bool switch_tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool switch_tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
 
@@ -467,12 +376,6 @@ void tilt_input(int argc, char** argv)
         n_points_sqrt = Int(command_line_ints.at("multi-start-points").first);
     }
 
-    int n_bkg_compressions;
-    if (switch_compress_bkg) 
-    {
-        n_bkg_compressions = Int(command_line_ints.at("compress-bkg").first);
-    }
-
     Float sza = 0;
     Float azi = 0;
     if (switch_tilt_sza) 
@@ -494,8 +397,8 @@ void tilt_input(int argc, char** argv)
     const int n_col_y = input_nc.get_dimension_size("y");
     const int n_col = n_col_x * n_col_y;
 
-    const int n_lay_init = input_nc.get_dimension_size("lay");
-    const int n_lev_init = input_nc.get_dimension_size("lev");
+    const int n_lay = input_nc.get_dimension_size("lay");
+    const int n_lev = input_nc.get_dimension_size("lev");
     const int n_z_in = input_nc.get_dimension_size("z");
     const int n_zh_in = input_nc.get_dimension_size("zh");
 
@@ -516,42 +419,42 @@ void tilt_input(int argc, char** argv)
     z = std::move(input_nc.get_variable<Float>("z", {n_z_in})); 
 
     // Read the atmospheric fields.
-    Array<Float,2> p_lay(input_nc.get_variable<Float>("p_lay", {n_lay_init, n_col_y, n_col_x}), {n_col, n_lay_init});
-    Array<Float,2> t_lay(input_nc.get_variable<Float>("t_lay", {n_lay_init, n_col_y, n_col_x}), {n_col, n_lay_init});
-    Array<Float,2> p_lev(input_nc.get_variable<Float>("p_lev", {n_lev_init, n_col_y, n_col_x}), {n_col, n_lev_init});
-    Array<Float,2> t_lev(input_nc.get_variable<Float>("t_lev", {n_lev_init, n_col_y, n_col_x}), {n_col, n_lev_init});
+    Array<Float,2> p_lay(input_nc.get_variable<Float>("p_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
+    Array<Float,2> t_lay(input_nc.get_variable<Float>("t_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
+    Array<Float,2> p_lev(input_nc.get_variable<Float>("p_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
+    Array<Float,2> t_lev(input_nc.get_variable<Float>("t_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
 
     // Fetch the col_dry in case present.
     Array<Float,2> col_dry;
     if (input_nc.variable_exists("col_dry"))
     {
-        col_dry.set_dims({n_col, n_lay_init});
-        col_dry = std::move(input_nc.get_variable<Float>("col_dry", {n_lay_init, n_col_y, n_col_x}));
+        col_dry.set_dims({n_col, n_lay});
+        col_dry = std::move(input_nc.get_variable<Float>("col_dry", {n_lay, n_col_y, n_col_x}));
     }
 
     // Create container for the gas concentrations and read gases.
     Gas_concs gas_concs;
 
-    read_and_set_vmr("h2o", n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("co2", n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("o3" , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("n2o", n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("co" , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("ch4", n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("o2" , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("n2" , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
+    read_and_set_vmr("h2o", n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("co2", n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("o3" , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("n2o", n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("co" , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("ch4", n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("o2" , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("n2" , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
 
-    read_and_set_vmr("ccl4"   , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("cfc11"  , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("cfc12"  , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("cfc22"  , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("hfc143a", n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("hfc125" , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("hfc23"  , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("hfc32"  , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("hfc134a", n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("cf4"    , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
-    read_and_set_vmr("no2"    , n_col_x, n_col_y, n_lay_init, input_nc, gas_concs);
+    read_and_set_vmr("ccl4"   , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("cfc11"  , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("cfc12"  , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("cfc22"  , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("hfc143a", n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("hfc125" , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("hfc23"  , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("hfc32"  , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("hfc134a", n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("cf4"    , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
+    read_and_set_vmr("no2"    , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
 
     Array<Float,2> lwp;
     Array<Float,2> iwp;
@@ -563,20 +466,20 @@ void tilt_input(int argc, char** argv)
 
         if (switch_liq_cloud_optics)
         {
-            lwp.set_dims({n_col, n_lay_init});
-            lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay_init, n_col_y, n_col_x}));
+            lwp.set_dims({n_col, n_lay});
+            lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
 
-            rel.set_dims({n_col, n_lay_init});
-            rel = std::move(input_nc.get_variable<Float>("rel", {n_lay_init, n_col_y, n_col_x}));
+            rel.set_dims({n_col, n_lay});
+            rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
         }
 
         if (switch_ice_cloud_optics)
         {
-            iwp.set_dims({n_col, n_lay_init});
-            iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay_init, n_col_y, n_col_x}));
+            iwp.set_dims({n_col, n_lay});
+            iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
 
-            dei.set_dims({n_col, n_lay_init});
-            dei = std::move(input_nc.get_variable<Float>("dei", {n_lay_init, n_col_y, n_col_x}));
+            dei.set_dims({n_col, n_lay});
+            dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
         }
     }
     ////// FINISH READING THE ATMOSPHERIC DATA //////
@@ -584,49 +487,13 @@ void tilt_input(int argc, char** argv)
     // if t lev all 0, interpolate from t lay
     if (*std::max_element(t_lev.v().begin(), t_lev.v().end()) <= 0) {
         for (int i = 1; i <= n_col; ++i) {
-            for (int j = 2; j <= n_lay_init; ++j) {
+            for (int j = 2; j <= n_lay; ++j) {
                 t_lev({i, j}) = (t_lay({i, j}) + t_lay({i, j - 1})) / 2.0;
             }
-            t_lev({i, n_lev_init}) = 2 * t_lay({i, n_lay_init}) - t_lev({i,n_lay_init});
+            t_lev({i, n_lev}) = 2 * t_lay({i, n_lay}) - t_lev({i,n_lay});
             t_lev({i, 1}) = 2 * t_lay({i, 1}) - t_lev({i,2});
         }
     }
-
-    int n_lay_HOLD;
-    int n_lev_HOLD;
-    const int bkg_start_idx = n_z_in;
-    int bkg_reduction_len;
-
-    if (switch_compress_bkg)
-    {
-        Status::print_message("Compress Background Profile.");
-        for (int j = 0; j < n_bkg_compressions; j++){
-            if (j == 0){
-                compress_background_profile(
-                    n_col_x, n_col_y, n_lay_init, n_z_in,
-                    switch_liq_cloud_optics, switch_ice_cloud_optics,
-                    gas_names, gas_concs, rel, lwp, dei, iwp,
-                    p_lay, p_lev, t_lay, t_lev,
-                    n_lay_HOLD, n_lev_HOLD);
-            } else{
-                compress_background_profile(
-                    n_col_x, n_col_y, n_lay_HOLD, n_z_in,
-                    switch_liq_cloud_optics, switch_ice_cloud_optics,
-                    gas_names, gas_concs, rel, lwp, dei, iwp,
-                    p_lay, p_lev, t_lay, t_lev,
-                    n_lay_HOLD, n_lev_HOLD);
-            }
-
-        }
-        bkg_reduction_len = n_lay_init - n_lay_HOLD;
-        Status::print_message("Finish background compression.");
-
-    } else{
-        n_lay_HOLD = n_lay_init;
-        n_lev_HOLD = n_lev_init;
-    }
-    const int n_lay = n_lay_HOLD;
-    const int n_lev = n_lev_HOLD;
 
     ////// SETUP FOR TILTING //////
 
@@ -691,33 +558,29 @@ void tilt_input(int argc, char** argv)
 
         n_zh_tilt = zh_tilt.v().size();
         n_z_tilt = n_zh_tilt - 1;
-        if (loop_index == 1) {  
-            z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
-            zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
 
-            if (switch_compress){
+        z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
+        zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
 
-                int idx_hold = 2*(n_z_tilt - n_z_in);
-                if ((z_out.size() - idx_hold) % 2 != 0) {
-                    idx_hold--;
-                }
+        if (switch_compress){
 
-                n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
-                n_lev_compress = n_lay_compress + 1;
-                compress_lay_start_idx = (n_z_tilt - idx_hold);
-                if (switch_compress_bkg) {
-                    compress_lay_start_idx = std::min((compress_lay_start_idx + bkg_reduction_len), n_lay_compress);
-                }
-                if (compress_lay_start_idx < 0) {
-                    throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
-                }
-
-                z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
-                zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
-                assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
+            int idx_hold = 2*(n_z_tilt - n_z_in);
+            if ((z_out.size() - idx_hold) % 2 != 0) {
+                idx_hold--;
             }
-        }
 
+            n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
+            n_lev_compress = n_lay_compress + 1;
+            compress_lay_start_idx = (n_z_tilt - idx_hold);
+            if (compress_lay_start_idx < 0) {
+                throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
+            }
+            std::cout << "compress_lay_start_idx: " << compress_lay_start_idx << std::endl;
+
+            z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
+            zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
+            assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
+        }
         
         path.set_dims({n_z_tilt}); 
         zh_tilt.set_dims({n_zh_tilt}); 
@@ -927,23 +790,23 @@ void tilt_input(int argc, char** argv)
             Status::print_message("Add background profile back on.");
 
             // add background profile back on
-            const int n_lay_tot = n_z_tilt + (n_lay - bkg_start_idx);
+            const int n_lay_tot = n_z_tilt + (n_lay - n_z_in);
             const int n_lev_tot = n_lay_tot + 1;
 
             if (switch_liq_cloud_optics)
             {
-                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, lwp_copy.v(), lwp.v());
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, n_z_in, lwp_copy.v(), lwp.v());
                 lwp_copy.expand_dims({n_col, n_lay_tot});
                 
 
-                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, rel_copy.v(), rel.v());
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, n_z_in, rel_copy.v(), rel.v());
                 rel_copy.expand_dims({n_col, n_lay_tot});
             }
             if (switch_ice_cloud_optics)
             {
-                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, iwp_copy.v(), iwp.v());
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, n_z_in, iwp_copy.v(), iwp.v());
                 iwp_copy.expand_dims({n_col, n_lay_tot});
-                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, dei_copy.v(), dei.v());
+                restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, n_z_in, dei_copy.v(), dei.v());
                 dei_copy.expand_dims({n_col, n_lay_tot});
             }
 
@@ -959,8 +822,7 @@ void tilt_input(int argc, char** argv)
                     std::vector<Float> gas_copy = gas.v();
                     std::vector<Float> gas_full_copy = gas_full.v();
 
-                    restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, gas_copy, gas_full_copy);
-                    
+                    restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, n_z_in, gas_copy, gas_full_copy);
 
                     Array<Float,2> gas_tmp({n_col, n_lay});
                     gas_tmp = std::move(gas_copy);
@@ -971,14 +833,14 @@ void tilt_input(int argc, char** argv)
                 }
             }
 
-            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, p_lay_copy.v(), p_lay.v());
+            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, n_z_in, p_lay_copy.v(), p_lay.v());
             p_lay_copy.expand_dims({n_col, n_lay_tot});
-            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, bkg_start_idx, t_lay_copy.v(), t_lay.v());
+            restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_tilt, n_z_in, t_lay_copy.v(), t_lay.v());
             t_lay_copy.expand_dims({n_col, n_lay_tot});
 
-            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_tilt, (bkg_start_idx + 1), p_lev_copy.v(), p_lev.v());
+            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_tilt, (n_z_in + 1), p_lev_copy.v(), p_lev.v());
             p_lev_copy.expand_dims({n_col, n_lev_tot});
-            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_tilt, (bkg_start_idx + 1), t_lev_copy.v(), t_lev.v());
+            restore_bkg_profile(n_col_x, n_col_y, n_lev, n_zh_tilt, (n_z_in + 1), t_lev_copy.v(), t_lev.v());
             t_lev_copy.expand_dims({n_col, n_lev_tot});
 
             Status::print_message("Prepare Netcdf.");

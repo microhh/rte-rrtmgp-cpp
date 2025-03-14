@@ -243,7 +243,9 @@ void solve_radiation(int argc, char** argv)
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
-        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }}};
+        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }},
+        {"override-sza", {0, "solar zenith angle (theta) in degrees."}},
+        {"override-azi", {0, "Solar azimuth angle in degrees."}}};
 
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
@@ -263,9 +265,12 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
-    const bool switch_attenuate_tica     = command_line_switches.at("tica"     ).first;
+    const bool switch_attenuate_path     = command_line_switches.at("attenuate-path"     ).first;
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
+    int sza_deg = Int(command_line_ints.at("override-sza").first);
+    int azi_deg = Int(command_line_ints.at("override-azi").first);
+
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
     {
         std::string error = "number of photons per pixel should be a power of 2 ";
@@ -668,8 +673,23 @@ void solve_radiation(int argc, char** argv)
             rad_sw.load_mie_tables("mie_lut_broadband.nc");
         }
 
-        Array<Float,1> mu0(input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x}), {n_col});
-        Array<Float,1> azi(input_nc.get_variable<Float>("azi", {n_col_y, n_col_x}), {n_col});
+        Array<Float,1> mu0({n_col});
+        Array<Float,1> azi({n_col});
+        if (override_sza) {
+            Float mu0_in = cosf(sza_deg * 3.14159f / 180.0f);
+            for (int icol=1; icol<=n_col; ++icol)
+                mu0({icol}) = mu0_in;
+        } else {
+            mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
+        }
+
+        if (override_azi) {
+            Float azi_in = azi_deg * 3.14159f / 180.0f;
+        for (int icol=1; icol<=n_col; ++icol)
+                azi({icol}) = azi_in;
+        } else {
+            azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
+        }
 
         Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
         Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
