@@ -133,7 +133,7 @@ void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, con
 }
 
 void compress_columns(const int n_x, const int n_y, 
-                      const int n_out, 
+                      const int n_out, const int n_tilt, 
                       const int compress_lay_start_idx,
                       std::vector<Float>& var)
 {
@@ -150,28 +150,41 @@ void compress_columns(const int n_x, const int n_y,
             }
         }
     }
-    
+
     #pragma omp parallel for
     for (int ilay = compress_lay_start_idx; ilay < n_out; ++ilay)
     {
         const int in_offset = ilay - compress_lay_start_idx;
+        const int i_lay_in = compress_lay_start_idx + 2 * in_offset;
+        int num_inputs;
+        if (ilay < (n_out - 1)) {
+            num_inputs = 2;
+        } 
+        else {
+            num_inputs = ((i_lay_in + 1) == (n_tilt - 1)) ? 2 : 3;
+        }
+        
         for (int iy = 0; iy < n_y; ++iy)
         {
             for (int ix = 0; ix < n_x; ++ix)
             {
                 const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
-                const int in_idx1 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset) * n_x * n_y;
-                const int in_idx2 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset + 1) * n_x * n_y;
-                var_tmp[out_idx] = var[in_idx1] + var[in_idx2];
+                Float sum = 0.0;
+                for (int k = 0; k < num_inputs; ++k)
+                {
+                    int in_idx = ix + iy * n_x + (i_lay_in + k) * n_x * n_y;
+                    sum += var[in_idx];
+                }
+                var_tmp[out_idx] = sum;
             }
         }
     }
-
     var = var_tmp;
 }
 
 void compress_columns_weighted_avg(const int n_x, const int n_y,  
                       const int n_out, 
+                      const int n_tilt,
                       const int compress_lay_start_idx,
                       std::vector<Float>& var, std::vector<Float>& var_weighting)
 {
@@ -194,22 +207,41 @@ void compress_columns_weighted_avg(const int n_x, const int n_y,
     for (int ilay = compress_lay_start_idx; ilay < n_out; ++ilay)
     {
         const int in_offset = ilay - compress_lay_start_idx;
+        const int i_lay_in = (compress_lay_start_idx + 2 * in_offset);
+        int num_inputs;
+        if (ilay < (n_out - 1)) {
+            num_inputs = 2;
+        } else {
+            num_inputs = ((i_lay_in + 1) == (n_tilt - 1)) ? 2 : 3;
+        }
 
         for (int iy = 0; iy < n_y; ++iy)
         {
             for (int ix = 0; ix < n_x; ++ix)
             {
                 const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
-                const int in_idx1 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset) * n_x * n_y;
-                const int in_idx2 = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset + 1) * n_x * n_y;
-                Float t_sum = var[in_idx1]*var_weighting[in_idx1] + var[in_idx2]*var_weighting[in_idx2];
-                Float w_sum = var_weighting[in_idx1] + var_weighting[in_idx2];
+                Float t_sum = 0.0;
+                Float w_sum = 0.0;
+                for (int k = 0; k < num_inputs; ++k)
+                {
+                    int in_idx = ix + iy * n_x + (i_lay_in + k) * n_x * n_y;
+                    t_sum += var[in_idx] * var_weighting[in_idx];
+                    w_sum += var_weighting[in_idx];
+                }
+
                 if (w_sum > 1e-6)
                 {
-                    var_tmp[out_idx] = t_sum/w_sum;
-                } else 
+                    var_tmp[out_idx] = t_sum / w_sum;
+                } 
+                else 
                 {
-                    var_tmp[out_idx] = 0.5*var[in_idx1] + 0.5*var[in_idx2];
+                    Float avg = 0.0;
+                    for (int k = 0; k < num_inputs; ++k)
+                    {
+                        int in_idx = ix + iy * n_x + (i_lay_in + k) * n_x * n_y;
+                        avg += var[in_idx];
+                    }
+                    var_tmp[out_idx] = avg / num_inputs;
                 }
             }
         }
@@ -218,7 +250,7 @@ void compress_columns_weighted_avg(const int n_x, const int n_y,
 }
 
 void compress_columns_p_or_t(const int n_x, const int n_y, 
-                      const int n_out_lay, 
+                      const int n_out_lay,  const int n_tilt,
                       const int compress_lay_start_idx,
                       std::vector<Float>& var_lev, std::vector<Float>& var_lay)
 {
@@ -233,7 +265,7 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
             for (int ix = 0; ix < n_x; ++ix)
             {
                 const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
-                var_tmp_lay[out_idx] = var_lay[out_idx];
+                var_tmp_lay[out_idx] = var_lev[out_idx];
                 var_tmp_lev[out_idx] = var_lev[out_idx];
             }
         }
@@ -252,13 +284,22 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
     #pragma omp parallel for
     for (int ilev = (compress_lay_start_idx + 1); ilev < (n_out_lay + 1); ++ilev)
     {
+        int i_lev_in;
+        if (ilev == n_out_lay)
+        {
+            i_lev_in = n_tilt;
+        }
+        else
+        {
+            i_lev_in = (compress_lay_start_idx + 2) + 2 * (ilev - (compress_lay_start_idx + 1));
+        }
+
         for (int iy = 0; iy < n_y; ++iy)
         {
             for (int ix = 0; ix < n_x; ++ix)
             {
                 const int out_idx = ix + iy * n_x + ilev * n_x * n_y;
-                const int i_hold = (compress_lay_start_idx + 2) + 2 * (ilev - (compress_lay_start_idx + 1));
-                const int in_idx = ix + iy * n_x + i_hold * n_x * n_y;
+                const int in_idx = ix + iy * n_x + i_lev_in * n_x * n_y;
                 var_tmp_lev[out_idx] = var_lev[in_idx];
             }
         }
@@ -268,13 +309,22 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
     for (int ilay = compress_lay_start_idx; ilay < n_out_lay; ++ilay)
     {
         const int in_offset = ilay - compress_lay_start_idx;
+        int i_lev_to_lay_in;
+        if (ilay == (n_out_lay - 1))
+        {
+            i_lev_to_lay_in = n_tilt - 1; // in some cases this is a slight approximation.
+        }
+        else 
+        {
+            i_lev_to_lay_in = (compress_lay_start_idx + 2 * in_offset - 1);
+        }
         
         for (int iy = 0; iy < n_y; ++iy)
         {
             for (int ix = 0; ix < n_x; ++ix)
             {
                 const int out_idx = ix + iy * n_x + ilay * n_x * n_y;
-                const int in_idx_lev_to_lay = ix + iy * n_x + (compress_lay_start_idx + 2 * in_offset - 1) * n_x * n_y;
+                const int in_idx_lev_to_lay = ix + iy * n_x + i_lev_to_lay_in * n_x * n_y;
                 
                 var_tmp_lay[out_idx] = var_lev[in_idx_lev_to_lay];
             }

@@ -673,25 +673,25 @@ void tilt_input(int argc, char** argv)
             if (switch_liq_cloud_optics)
             {
                 compress_columns_weighted_avg(n_col_x, n_col_y, 
-                                                n_z_in, compress_lay_start_idx, 
+                                                n_z_in, n_z_tilt, compress_lay_start_idx, 
                                                 rel_copy.v(), lwp_copy.v());
                 std::cout << "finish compress_columns_weighted_avg" << std::endl;
                 rel_copy.expand_dims({n_col, n_z_in});
 
                 compress_columns(n_col_x, n_col_y, 
-                                    n_z_in, 
+                                    n_z_in, n_z_tilt,
                                     compress_lay_start_idx, lwp_copy.v());
                 lwp_copy.expand_dims({n_col, n_z_in}); 
             }
             if (switch_ice_cloud_optics)
             {
                 compress_columns_weighted_avg(n_col_x, n_col_y, 
-                                                n_z_in, compress_lay_start_idx, 
+                                                n_z_in, n_z_tilt, compress_lay_start_idx, 
                                                 dei_copy.v(), iwp_copy.v());
                 dei_copy.expand_dims({n_col, n_z_in});
                 
                 compress_columns(n_col_x, n_col_y, 
-                                    n_z_in, 
+                                    n_z_in, n_z_tilt,
                                     compress_lay_start_idx, iwp_copy.v());
                 iwp_copy.expand_dims({n_col, n_z_in}); 
             }
@@ -706,7 +706,7 @@ void tilt_input(int argc, char** argv)
                 if (gas.size() > 1) {
                     Array<Float,2> gas_tmp(gas);
                     compress_columns_weighted_avg(n_col_x, n_col_y,
-                                                    n_z_in, 
+                                                    n_z_in, n_z_tilt,
                                                     compress_lay_start_idx, 
                                                     gas_tmp.v(), 
                                                     p_lay_copy.v());
@@ -715,12 +715,12 @@ void tilt_input(int argc, char** argv)
                 }
             } 
 
-            compress_columns_p_or_t(n_col_x, n_col_y, n_z_in, 
+            compress_columns_p_or_t(n_col_x, n_col_y, n_z_in, n_z_tilt,
                                     compress_lay_start_idx, 
                                     p_lev_copy.v(), p_lay_copy.v());
             p_lay_copy.expand_dims({n_col, n_z_in});
             p_lev_copy.expand_dims({n_col, n_zh_in});
-            compress_columns_p_or_t(n_col_x, n_col_y, n_z_in, 
+            compress_columns_p_or_t(n_col_x, n_col_y, n_z_in, n_z_tilt,
                                     compress_lay_start_idx, 
                                     t_lev_copy.v(), t_lay_copy.v());
             t_lay_copy.expand_dims({n_col, n_z_in});
