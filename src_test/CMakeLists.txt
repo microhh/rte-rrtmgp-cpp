@@ -1,7 +1,7 @@
 #
 # This file is part of a C++ interface to the Radiative Transfer for Energetics (RTE)
 #
-include_directories(${INCLUDE_DIRS} "../include" "../include_test" "../include_rt" "../include_rt_kernels/" "../include_kernels_cuda")
+include_directories(${INCLUDE_DIRS} "../include" "../include_test" "../include_rt" "../include_rt_kernels/" "../include_kernels_cuda" "../include_tilt")
 
 # retrieve the git hash from the current commit
 find_package(Git)
@@ -41,5 +41,9 @@ endif()
 add_executable(test_rte_rrtmgp Radiation_solver.cpp test_rte_rrtmgp.cpp)
 target_link_libraries(test_rte_rrtmgp rte_rrtmgp ${LIBS} m)
 
-add_executable(test_rt_tilt_prep tilted_column.cpp test_rt_tilt_prep.cpp)
+add_executable(test_rt_tilt_prep 
+    test_rt_tilt_prep.cpp
+    ../src_tilt/tilted_column.cpp
+    ../src_tilt/compress_column.cpp
+    ../src_tilt/tilt_prep_utils.cpp)
 target_link_libraries(test_rt_tilt_prep rte_rrtmgp ${LIBS} m)

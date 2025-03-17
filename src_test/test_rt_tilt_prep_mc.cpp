@@ -213,37 +213,39 @@ void tilt_input(int argc, char** argv)
 
     ////// SETUP FOR TILTING //////
 
-    std::vector<std::pair<Float, Float>> x_y_start_arr(n_points_sqrt*n_points_sqrt);
-    Float d = 1.0f / n_points_sqrt;
-    int idx = 0;
-    for (int i = 0; i < n_points_sqrt; i++){
-        for (int j = 0; j < n_points_sqrt; j++){
-            x_y_start_arr[idx++] = std::make_pair(i*d+d/2, j*d+d/2);
-        }
-    }
+    std::vector<std::pair<Float, Float>> x_y_start_arr(n_col);
+    std::vector<Array<ijk,1>> by_col_paths(n_col);
+    std::vector<Array<Float,1>> by_col_zh_tilt(n_col);
+    std::vector<Float> by_col_n_zh_tilt(n_col);
+    std::vector<Float> by_col_n_z_tilt(n_col);
 
-    Float x_start;
-    Float y_start;
-
-    std::vector<Float> z_out;
-    std::vector<Float> zh_out;
-
-    std::string file_name;
-    int n_z_tilt;
-    int n_zh_tilt;
-
-    std::vector<Float> z_out_compress;
-    std::vector<Float> zh_out_compress;
-    int n_lev_compress;
-    int n_lay_compress;
-    int compress_lay_start_idx;
-
-    int loop_index = 0;
-    for (const auto& pair : x_y_start_arr) {
-        std::cout << "loop_index: " << loop_index << std::endl;
+    Status::print_message("###### Starting Tilting ######");
+    auto time_start = std::chrono::high_resolution_clock::now();
+    #pragma omp parallel for
+    for (int i = 0; i < n_col; i++) {
+        Float x_start = x_y_start_arr[i].first;
+        Float y_start = x_y_start_arr[i].second;
         Array<ijk,1> path;
         Array<Float,1> zh_tilt;
+        
+        tilted_path(xh.v(), yh.v(), zh.v(), z.v(), sza, azi, x_start, y_start, path.v(), zh_tilt.v());
+        int n_zh_tilt = zh_tilt.v().size();
+        int n_z_tilt = n_zh_tilt - 1;
+        path.set_dims({n_z_tilt}); 
+        zh_tilt.set_dims({n_zh_tilt}); 
 
+        by_col_paths[i] = path;
+        by_col_zh_tilt[i] = zh_tilt;
+        by_col_n_zh_tilt[i] = n_zh_tilt;
+        by_col_n_z_tilt[i] = n_zh_tilt - 1;
+    }
+    auto time_end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+
+    Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
+    Status::print_message("###### Finish Tilting ######");
+
+    for (int i = 0; i < 2; i++) { // change back to n_col
         Array<Float,2> lwp_copy = lwp;
         Array<Float,2> iwp_copy = iwp;
         Array<Float,2> rel_copy = rel;
@@ -254,51 +256,10 @@ void tilt_input(int argc, char** argv)
         Array<Float,2> p_lev_copy = p_lev;
         Gas_concs gas_concs_copy = gas_concs;
 
-        if (sza == 0 && loop_index > 0) {
-            Status::print_message("Multiple Start Points Unnecessary with Sun Overhead.");
-            break;
-        }
-        loop_index++;
-        file_name = "rte_rrtmgp_input_" + std::to_string(loop_index) + ".nc";
-        x_start = pair.first;
-        y_start = pair.second;
-
-        std::cout << "x_start: " << x_start << std::endl;
-        std::cout << "y_start: " << y_start << std::endl;
-
-        Status::print_message("###### Starting Tilting ######");
-        auto time_start = std::chrono::high_resolution_clock::now();
-        
-        tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi,x_start, y_start, path.v(),zh_tilt.v());
-        Status::print_message("Finish tilted path creation.");
-
-        n_zh_tilt = zh_tilt.v().size();
-        n_z_tilt = n_zh_tilt - 1;
-
-        z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
-        zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
-
-        if (switch_compress){
-
-            int idx_hold = 2*(n_z_tilt - n_z_in);
-            if ((z_out.size() - idx_hold) % 2 != 0) {
-                idx_hold--;
-            }
-
-            n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
-            n_lev_compress = n_lay_compress + 1;
-            compress_lay_start_idx = (n_z_tilt - idx_hold);
-            if (compress_lay_start_idx < 0) {
-                throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
-            }
-            std::cout << "compress_lay_start_idx: " << compress_lay_start_idx << std::endl;
-
-            z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
-            zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
-            assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
-        }
-        path.set_dims({n_z_tilt}); 
-        zh_tilt.set_dims({n_zh_tilt}); 
+        const Array<ijk,1> path = by_col_paths[i];
+        const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
+        const Float n_zh_tilt = by_col_n_zh_tilt[i];
+        const Float n_z_tilt = by_col_n_z_tilt[i];
 
         tilt_fields(n_z_in, n_zh_in, n_col_x, n_col_y,
             n_z_tilt, n_zh_tilt, n_col,
@@ -310,79 +271,55 @@ void tilt_input(int argc, char** argv)
             switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
         );
 
-        auto time_end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+        std::vector<Float> z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
+        std::vector<Float> zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
 
-        Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
-        Status::print_message("###### Finish Tilting ######");
+        int idx_hold = 2*(n_z_tilt - n_z_in);
+        if ((z_out.size() - idx_hold) % 2 != 0) {
+            idx_hold--;
+        }
 
-        if (switch_compress){
-            Status::print_message("Compress.");
-            compress_fields(compress_lay_start_idx, n_col_x, n_col_y,
+        int n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
+        int n_lev_compress = n_lay_compress + 1;
+        int compress_lay_start_idx = (n_z_tilt - idx_hold);
+        if (compress_lay_start_idx < 0) {
+            throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
+        }
+        std::cout << "compress_lay_start_idx: " << compress_lay_start_idx << std::endl;
+        std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
+        std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
+        assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
+
+        compress_fields(compress_lay_start_idx, n_col_x, n_col_y,
                         n_z_in, n_zh_in, n_z_tilt,
                         &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
                         &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
                         gas_concs_copy, gas_names,
                         switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 
-            Status::print_message("Finish z grid compression.");
+        restore_bkg_profile_bundle(n_col_x, n_col_y, 
+            n_lay, n_lev, n_lay, n_lev, 
+            n_z_in, n_zh_in, n_z_in, n_zh_in,
+            &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
+            &lwp_copy, &iwp_copy, &rel_copy, &dei_copy,
+            gas_concs_copy,
+            &p_lay, &t_lay, &p_lev, &t_lev, 
+            &lwp, &iwp, &rel, &dei,
+            gas_concs, 
+            gas_names,
+            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+        );
 
-            Status::print_message("Add background profile back on.");
-            restore_bkg_profile_bundle(n_col_x, n_col_y, 
-                n_lay, n_lev,   n_lay, n_lev, 
-                n_z_in, n_zh_in,
-                n_z_in, n_zh_in,
-                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
-                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy,
-                gas_concs_copy,
-                &p_lay, &t_lay, &p_lev, &t_lev, 
-                &lwp, &iwp, &rel, &dei,
-                gas_concs, 
-                gas_names,
-                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
-            );
+        Status::print_message("Prepare Netcdf.");
+        std::string file_name = "test.nc";
+        prepare_netcdf(input_nc, file_name, n_lay, n_lev, n_col_x, n_col_y, n_zh_in, n_z_in,
+                sza, zh_out_compress, z_out_compress,
+                p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
+                lwp_copy, iwp_copy, rel_copy, dei_copy, 
+                gas_concs_copy, gas_names, 
+                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 
-            Status::print_message("Prepare Netcdf.");
-            prepare_netcdf(input_nc, file_name, n_lay, n_lev, n_col_x, n_col_y, n_zh_in, n_z_in,
-                    sza, zh_out_compress, z_out_compress,
-                    p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
-                    lwp_copy, iwp_copy, rel_copy, dei_copy, 
-                    gas_concs_copy, gas_names, 
-                    switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
-
-        }
-        else {
-
-            Status::print_message("Add background profile back on.");
-
-            // add background profile back on
-            const int n_lay_tot = n_z_tilt + (n_lay - n_z_in);
-            const int n_lev_tot = n_lay_tot + 1;
-            restore_bkg_profile_bundle(n_col_x, n_col_y, 
-                n_lay, n_lev, 
-                n_lay_tot, n_lev_tot, 
-                n_z_tilt, n_zh_tilt,
-                n_z_in, n_zh_in,
-                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
-                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy,
-                gas_concs_copy,
-                &p_lay, &t_lay, &p_lev, &t_lev, 
-                &lwp, &iwp, &rel, &dei,
-                gas_concs, 
-                gas_names,
-                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
-            );
-
-            Status::print_message("Prepare Netcdf.");
-            prepare_netcdf(input_nc, file_name, n_lay_tot, n_lev_tot, n_col_x, n_col_y, n_zh_tilt, n_z_tilt, 
-                        sza, zh_out, z_out,
-                        p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
-                        lwp_copy, iwp_copy, rel_copy, dei_copy, 
-                        gas_concs_copy, gas_names, 
-                        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
-        }    
     }
-
 }
 
 

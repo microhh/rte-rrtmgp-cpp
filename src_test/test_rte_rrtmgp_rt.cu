@@ -239,6 +239,8 @@ void solve_radiation(int argc, char** argv)
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
+        {"override-sza"     , { false, ""   }},
+        {"override-azi"     , { false, ""   }},
         {"tica"              , { false, "attenuate path when doing an overhead 1D calculation of tilted input"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
@@ -265,7 +267,9 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
-    const bool switch_attenuate_path     = command_line_switches.at("attenuate-path"     ).first;
+    const bool switch_attenuate_tica     = command_line_switches.at("tica"     ).first;
+    const bool switch_override_sza     = command_line_switches.at("override-sza"     ).first;
+    const bool switch_override_azi     = command_line_switches.at("override-azi"     ).first;
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
     int sza_deg = Int(command_line_ints.at("override-sza").first);
@@ -675,7 +679,7 @@ void solve_radiation(int argc, char** argv)
 
         Array<Float,1> mu0({n_col});
         Array<Float,1> azi({n_col});
-        if (override_sza) {
+        if (switch_override_sza) {
             Float mu0_in = cosf(sza_deg * 3.14159f / 180.0f);
             for (int icol=1; icol<=n_col; ++icol)
                 mu0({icol}) = mu0_in;
@@ -683,7 +687,7 @@ void solve_radiation(int argc, char** argv)
             mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
         }
 
-        if (override_azi) {
+        if (switch_override_azi) {
             Float azi_in = azi_deg * 3.14159f / 180.0f;
         for (int icol=1; icol<=n_col; ++icol)
                 azi({icol}) = azi_in;

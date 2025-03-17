@@ -59,14 +59,4 @@ void compress_columns_p_or_t(const int n_x, const int n_y,
                       const int compress_lay_start_idx,
                       std::vector<Float>& var_lev, std::vector<Float>& var_lay);
 
-void restore_bkg_profile(const int n_x, const int n_y, 
-                      const int n_full,
-                      const int n_tilt, 
-                      const int bkg_start, 
-                      std::vector<Float>& var,
-                      std::vector<Float>& var_w_bkg);
-
-void translate_heating_rates(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                             const std::vector<ijk>& tilted_path, std::vector<Float>& heat);
-
 #endif
