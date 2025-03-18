@@ -42,6 +42,24 @@ void compress_fields(const int compress_lay_start_idx, const int n_col_x, const 
     Gas_concs& gas_concs_copy, std::vector<std::string> gas_names,
     bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics);
 
+void select_one_column(const int idx_col_x, const int idx_col_y, const int n_col_x, const int n_col_y, const int n_z, const int n_zh,
+    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
+    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
+    Gas_concs& gas_concs_copy, const std::vector<std::string> gas_names,
+    const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics
+);
+
+void add_column_to_output(const int idx_col_x, const int idx_col_y, 
+    const int n_col_x, const int n_col_y, const int n_z, const int n_zh,
+    Array<Float,2>* p_lay_out, Array<Float,2>* t_lay_out, Array<Float,2>* p_lev_out, Array<Float,2>* t_lev_out, 
+    Array<Float,2>* lwp_out, Array<Float,2>* iwp_out, Array<Float,2>* rel_out, Array<Float,2>* dei_out, 
+    Gas_concs& gas_concs_out, 
+    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
+    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
+    Gas_concs& gas_concs_copy, 
+    const std::vector<std::string> gas_names,
+    const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics);
+
 void restore_bkg_profile(const int n_x, const int n_y, 
                       const int n_full,
                       const int n_tilt, 

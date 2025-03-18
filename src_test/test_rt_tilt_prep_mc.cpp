@@ -18,6 +18,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <chrono>
+#include <random>
 #include <cmath>
 #include <iomanip>
 #include <cuda_profiler_api.h>
@@ -30,6 +31,7 @@
 #include "compress_column.h"
 #include "tilt_prep_utils.h"
 #include "types.h"
+
 
 void tilt_input(int argc, char** argv)
 {
@@ -47,14 +49,10 @@ void tilt_input(int argc, char** argv)
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
-        {"multi-start-points", { true,  "int to determine number of start points, total points used = i**2. Default value is 1."  }},
-        {"compress"          , { true,  "compress upper lays to keep number of z and zh the same" }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
-        {"multi-start-points", {1, "i**2 start points."}},
-        {"compress-bkg", {1, "compress background by (i*2)x."}},
         {"tilt-sza", {0, "sza in degrees."}},
         {"tilt-azi", {0 , "azi in degrees" }}};
 
@@ -64,8 +62,6 @@ void tilt_input(int argc, char** argv)
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
-    const bool switch_multi       = command_line_switches.at("multi-start-points").first;
-    const bool switch_compress    = command_line_switches.at("compress").first;
     const bool switch_tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool switch_tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
 
@@ -85,12 +81,6 @@ void tilt_input(int argc, char** argv)
 
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
-
-    int n_points_sqrt;
-    if (switch_multi) 
-    {
-        n_points_sqrt = Int(command_line_ints.at("multi-start-points").first);
-    }
 
     Float sza = 0;
     Float azi = 0;
@@ -219,6 +209,19 @@ void tilt_input(int argc, char** argv)
     std::vector<Float> by_col_n_zh_tilt(n_col);
     std::vector<Float> by_col_n_z_tilt(n_col);
 
+    std::mt19937_64 rng;
+    uint64_t timeSeed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed>>32)};
+    rng.seed(ss);
+    std::uniform_real_distribution<double> unif(0.001, 0.999);
+    for (int i = 0; i < n_col; i++)
+    {
+        Float x_point = unif(rng);
+        Float y_point = unif(rng);
+        x_y_start_arr[i] = std::make_pair(x_point, y_point);
+    }
+
+
     Status::print_message("###### Starting Tilting ######");
     auto time_start = std::chrono::high_resolution_clock::now();
     #pragma omp parallel for
@@ -245,39 +248,12 @@ void tilt_input(int argc, char** argv)
     Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
     Status::print_message("###### Finish Tilting ######");
 
-    for (int i = 0; i < 2; i++) { // change back to n_col
-        Array<Float,2> lwp_copy = lwp;
-        Array<Float,2> iwp_copy = iwp;
-        Array<Float,2> rel_copy = rel;
-        Array<Float,2> dei_copy = dei;
-        Array<Float,2> t_lay_copy = t_lay;
-        Array<Float,2> t_lev_copy = t_lev;
-        Array<Float,2> p_lay_copy = p_lay;
-        Array<Float,2> p_lev_copy = p_lev;
-        Gas_concs gas_concs_copy = gas_concs;
-
-        const Array<ijk,1> path = by_col_paths[i];
-        const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
+    Status::print_message("###### Check Sizes ######");
+    #pragma omp parallel for
+    for (int i = 0; i < n_col; i++) {
         const Float n_zh_tilt = by_col_n_zh_tilt[i];
         const Float n_z_tilt = by_col_n_z_tilt[i];
-
-        tilt_fields(n_z_in, n_zh_in, n_col_x, n_col_y,
-            n_z_tilt, n_zh_tilt, n_col,
-            zh, z,
-            zh_tilt, path,
-            &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
-            &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
-            gas_concs_copy, gas_names,
-            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
-        );
-
-        std::vector<Float> z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
-        std::vector<Float> zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
-
         int idx_hold = 2*(n_z_tilt - n_z_in);
-        if ((z_out.size() - idx_hold) % 2 != 0) {
-            idx_hold--;
-        }
 
         int n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
         int n_lev_compress = n_lay_compress + 1;
@@ -285,41 +261,146 @@ void tilt_input(int argc, char** argv)
         if (compress_lay_start_idx < 0) {
             throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
         }
-        std::cout << "compress_lay_start_idx: " << compress_lay_start_idx << std::endl;
-        std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
-        std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
-        assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
+    }
 
-        compress_fields(compress_lay_start_idx, n_col_x, n_col_y,
-                        n_z_in, n_zh_in, n_z_tilt,
-                        &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
-                        &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
-                        gas_concs_copy, gas_names,
-                        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
+    Status::print_message("###### Make output arrays ######");
+    Array<Float,2> lwp_out;
+    lwp_out.set_dims({n_col, n_z_in});
+    Array<Float,2> rel_out;
+    rel_out.set_dims({n_col, n_z_in});
 
-        restore_bkg_profile_bundle(n_col_x, n_col_y, 
-            n_lay, n_lev, n_lay, n_lev, 
-            n_z_in, n_zh_in, n_z_in, n_zh_in,
-            &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
-            &lwp_copy, &iwp_copy, &rel_copy, &dei_copy,
-            gas_concs_copy,
-            &p_lay, &t_lay, &p_lev, &t_lev, 
-            &lwp, &iwp, &rel, &dei,
-            gas_concs, 
-            gas_names,
-            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
-        );
+    Array<Float,2> iwp_out;
+    iwp_out.set_dims({n_col, n_z_in});
+    Array<Float,2> dei_out;
+    dei_out.set_dims({n_col, n_z_in});
 
-        Status::print_message("Prepare Netcdf.");
-        std::string file_name = "test.nc";
-        prepare_netcdf(input_nc, file_name, n_lay, n_lev, n_col_x, n_col_y, n_zh_in, n_z_in,
-                sza, zh_out_compress, z_out_compress,
-                p_lay_copy, t_lay_copy, p_lev_copy, t_lev_copy, 
-                lwp_copy, iwp_copy, rel_copy, dei_copy, 
-                gas_concs_copy, gas_names, 
+    Array<Float,2> p_lay_out;
+    p_lay_out.set_dims({n_col, n_z_in});
+
+    Array<Float,2> t_lay_out;
+    t_lay_out.set_dims({n_col, n_z_in});
+
+    Array<Float,2> p_lev_out;
+    p_lev_out.set_dims({n_col, n_zh_in});
+
+    Array<Float,2> t_lev_out;
+    t_lev_out.set_dims({n_col, n_zh_in});
+
+    Gas_concs gas_concs_out = gas_concs;
+    for (const auto& gas_name : gas_names) {
+        if (!gas_concs_out.exists(gas_name)) {
+            continue;
+        }
+        const Array<Float,2>& gas = gas_concs_out.get_vmr(gas_name);
+        if (gas.size() > 1) {
+            Array<Float,2> gas_tmp;
+            gas_tmp.set_dims({n_col, n_z_in});
+            gas_concs_out.set_vmr(gas_name, gas_tmp);
+        }
+    }
+
+    Status::print_message("###### Start Loop ######");
+    for (int idx_x = 0; idx_x < n_col_x; idx_x++)
+    {
+        for (int idx_y = 0; idx_y < n_col_y; idx_y++)
+        {
+            int i = idx_x*n_col_x + idx_y;
+
+            Array<Float,2> lwp_copy = lwp;
+            Array<Float,2> iwp_copy = iwp;
+            Array<Float,2> rel_copy = rel;
+            Array<Float,2> dei_copy = dei;
+            Array<Float,2> t_lay_copy = t_lay;
+            Array<Float,2> t_lev_copy = t_lev;
+            Array<Float,2> p_lay_copy = p_lay;
+            Array<Float,2> p_lev_copy = p_lev;
+            Gas_concs gas_concs_copy = gas_concs;
+
+            const Array<ijk,1> path = by_col_paths[i];
+            const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
+            const Float n_zh_tilt = by_col_n_zh_tilt[i];
+            const Float n_z_tilt = by_col_n_z_tilt[i];
+
+            tilt_fields(n_z_in, n_zh_in, n_col_x, n_col_y,
+                n_z_tilt, n_zh_tilt, n_col,
+                zh, z,
+                zh_tilt, path,
+                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
+                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
+                gas_concs_copy, gas_names,
+                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+            );
+
+            std::vector<Float> z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
+            std::vector<Float> zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
+
+            int idx_hold = 2*(n_z_tilt - n_z_in);
+            if ((z_out.size() - idx_hold) % 2 != 0) {
+                idx_hold--;
+            }
+
+            int n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
+            int n_lev_compress = n_lay_compress + 1;
+            int compress_lay_start_idx = (n_z_tilt - idx_hold);
+            if (compress_lay_start_idx < 0) {
+                throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
+            }
+            std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
+            std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
+            assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
+
+            select_one_column(idx_x, idx_y, 
+                n_col_x, n_col_y, n_z_tilt, n_zh_tilt,
+                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
+                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
+                gas_concs_copy, gas_names,
+                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+            );
+
+            compress_fields(compress_lay_start_idx, 1, 1,
+                n_z_in, n_zh_in, n_z_tilt,
+                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
+                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
+                gas_concs_copy, gas_names,
                 switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 
+            add_column_to_output(idx_x, idx_y,
+                n_col_x, n_col_y, n_z_in, n_zh_in,
+                &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
+                &lwp_out, &iwp_out, &rel_out, &dei_out, 
+                gas_concs_out, 
+                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
+                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
+                gas_concs_copy, 
+                gas_names,
+                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
+        }
+
     }
+    std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_in);
+    std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_in);
+
+    restore_bkg_profile_bundle(n_col_x, n_col_y, 
+        n_lay, n_lev, n_lay, n_lev, 
+        n_z_in, n_zh_in, n_z_in, n_zh_in,
+        &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
+        &lwp_out, &iwp_out, &rel_out, &dei_out,
+        gas_concs_out,
+        &p_lay, &t_lay, &p_lev, &t_lev, 
+        &lwp, &iwp, &rel, &dei,
+        gas_concs, 
+        gas_names,
+        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+    );
+
+    Status::print_message("Prepare Netcdf.");
+    std::string file_name = "test.nc";
+    prepare_netcdf(input_nc, file_name, n_lay, n_lev, n_col_x, n_col_y, n_zh_in, n_z_in,
+            sza, zh_out_compress, z_out_compress,
+            p_lay_out, t_lay_out, p_lev_out, t_lev_out, 
+            lwp_out, iwp_out, rel_out, dei_out, 
+            gas_concs_out, gas_names, 
+            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 }
 
 
