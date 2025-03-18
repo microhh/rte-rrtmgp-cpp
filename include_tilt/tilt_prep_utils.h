@@ -1,6 +1,18 @@
 #include "Array.h"
 #include "Source_functions.h"
 
+struct ColumnResult {
+    Array<Float,2> p_lay;
+    Array<Float,2> t_lay;
+    Array<Float,2> p_lev;
+    Array<Float,2> t_lev;
+    Array<Float,2> lwp;
+    Array<Float,2> iwp;
+    Array<Float,2> rel;
+    Array<Float,2> dei;
+    Gas_concs gas_concs;
+};
+
 void read_and_set_vmr(
         const std::string& gas_name, const int n_col_x, const int n_col_y, const int n_lay,
         const Netcdf_handle& input_nc, Gas_concs& gas_concs);
@@ -52,18 +64,7 @@ void compress_fields(const int compress_lay_start_idx, const int n_col_x, const 
     Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
     Gas_concs& gas_concs_copy, std::vector<std::string> gas_names,
     bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics);
-
-void add_column_to_output(const int idx_col_x, const int idx_col_y, 
-    const int n_col_x, const int n_col_y, const int n_z, const int n_zh,
-    Array<Float,2>* p_lay_out, Array<Float,2>* t_lay_out, Array<Float,2>* p_lev_out, Array<Float,2>* t_lev_out, 
-    Array<Float,2>* lwp_out, Array<Float,2>* iwp_out, Array<Float,2>* rel_out, Array<Float,2>* dei_out, 
-    Gas_concs& gas_concs_out, 
-    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
-    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
-    Gas_concs& gas_concs_copy, 
-    const std::vector<std::string> gas_names,
-    const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics);
-
+    
 void restore_bkg_profile(const int n_x, const int n_y, 
                       const int n_full,
                       const int n_tilt, 
@@ -83,4 +84,21 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y, const int 
     std::vector<std::string> gas_names,
     bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics
 );
+
+void post_process_output(const std::vector<ColumnResult>& col_results,
+                         const int n_col_x, const int n_col_y,
+                         const int n_z, const int n_zh,
+                         Array<Float,2>* p_lay_out,
+                         Array<Float,2>* t_lay_out,
+                         Array<Float,2>* p_lev_out,
+                         Array<Float,2>* t_lev_out,
+                         Array<Float,2>* lwp_out,
+                         Array<Float,2>* iwp_out,
+                         Array<Float,2>* rel_out,
+                         Array<Float,2>* dei_out,
+                         Gas_concs& gas_concs_out,
+                         const std::vector<std::string>& gas_names,
+                         const bool switch_cloud_optics,
+                         const bool switch_liq_cloud_optics,
+                         const bool switch_ice_cloud_optics);
 

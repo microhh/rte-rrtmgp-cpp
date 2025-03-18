@@ -303,12 +303,14 @@ void tilt_input(int argc, char** argv)
     double total_compress_time = 0.0;
     double total_add_time = 0.0;
 
+    std::vector<ColumnResult> col_results(total_iterations);
+
     Status::print_message("###### Start Loop ######");
     std::cout << "n_col: " << n_col << std::endl;
 
     auto time_start_loop = std::chrono::high_resolution_clock::now();
 
-    #pragma omp parallel for collapse(2) schedule(static) reduction(+:total_tilt_time,total_compress_time,total_add_time)
+    #pragma omp parallel for collapse(2) schedule(static)
     for (int idx_x = 0; idx_x < n_col_x; idx_x++)
     {
         for (int idx_y = 0; idx_y < n_col_y; idx_y++)
@@ -330,7 +332,6 @@ void tilt_input(int argc, char** argv)
             const Float n_zh_tilt = by_col_n_zh_tilt[i];
             const Float n_z_tilt = by_col_n_z_tilt[i];
 
-            auto start_tilt = std::chrono::high_resolution_clock::now();
             tilt_fields_single_column(idx_x, idx_y, n_z_in, n_zh_in, n_col_x, n_col_y,
                 n_z_tilt, n_zh_tilt, n_col,
                 zh, z,
@@ -340,8 +341,6 @@ void tilt_input(int argc, char** argv)
                 gas_concs_copy, gas_names,
                 switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
             );
-            auto end_tilt = std::chrono::high_resolution_clock::now();
-            total_tilt_time += std::chrono::duration<double, std::milli>(end_tilt - start_tilt).count();
 
             std::vector<Float> z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
             std::vector<Float> zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
@@ -361,28 +360,22 @@ void tilt_input(int argc, char** argv)
             std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
             assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
 
-            auto start_compress = std::chrono::high_resolution_clock::now();
             compress_fields(compress_lay_start_idx, 1, 1,
                 n_z_in, n_zh_in, n_z_tilt,
                 &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
                 &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
                 gas_concs_copy, gas_names,
                 switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
-            auto end_compress = std::chrono::high_resolution_clock::now();
-            total_compress_time += std::chrono::duration<double, std::milli>(end_compress - start_compress).count();
 
-            auto start_add = std::chrono::high_resolution_clock::now();
-            add_column_to_output(idx_x, idx_y,
-                n_col_x, n_col_y, n_z_in, n_zh_in,
-                &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
-                &lwp_out, &iwp_out, &rel_out, &dei_out, 
-                gas_concs_out, 
-                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
-                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
-                gas_concs_copy, gas_names,
-                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
-            auto end_add = std::chrono::high_resolution_clock::now();
-            total_add_time += std::chrono::duration<double, std::milli>(end_add - start_add).count();
+            col_results[i].p_lay = std::move(p_lay_copy);
+            col_results[i].t_lay = std::move(t_lay_copy);
+            col_results[i].p_lev = std::move(p_lev_copy);
+            col_results[i].t_lev = std::move(t_lev_copy);
+            col_results[i].lwp   = std::move(lwp_copy);
+            col_results[i].iwp   = std::move(iwp_copy);
+            col_results[i].rel   = std::move(rel_copy);
+            col_results[i].dei   = std::move(dei_copy);
+            col_results[i].gas_concs = std::move(gas_concs_copy);
         }
     }
 
@@ -390,17 +383,15 @@ void tilt_input(int argc, char** argv)
     auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();
     Status::print_message("Duration loop: " + std::to_string(duration_loop) + " (ms)");
 
-    // Compute and print the average duration per iteration for each function
-    double avg_tilt_time = total_tilt_time / total_iterations;
-    double avg_compress_time = total_compress_time / total_iterations;
-    double avg_add_time = total_add_time / total_iterations;
-
-    std::cout << "Average tilt_fields_single_column time: " << avg_tilt_time << " ms" << std::endl;
-    std::cout << "Average compress_fields time: " << avg_compress_time << " ms" << std::endl;
-    std::cout << "Average add_column_to_output time: " << avg_add_time << " ms" << std::endl;
-
     std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_in);
     std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_in);
+
+    post_process_output(col_results, n_col_x, n_col_y, n_z_in, n_zh_in,
+                    &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
+                    &lwp_out, &iwp_out, &rel_out, &dei_out,
+                    gas_concs_out,
+                    gas_names, 
+                    switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 
     restore_bkg_profile_bundle(n_col_x, n_col_y, 
         n_lay, n_lev, n_lay, n_lev, 
