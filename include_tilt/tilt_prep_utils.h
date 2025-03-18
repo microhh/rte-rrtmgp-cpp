@@ -35,19 +35,23 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
     const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics
 );
 
+void tilt_fields_single_column(const int idx_col_x, const int idx_col_y,
+    const int n_z_in, const int n_zh_in, const int n_col_x, const int n_col_y,
+    const int n_z_tilt, const int n_zh_tilt, const int n_col,
+    const Array<Float,1> zh, const Array<Float,1> z,
+    const Array<Float,1> zh_tilt, const Array<ijk,1> path,
+    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
+    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
+    Gas_concs& gas_concs_copy, const std::vector<std::string> gas_names,
+    const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics
+);
+
 void compress_fields(const int compress_lay_start_idx, const int n_col_x, const int n_col_y,
     const int n_z_in, const int n_zh_in,  const int n_z_tilt,
     Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
     Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
     Gas_concs& gas_concs_copy, std::vector<std::string> gas_names,
     bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics);
-
-void select_one_column(const int idx_col_x, const int idx_col_y, const int n_col_x, const int n_col_y, const int n_z, const int n_zh,
-    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
-    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
-    Gas_concs& gas_concs_copy, const std::vector<std::string> gas_names,
-    const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics
-);
 
 void add_column_to_output(const int idx_col_x, const int idx_col_y, 
     const int n_col_x, const int n_col_y, const int n_z, const int n_zh,

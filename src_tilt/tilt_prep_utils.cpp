@@ -387,6 +387,97 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
     p_lev_copy->expand_dims({n_col, n_zh_tilt});
 }
 
+void tilt_fields_single_column(const int idx_col_x, const int idx_col_y,
+    const int n_z_in, const int n_zh_in, const int n_col_x, const int n_col_y,
+    const int n_z_tilt, const int n_zh_tilt, const int n_col,
+    const Array<Float,1> zh, const Array<Float,1> z,
+    const Array<Float,1> zh_tilt, const Array<ijk,1> path,
+    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
+    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
+    Gas_concs& gas_concs_copy, const std::vector<std::string> gas_names,
+    const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics
+) {
+    if (switch_cloud_optics)
+    {
+        for (int ilay = 1; ilay <= n_zh_in; ++ilay)    
+        {
+            Float dz = zh({ilay + 1}) - zh({ilay});
+            for (int icol = 1; icol <= n_col; ++icol)    
+            {
+                if (switch_liq_cloud_optics)
+                {
+                    (*lwp_copy)({icol, ilay}) /= dz;
+                }
+                if (switch_ice_cloud_optics)
+                {
+                    (*iwp_copy)({icol, ilay}) /= dz;
+                }
+            }
+        }
+        if (switch_liq_cloud_optics)
+        {
+            create_single_tilted_columns(idx_col_x, idx_col_y, n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), lwp_copy->v());
+            create_single_tilted_columns(idx_col_x, idx_col_y, n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), rel_copy->v());
+
+            lwp_copy->expand_dims({1, n_z_tilt});
+            rel_copy->expand_dims({1, n_z_tilt});
+        }
+        if (switch_ice_cloud_optics)
+        {
+            create_single_tilted_columns(idx_col_x, idx_col_y, n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), iwp_copy->v());
+            create_single_tilted_columns(idx_col_x, idx_col_y, n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), dei_copy->v());
+
+            iwp_copy->expand_dims({1, n_z_tilt});
+            dei_copy->expand_dims({1, n_z_tilt});
+        }
+
+        for (int ilay = 1; ilay <= n_z_tilt; ++ilay)    
+        {
+            Float dz = zh_tilt({ilay + 1}) - zh_tilt({ilay});
+            for (int icol = 1; icol <= n_col; ++icol)    
+            {
+                if (switch_liq_cloud_optics)
+                {
+                    (*lwp_copy)({icol, ilay}) *= dz;
+                }
+                if (switch_ice_cloud_optics)
+                {
+                    (*iwp_copy)({icol, ilay}) *= dz;
+                }
+            }
+        }
+    }
+
+    for (const auto& gas_name : gas_names) {
+        if (!gas_concs_copy.exists(gas_name)) {
+            continue;
+        }
+        const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
+
+        if (gas.size() > 1) {
+            Array<Float,2> gas_tmp(gas);
+            create_single_tilted_columns(idx_col_x, idx_col_y, n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
+            gas_tmp.expand_dims({1, n_z_tilt});
+            gas_concs_copy.set_vmr(gas_name, gas_tmp);
+        } 
+        else if (gas.size() == 1) {
+            // Do nothing for single profiles
+        } 
+        else {
+            throw std::runtime_error("No tilted column implementation for single profiles.");
+        }
+    }
+
+    // Create tilted columns for T and p. Important: create T first!!
+    create_single_tilted_columns_levlay(idx_col_x, idx_col_y,  n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), t_lay_copy->v(), t_lev_copy->v());
+    create_single_tilted_columns_levlay(idx_col_x, idx_col_y,  n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), p_lay_copy->v(), p_lev_copy->v());
+
+    t_lay_copy->expand_dims({1, n_z_tilt});
+    t_lev_copy->expand_dims({1, n_zh_tilt});
+    p_lay_copy->expand_dims({1, n_z_tilt});
+    p_lev_copy->expand_dims({1, n_zh_tilt});
+}
+
 void compress_fields(const int compress_lay_start_idx, const int n_col_x, const int n_col_y,
     const int n_z_in, const int n_zh_in,  const int n_z_tilt,
     Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
@@ -457,7 +548,6 @@ void restore_bkg_profile(const int n_x, const int n_y,
                       std::vector<Float>& var,
                       std::vector<Float>& var_w_bkg)
 {
-
     const int n_out = n_tilt + (n_full - bkg_start);
 
     std::vector<Float> var_tmp(n_out * n_x * n_y);    
@@ -572,82 +662,6 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y,
     t_lev_copy->expand_dims({n_col, n_lev_tot});
 }
 
-void select_one_column(const int idx_col_x, const int idx_col_y, const int n_col_x, const int n_col_y, const int n_z, const int n_zh,
-    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
-    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
-    Gas_concs& gas_concs_copy, const std::vector<std::string> gas_names,
-    const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics
-) {
-    int col_idx = idx_col_y* n_col_x + idx_col_x;
-    Array<Float,2> new_p_lay({1, n_z});
-    Array<Float,2> new_t_lay({1, n_z});
-    Array<Float,2> new_p_lev({1, n_zh});
-    Array<Float,2> new_t_lev({1, n_zh});
-
-    for (int iz = 0; iz < n_z; ++iz) {
-        int src_idx = col_idx + iz * n_col_x * n_col_y;
-        new_p_lay.v()[iz] = p_lay_copy->v()[src_idx];
-        new_t_lay.v()[iz] = t_lay_copy->v()[src_idx];
-    }
-    
-    for (int izh = 0; izh < n_zh; ++izh) {
-        int src_idx = col_idx + izh * n_col_x * n_col_y;
-        new_p_lev.v()[izh] = p_lev_copy->v()[src_idx];
-        new_t_lev.v()[izh] = t_lev_copy->v()[src_idx];
-    }
-
-    *p_lay_copy = new_p_lay;
-    *t_lay_copy = new_t_lay;
-    *p_lev_copy = new_p_lev;
-    *t_lev_copy = new_t_lev;
-    
-    if (switch_cloud_optics) {
-        if (switch_liq_cloud_optics) {
-            Array<Float,2> new_lwp({1, n_z});
-            Array<Float,2> new_rel({1, n_z});
-            
-            for (int iz = 0; iz < n_z; ++iz) {
-                int src_idx = col_idx + iz * n_col_x * n_col_y;
-                new_lwp.v()[iz] = lwp_copy->v()[src_idx];
-                new_rel.v()[iz] = rel_copy->v()[src_idx];
-            }
-            
-            *lwp_copy = new_lwp;
-            *rel_copy = new_rel;
-        }
-        
-        if (switch_ice_cloud_optics) {
-            Array<Float,2> new_iwp({1, n_z});
-            Array<Float,2> new_dei({1, n_z});
-            
-            for (int iz = 0; iz < n_z; ++iz) {
-                int src_idx = col_idx + iz * n_col_x * n_col_y;
-                new_iwp.v()[iz] = iwp_copy->v()[src_idx];
-                new_dei.v()[iz] = dei_copy->v()[src_idx];
-            }
-            
-            *iwp_copy = new_iwp;
-            *dei_copy = new_dei;
-        }
-    }
-    
-    for (const auto& gas_name : gas_names) {
-        if (!gas_concs_copy.exists(gas_name)) {
-            continue;
-        }
-        
-        const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
-        if (gas.size() > 1) {
-            Array<Float,2> new_gas({1, n_z});
-            
-            for (int iv = 0; iv < n_z; ++iv) {
-                int src_idx = col_idx + iv * n_col_x * n_col_y;
-                new_gas.v()[iv] = gas.v()[src_idx];
-            }
-            gas_concs_copy.set_vmr(gas_name, new_gas);
-        }
-    }
-}
 
 void add_column_to_output(const int idx_col_x, const int idx_col_y, 
     const int n_col_x, const int n_col_y, const int n_z, const int n_zh,
@@ -660,10 +674,13 @@ void add_column_to_output(const int idx_col_x, const int idx_col_y,
     const std::vector<std::string> gas_names,
     const bool switch_cloud_optics, const bool switch_liq_cloud_optics, const bool switch_ice_cloud_optics)
     {
+    const int n_col = n_col_x*n_col_y;
+    const int base_idx = idx_col_x + idx_col_y * n_col_x;
+    const int stride = n_col_x * n_col_y;
 
     for (int j = 0; j < n_z; ++j)
     {
-        const int out_idx = idx_col_x + idx_col_y * n_col_x + j * n_col_x * n_col_y;
+        const int out_idx = base_idx + j * stride;
 
         p_lay_out->v()[out_idx] = p_lay_copy->v()[j];
         t_lay_out->v()[out_idx] = t_lay_copy->v()[j];
@@ -681,7 +698,7 @@ void add_column_to_output(const int idx_col_x, const int idx_col_y,
 
     for (int j = 0; j < n_zh; ++j)
     {
-        const int out_idx = idx_col_x + idx_col_y * n_col_x + j * n_col_x * n_col_y;
+        const int out_idx = base_idx + j * stride;
         p_lev_out->v()[out_idx] = p_lev_copy->v()[j];
         t_lev_out->v()[out_idx] = t_lev_copy->v()[j];
     }
@@ -691,8 +708,22 @@ void add_column_to_output(const int idx_col_x, const int idx_col_y,
             continue;
         }
         const Array<Float,2>& gas_src = gas_concs_copy.get_vmr(gas_name);
+        const Array<Float,2>& gas_dest = gas_concs_out.get_vmr(gas_name);
+
         if (gas_src.size() > 1) {
-            Array<Float,2> gas_tmp(gas_src);
+            std::vector<Float> gas_column_copy = gas_src.v();
+            std::vector<Float> gas_tmp_copy = gas_dest.v();
+            Array<Float,2> gas_column({1, n_z});
+            gas_column = std::move(gas_column_copy);
+
+            Array<Float,2> gas_tmp({n_col, n_z});
+            gas_tmp = std::move(gas_tmp_copy);
+
+            for (int j = 0; j < n_z; ++j) {
+                const int out_idx = base_idx + j * stride;
+                gas_tmp.v()[out_idx] = gas_column.v()[j];
+            }
+
             gas_concs_out.set_vmr(gas_name, gas_tmp);
         }
     }

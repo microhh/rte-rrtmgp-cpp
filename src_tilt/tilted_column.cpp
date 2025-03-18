@@ -132,6 +132,27 @@ void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, con
     var = var_tmp;
 }
 
+void create_single_tilted_columns(const int ix, const int iy,
+                           const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
+                           const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
+                           std::vector<Float>& var)
+{
+    const int n_lay = tilted_path.size();
+    const int n_lev = zh_tilted.size();
+
+    std::vector<Float> var_tmp(n_lay);
+    for (int ilay=0; ilay<n_lay; ++ilay)
+    {
+        const ijk offset = tilted_path[ilay];
+        const int idx_out  = ilay;
+        const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
+        var_tmp[idx_out] = var[idx_in];
+    }
+
+    var.resize(var_tmp.size());
+    var = var_tmp;
+}
+
 void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                  const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
                  const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
@@ -251,6 +272,39 @@ void create_tilted_columns_levlay(const int n_x, const int n_y, const int n_lay_
 
     var_lay.resize(n_lay*n_y*n_x);
     var_lev.resize(n_lev*n_y*n_x);
+    var_lay = var_lay_tmp;
+    var_lev = var_lev_tmp;
+}
+
+void create_single_tilted_columns_levlay(const int ix, const int iy,
+                                 const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
+                                 const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
+                                 const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
+                                 std::vector<Float>& var_lay, std::vector<Float>& var_lev)
+
+{
+    const int n_lay = tilted_path.size();
+    const int n_lev = zh_tilted.size();
+    std::vector<Float> z_tilted(n_lay);
+    for (int ilay=0; ilay<n_lay; ++ilay)
+        z_tilted[ilay] = (zh_tilted[ilay]+zh_tilted[ilay+1])/Float(2.);
+
+    std::vector<Float> var_lay_tmp(n_lay);
+    std::vector<Float> var_lev_tmp(n_lev);
+    const int idx = ix + iy*n_y;
+    var_lev_tmp[0] = var_lev[idx];
+
+    
+    for (int ilev=1; ilev<n_lev; ++ilev)
+        interpolate(1, 1, n_lay_in, n_lev_in, zh_in, z_in, var_lay, var_lev, 
+                    zh_tilted[ilev], tilted_path[ilev-1], &var_lev_tmp.data()[ilev]);
+    
+    for (int ilay=0; ilay<n_lay; ++ilay)
+        interpolate(1, 1, n_lay_in, n_lev_in, zh_in, z_in, var_lay, var_lev, 
+                    z_tilted[ilay], tilted_path[ilay], &var_lay_tmp.data()[ilay]);
+
+    var_lay.resize(n_lay);
+    var_lev.resize(n_lev);
     var_lay = var_lay_tmp;
     var_lev = var_lev_tmp;
 }
