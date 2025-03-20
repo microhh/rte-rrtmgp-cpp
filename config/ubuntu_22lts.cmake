@@ -14,22 +14,17 @@ set(USER_FC_FLAGS "-fdefault-real-8 -fdefault-double-8 -fPIC -ffixed-line-length
 set(USER_FC_FLAGS_RELEASE "-DNDEBUG -O3 -march=native")
 set(USER_FC_FLAGS_DEBUG "-O0 -g -Wall -Wno-unknown-pragmas")
 
-set(CURAND_LIB_DIR "/opt/nvidia/hpc_sdk/Linux_x86_64/23.9/math_libs/lib64")
-set(CURAND_INCLUDE_DIR "/opt/nvidia/hpc_sdk/Linux_x86_64/23.9/math_libs/include")
-set(CURAND_LIB "${CURAND_LIB_DIR}/libcurand.so")
-set(NETCDF_INCLUDE_DIR "/opt/cray/pe/netcdf/4.9.0.9/gnu/12.3/include")
-set(NETCDF_LIB_C "/opt/cray/pe/netcdf/4.9.0.9/gnu/12.3/lib/libnetcdf.so")
-set(HDF5_LIB_1 "/opt/cray/pe/hdf5/1.12.2.9/gnu/12.3/lib/libhdf5.so")        # Main HDF5 library
-set(HDF5_LIB_2 "/opt/cray/pe/hdf5/1.12.2.9/gnu/12.3/lib/libhdf5_hl.so")     # High-level HDF5 library
-
-
+set(NETCDF_INCLUDE_DIR "/usr/include")
+set(NETCDF_LIB_C       "/usr/lib/x86_64-linux-gnu/libnetcdf.so")
+set(HDF5_LIB_1         "/usr/lib/x86_64-linux-gnu/libhdf5_serial.so")
+set(HDF5_LIB_2         "/usr/lib/x86_64-linux-gnu/libhdf5_serial_hl.so")
 set(SZIP_LIB           "")
-set(LIBS ${NETCDF_LIB_C} ${HDF5_LIB_2} ${HDF5_LIB_1} ${CURAND_LIB} ${SZIP_LIB} m z curl)
-set(INCLUDE_DIRS ${NETCDF_INCLUDE_DIR} ${CURAND_INCLUDE_DIR})
+set(LIBS ${NETCDF_LIB_C} ${HDF5_LIB_2} ${HDF5_LIB_1} ${SZIP_LIB} m z curl)
+set(INCLUDE_DIRS ${NETCDF_INCLUDE_DIR})
 
 if(USECUDA)
   set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-  set(CMAKE_CUDA_ARCHITECTURES 80)
+  set(CMAKE_CUDA_ARCHITECTURES 86)
   set(USER_CUDA_FLAGS "-std=c++17 -expt-relaxed-constexpr")
   set(USER_CUDA_FLAGS_RELEASE "-Xptxas -O3 -DNDEBUG")
   set(USER_CUDA_FLAGS_DEBUG "-Xptxas -O0 -g -G -DCUDACHECKS")
