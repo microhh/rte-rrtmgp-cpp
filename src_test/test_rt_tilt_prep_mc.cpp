@@ -30,7 +30,9 @@
 #include "tilted_column.h"
 #include "compress_column.h"
 #include "tilt_prep_utils.h"
+#include "tilt_prep_utils_mc.h"
 #include "types.h"
+#include "profiler.h"
 
 
 void tilt_input(int argc, char** argv)
@@ -305,6 +307,29 @@ void tilt_input(int argc, char** argv)
 
     std::vector<ColumnResult> col_results(total_iterations);
 
+    // Do Normalization of lwp iwp first OUTSIDE OF LOOP
+    Array<Float,2> lwp_norm = lwp;
+    Array<Float,2> iwp_norm = iwp;
+
+    if (switch_cloud_optics)
+    { 
+        for (int ilay = 1; ilay <= n_zh_in; ++ilay)    
+        {
+            Float dz = zh({ilay + 1}) - zh({ilay});
+            for (int icol = 1; icol <= n_col; ++icol)    
+            {
+                if (switch_liq_cloud_optics)
+                {
+                    (lwp_norm)({icol, ilay}) /= dz;
+                }
+                if (switch_ice_cloud_optics)
+                {
+                    (iwp_norm)({icol, ilay}) /= dz;
+                }
+            }
+        }
+    }
+
     Status::print_message("###### Start Loop ######");
     std::cout << "n_col: " << n_col << std::endl;
 
@@ -317,15 +342,18 @@ void tilt_input(int argc, char** argv)
         {
             int i = idx_x * n_col_y + idx_y;
 
-            Array<Float,2> lwp_copy = lwp;
-            Array<Float,2> iwp_copy = iwp;
+            Array<Float,2> lwp_copy = lwp_norm;
+            Array<Float,2> iwp_copy = iwp_norm;
             Array<Float,2> rel_copy = rel;
             Array<Float,2> dei_copy = dei;
             Array<Float,2> t_lay_copy = t_lay;
             Array<Float,2> t_lev_copy = t_lev;
             Array<Float,2> p_lay_copy = p_lay;
             Array<Float,2> p_lev_copy = p_lev;
-            Gas_concs gas_concs_copy = gas_concs;
+
+            Array<Float,2> h2o_copy = gas_concs.get_vmr("h2o");
+            Array<Float,2> o3_copy = gas_concs.get_vmr("o3");
+            // Gas_concs gas_concs_copy = gas_concs;
 
             const Array<ijk,1> path = by_col_paths[i];
             const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
@@ -338,7 +366,7 @@ void tilt_input(int argc, char** argv)
                 zh_tilt, path,
                 &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
                 &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
-                gas_concs_copy, gas_names,
+                &h2o_copy, &o3_copy,
                 switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
             );
 
@@ -360,11 +388,11 @@ void tilt_input(int argc, char** argv)
             std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
             assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
 
-            compress_fields(compress_lay_start_idx, 1, 1,
+            compress_fields_single_column(compress_lay_start_idx, 1, 1,
                 n_z_in, n_zh_in, n_z_tilt,
                 &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
                 &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
-                gas_concs_copy, gas_names,
+                &h2o_copy, &o3_copy,
                 switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 
             col_results[i].p_lay = std::move(p_lay_copy);
@@ -375,9 +403,11 @@ void tilt_input(int argc, char** argv)
             col_results[i].iwp   = std::move(iwp_copy);
             col_results[i].rel   = std::move(rel_copy);
             col_results[i].dei   = std::move(dei_copy);
-            col_results[i].gas_concs = std::move(gas_concs_copy);
+            col_results[i].h2o   = std::move(h2o_copy);
+            col_results[i].o3   = std::move(o3_copy);
         }
     }
+    Profiler::instance().report_and_reset();
 
     auto time_end_loop = std::chrono::high_resolution_clock::now();
     auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();

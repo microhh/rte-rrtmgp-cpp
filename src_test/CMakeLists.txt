@@ -45,5 +45,6 @@ add_executable(test_rt_tilt_prep
     test_rt_tilt_prep.cpp
     ../src_tilt/tilted_column.cpp
     ../src_tilt/compress_column.cpp
-    ../src_tilt/tilt_prep_utils.cpp)
+    ../src_tilt/tilt_prep_utils.cpp
+    ../src_tilt/tilt_prep_utils_mc.cpp)
 target_link_libraries(test_rt_tilt_prep rte_rrtmgp ${LIBS} m)

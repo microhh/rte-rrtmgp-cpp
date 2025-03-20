@@ -138,8 +138,6 @@ void create_single_tilted_columns(const int ix, const int iy,
                            std::vector<Float>& var)
 {
     const int n_lay = tilted_path.size();
-    const int n_lev = zh_tilted.size();
-
     std::vector<Float> var_tmp(n_lay);
     for (int ilay=0; ilay<n_lay; ++ilay)
     {
