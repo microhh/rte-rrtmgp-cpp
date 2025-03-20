@@ -164,6 +164,17 @@ void tilt_input(int argc, char** argv)
     read_and_set_vmr("cf4"    , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
     read_and_set_vmr("no2"    , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
 
+    for (const auto& gas_name : gas_names) {
+        if (!gas_concs.exists(gas_name)) {
+            continue;
+        }
+        const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
+        std::string var_name = "vmr_" + gas_name;
+        if ((gas.size() > 1) && (gas_name != "h2o" && gas_name != "o3")) {
+            throw std::runtime_error("3D gas concentrations only supported for h20 and o3.");
+        }
+    }
+
     Array<Float,2> lwp;
     Array<Float,2> iwp;
     Array<Float,2> rel;
