@@ -143,7 +143,7 @@ void create_single_tilted_columns(const int ix, const int iy,
     {
         const ijk offset = tilted_path[ilay];
         const int idx_out  = ilay;
-        const int idx_in = (iy + offset.j)%n_y + (ix + offset.i)%n_x * n_y + offset.k*n_x*n_y;
+        const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
         var_tmp[idx_out] = var[idx_in];
     }
 

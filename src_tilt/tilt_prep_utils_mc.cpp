@@ -285,15 +285,12 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
                          const bool switch_ice_cloud_optics)
 {
     const int total_cols = n_col_x * n_col_y;
-    const int stride = total_cols;
     for (int idx_x = 0; idx_x < n_col_x; ++idx_x) {
         for (int idx_y = 0; idx_y < n_col_y; ++idx_y) {
             int col_idx = idx_x + idx_y * n_col_x;
             const ColumnResult& col = col_results[col_idx];
-            int base_idx = col_idx;
-
             for (int j = 0; j < n_z; ++j) {
-                int out_idx = base_idx + j * stride;
+                int out_idx = col_idx + j * total_cols;
                 p_lay_out->v()[out_idx] = col.p_lay.v()[j];
                 t_lay_out->v()[out_idx] = col.t_lay.v()[j];
                 if (switch_liq_cloud_optics) {
@@ -307,20 +304,20 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
             }
 
             for (int j = 0; j < n_zh; ++j) {
-                int out_idx = base_idx + j * stride;
+                int out_idx = col_idx + j * total_cols;
                 p_lev_out->v()[out_idx] = col.p_lev.v()[j];
                 t_lev_out->v()[out_idx] = col.t_lev.v()[j];
             }
             
             Array<Float,2>& h2o_dest = const_cast<Array<Float,2>&>(gas_concs_out.get_vmr("h2o"));
             for (int j = 0; j < n_z; ++j) {
-                const int out_idx = base_idx + j * stride;
+                const int out_idx = col_idx + j * total_cols;
                 h2o_dest.v()[out_idx] = col.h2o.v()[j];
             }
 
             Array<Float,2>& o3_dest = const_cast<Array<Float,2>&>(gas_concs_out.get_vmr("o3"));
             for (int j = 0; j < n_z; ++j) {
-                const int out_idx = base_idx + j * stride;
+                const int out_idx = col_idx + j * total_cols;
                 o3_dest.v()[out_idx] = col.o3.v()[j];
             }
 

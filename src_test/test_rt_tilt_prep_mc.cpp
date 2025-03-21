@@ -347,8 +347,7 @@ void tilt_input(int argc, char** argv)
     {
         for (int idx_y = 0; idx_y < n_col_y; idx_y++)
         {
-            int i = idx_x * n_col_x + idx_y;
-
+            int i = idx_x + idx_y*n_col_y;
             Array<Float,2> lwp_copy = lwp_norm;
             Array<Float,2> iwp_copy = iwp_norm;
             Array<Float,2> rel_copy = rel;

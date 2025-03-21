@@ -54,7 +54,6 @@ void tilt_input(int argc, char** argv)
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"multi-start-points", {1, "i**2 start points."}},
-        {"compress-bkg", {1, "compress background by (i*2)x."}},
         {"tilt-sza", {0, "sza in degrees."}},
         {"tilt-azi", {0 , "azi in degrees" }}};
 
