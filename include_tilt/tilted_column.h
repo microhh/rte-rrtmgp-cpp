@@ -56,16 +56,14 @@ void create_single_tilted_columns_levlay(const int ix, const int iy,
                                  const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
                                  std::vector<Float>& var_lay, std::vector<Float>& var_lev);
 
-void create_single_tilted_columns_levlay_optimized(
-    const int ix, const int iy,
-    const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-    const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
-    const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-    std::vector<Float>& var_lay, std::vector<Float>& var_lev,
-    std::vector<Float>& buffer_lay, std::vector<Float>& buffer_lev);
-
 void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
                  const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
+                 const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
+                 const Float zp, const ijk offset,
+                 Float* p_out);
+
+void interpolate_single_column(const int ix, const int iy, const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
+                 const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
                  const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
                  const Float zp, const ijk offset,
                  Float* p_out);
