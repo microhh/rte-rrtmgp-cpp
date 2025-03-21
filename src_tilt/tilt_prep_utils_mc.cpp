@@ -286,8 +286,8 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
 {
     const int total_cols = n_col_x * n_col_y;
     const int stride = total_cols;
-    for (int idx_y = 0; idx_y < n_col_y; ++idx_y) {
-        for (int idx_x = 0; idx_x < n_col_x; ++idx_x) {
+    for (int idx_x = 0; idx_x < n_col_x; ++idx_x) {
+        for (int idx_y = 0; idx_y < n_col_y; ++idx_y) {
             int col_idx = idx_x + idx_y * n_col_x;
             const ColumnResult& col = col_results[col_idx];
             int base_idx = col_idx;

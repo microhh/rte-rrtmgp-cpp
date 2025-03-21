@@ -312,10 +312,6 @@ void tilt_input(int argc, char** argv)
     }
 
     const int total_iterations = n_col_x * n_col_y;
-    double total_tilt_time = 0.0;
-    double total_compress_time = 0.0;
-    double total_add_time = 0.0;
-
     std::vector<ColumnResult> col_results(total_iterations);
 
     // Do Normalization of lwp iwp first OUTSIDE OF LOOP
@@ -351,7 +347,7 @@ void tilt_input(int argc, char** argv)
     {
         for (int idx_y = 0; idx_y < n_col_y; idx_y++)
         {
-            int i = idx_x * n_col_y + idx_y;
+            int i = idx_x * n_col_x + idx_y;
 
             Array<Float,2> lwp_copy = lwp_norm;
             Array<Float,2> iwp_copy = iwp_norm;
