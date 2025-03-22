@@ -28,8 +28,12 @@
 #include "Array.h"
 #include "Gas_concs.h"
 #include "tilted_column.h"
+#include "compress_column.h"
 #include "tilt_prep_utils.h"
+#include "tilt_prep_utils_mc.h"
 #include "types.h"
+#include "profiler.h"
+
 
 void tilt_input(int argc, char** argv)
 {
@@ -337,19 +341,46 @@ void tilt_input(int argc, char** argv)
     std::cout << "n_col: " << n_col << std::endl;
 
     auto time_start_loop = std::chrono::high_resolution_clock::now();
+
     #pragma omp parallel for schedule(static)
     for (int idx_y = 0; idx_y < n_col_y; idx_y++)
-    {
+        {
         for (int idx_x = 0; idx_x < n_col_x; idx_x++)
         {
             int i = idx_x + idx_y*n_col_y;
-            const Array<ijk,1> tilted_path = by_col_paths[i];
+            Array<Float,2> lwp_copy = lwp_norm;
+            Array<Float,2> iwp_copy = iwp_norm;
+            Array<Float,2> rel_copy = rel;
+            Array<Float,2> dei_copy = dei;
+            Array<Float,2> t_lay_copy = t_lay;
+            Array<Float,2> t_lev_copy = t_lev;
+            Array<Float,2> p_lay_copy = p_lay;
+            Array<Float,2> p_lev_copy = p_lev;
+
+            Array<Float,2> h2o_copy = gas_concs.get_vmr("h2o");
+            Array<Float,2> o3_copy = gas_concs.get_vmr("o3");
+            // Gas_concs gas_concs_copy = gas_concs;
+
+            const Array<ijk,1> path = by_col_paths[i];
             const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
-            const int n_zh_tilt = by_col_n_zh_tilt[i];
-            const int n_z_tilt = by_col_n_z_tilt[i];
+            const Float n_zh_tilt = by_col_n_zh_tilt[i];
+            const Float n_z_tilt = by_col_n_z_tilt[i];
+
+            tilt_fields_single_column(idx_x, idx_y, n_z_in, n_zh_in, n_col_x, n_col_y,
+                n_z_tilt, n_zh_tilt, n_col,
+                zh, z,
+                zh_tilt, path,
+                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
+                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
+                &h2o_copy, &o3_copy,
+                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+            );
+
+            std::vector<Float> z_out = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_tilt);
+            std::vector<Float> zh_out = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_tilt);
 
             int idx_hold = 2 * (n_z_tilt - n_z_in);
-            if ((n_z_tilt - idx_hold) % 2 != 0) {
+            if ((z_out.size() - idx_hold) % 2 != 0) {
                 idx_hold--;
             }
 
@@ -359,121 +390,30 @@ void tilt_input(int argc, char** argv)
             if (compress_lay_start_idx < 0) {
                 throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
             }
+            std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_lay_compress);
+            std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_lev_compress);
+            assert(n_lev_compress == n_zh_in && n_lay_compress == n_z_in);
 
-            if (switch_liq_cloud_optics){
-                Array<Float,2> lwp_copy = lwp_norm;
-                Array<Float,2> rel_copy = rel;
-                Array<Float,2> lwp_tilted;
-                lwp_tilted.set_dims({1, n_z_tilt});
+            compress_fields_single_column(compress_lay_start_idx, 1, 1,
+                n_z_in, n_zh_in, n_z_tilt,
+                &p_lay_copy, &t_lay_copy, &p_lev_copy, &t_lev_copy, 
+                &lwp_copy, &iwp_copy, &rel_copy, &dei_copy, 
+                &h2o_copy, &o3_copy,
+                switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 
-                process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
-                                n_z_in, n_zh_in, 
-                                n_col_x, n_col_y,
-                                n_z_tilt, n_zh_tilt,
-                                zh_tilt, 
-                                tilted_path.v(), 
-                                lwp_copy.v(),
-                                lwp_tilted.v());
-                process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    rel_copy.v(),
-                                    lwp_tilted.v());
-
-                col_results[i].lwp   = std::move(lwp_copy);
-                col_results[i].rel   = std::move(rel_copy);
-            }
-            if (switch_ice_cloud_optics){
-
-                Array<Float,2> iwp_copy = iwp_norm;
-                Array<Float,2> dei_copy = dei;
-                Array<Float,2> iwp_tilted;
-                iwp_tilted.set_dims({1, n_z_tilt});
-
-                process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
-                                n_z_in, n_zh_in, 
-                                n_col_x, n_col_y,
-                                n_z_tilt, n_zh_tilt,
-                                zh_tilt, 
-                                tilted_path.v(), 
-                                iwp_copy.v(),
-                                iwp_tilted.v());
-                process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    dei_copy.v(),
-                                    iwp_tilted.v());
-
-                col_results[i].iwp   = std::move(iwp_copy);
-                col_results[i].dei   = std::move(dei_copy);
-
-            }
-
-            Array<Float,2> t_lay_copy = t_lay;
-            Array<Float,2> t_lev_copy = t_lev;
-            Array<Float,2> p_lay_copy = p_lay;
-            Array<Float,2> p_lev_copy = p_lev;
-            Array<Float,2> h2o_copy = gas_concs.get_vmr("h2o");
-            Array<Float,2> o3_copy = gas_concs.get_vmr("o3");
-
-            Array<Float,2> p_lay_tilted;
-            p_lay_tilted.set_dims({1, n_z_tilt});
-            Array<Float,2> t_lay_tilted; // unused ...
-            t_lay_tilted.set_dims({1, n_z_tilt});
-
-            process_p_or_t(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh.v(), z.v(),
-                                    zh_tilt.v(),  
-                                    tilted_path.v(), 
-                                    t_lay_copy.v(),
-                                    t_lev_copy.v(),
-                                    t_lay_tilted.v());
-
-            process_p_or_t(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh.v(), z.v(),
-                                    zh_tilt.v(), 
-                                    tilted_path.v(),  
-                                    p_lay_copy.v(),
-                                    p_lev_copy.v(),
-                                    p_lay_tilted.v());
-            process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    h2o_copy.v(),
-                                    p_lay_tilted.v());
-            process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    o3_copy.v(),
-                                    p_lay_tilted.v());
-
-            col_results[i].p_lay   = std::move(p_lay_copy);
-            col_results[i].p_lev   = std::move(p_lev_copy);
-            col_results[i].t_lay   = std::move(t_lay_copy);
-            col_results[i].t_lev   = std::move(t_lev_copy);
-            col_results[i].o3   = std::move(o3_copy);
+            col_results[i].p_lay = std::move(p_lay_copy);
+            col_results[i].t_lay = std::move(t_lay_copy);
+            col_results[i].p_lev = std::move(p_lev_copy);
+            col_results[i].t_lev = std::move(t_lev_copy);
+            col_results[i].lwp   = std::move(lwp_copy);
+            col_results[i].iwp   = std::move(iwp_copy);
+            col_results[i].rel   = std::move(rel_copy);
+            col_results[i].dei   = std::move(dei_copy);
             col_results[i].h2o   = std::move(h2o_copy);
-            
+            col_results[i].o3   = std::move(o3_copy);
         }
     }
+    Profiler::instance().report_and_reset();
 
     auto time_end_loop = std::chrono::high_resolution_clock::now();
     auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();

@@ -1,8 +1,9 @@
-#include "tilted_column.h"
 #include <cmath>
 #include <iostream>
 #include <vector>
 #include <numeric>
+#include "Source_functions.h"
+#include "tilted_column.h"
 
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
@@ -106,278 +107,378 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
         zh_tilted.push_back(zh_tilted[iz]+dz_tilted[iz]);
 }
 
-void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                           const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                           std::vector<Float>& var)
-{
-    const int n_lay = tilted_path.size();
-    const int n_lev = zh_tilted.size();
-
-    std::vector<Float> var_tmp(n_lay*n_x*n_y);
-
-    #pragma omp parallel for
-    for (int ilay=0; ilay<n_lay; ++ilay)
+void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_idx,
+    const int n_z_in, const int n_zh_in, 
+    const int n_x, const int n_y,
+    const int n_z_tilt, const int n_zh_tilt,
+    const Array<Float,1> zh_tilt, const std::vector<ijk>& tilted_path, 
+    std::vector<Float>& var,
+    std::vector<Float>& var_tilted)
     {
-        const ijk offset = tilted_path[ilay];
-        for (int iy=0; iy<n_y; ++iy)
-            for (int ix=0; ix<n_x; ++ix)
-            {
-                const int idx_out  = ix + iy*n_y + ilay*n_y*n_x;
-                const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
-                var_tmp[idx_out] = var[idx_in];
+
+        const int n_col = n_x*n_y;
+        std::vector<Float> var_tmp(n_z_tilt);
+        for (int ilay=0; ilay < n_z_tilt; ++ilay)
+        {
+            Float dz = zh_tilt({ilay + 1}) - zh_tilt({ilay});
+            const ijk offset = tilted_path[ilay];
+            const int idx_out  = ilay;
+            const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
+            var_tmp[idx_out] = var[idx_in] * dz;
+        }
+
+        var_tilted.resize(n_z_tilt);
+        var_tilted = var_tmp;
+
+        std::vector<Float> var_compress(n_z_in);    
+        for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
+        {
+            var_compress[ilay] = var_tmp[ilay];
+        }
+
+        for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
+        {
+            const int in_offset = ilay - compress_lay_start_idx;
+            const int i_lay_in = compress_lay_start_idx + 2 * in_offset;
+            int num_inputs;
+            if (ilay < (n_z_in - 1)) {
+                num_inputs = 2;
             } 
-    }
-
-    var.resize(var_tmp.size());
-    var = var_tmp;
-}
-
-void create_single_tilted_columns(const int ix, const int iy,
-                           const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                           const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                           std::vector<Float>& var)
-{
-    const int n_lay = tilted_path.size();
-    std::vector<Float> var_tmp(n_lay);
-    for (int ilay=0; ilay<n_lay; ++ilay)
-    {
-        const ijk offset = tilted_path[ilay];
-        const int idx_out  = ilay;
-        const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
-        var_tmp[idx_out] = var[idx_in];
-    }
-
-    var.resize(var_tmp.size());
-    var = var_tmp;
-}
-
-void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                 const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
-                 const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
-                 const Float zp, const ijk offset,
-                 Float* p_out)
-{
-    int zp_in_zh = -1; // half level
-    int zp_in_zf = -1; // full level
-    for (int ilev=0; ilev<n_lev_in; ++ilev)
-        if (std::abs(zh_in[ilev]-zp) < 1e-2)
-            zp_in_zh= ilev;
-    for (int ilay=0; ilay<n_lay_in; ++ilay)
-        if (std::abs(zf_in[ilay]-zp) < 1e-2)
-            zp_in_zf = ilay;
-    if (zp_in_zh > -1)
-    {
-        for (int iy=0; iy<n_y; ++iy)
-            for (int ix=0; ix<n_x; ++ix)
+            else {
+                num_inputs = ((i_lay_in + 1) == (n_z_tilt - 1)) ? 2 : 3;
+            }
+            Float sum = 0.0;
+            for (int k = 0; k < num_inputs; ++k)
             {
-                const int idx_out  = ix + iy*n_y;
-                const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + zp_in_zh*n_y*n_x;
-                p_out[idx_out] = plev_in[idx_in];
-            } 
+                int in_idx = i_lay_in + k;
+            sum += var_tmp[in_idx];
+            }
+            var_compress[ilay] = sum;
     }
-    else if (zp_in_zf > -1)
+    var = var_compress;
+    }
+
+void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx,
+                        const int n_z_in, const int n_zh_in, 
+                        const int n_x, const int n_y,
+                        const int n_z_tilt, const int n_zh_tilt,
+                        const std::vector<Float>& zh_in,
+                        const std::vector<Float>& z_in,
+                        const std::vector<Float>& zh_tilted,
+                        const std::vector<ijk>& tilted_path,
+                        std::vector<Float>& var_lay,
+                        std::vector<Float>& var_lev,
+                        std::vector<Float>& var_lay_tilted)
     {
-        for (int iy=0; iy<n_y; ++iy)
-            for (int ix=0; ix<n_x; ++ix)
+        std::vector<Float> z_tilted(n_zh_tilt);
+        for (int ilay = 0; ilay < n_z_tilt; ++ilay)
+            z_tilted[ilay] = (zh_tilted[ilay] + zh_tilted[ilay+1]) / Float(2.);
+
+        std::vector<Float> var_lay_tmp(n_z_tilt);
+        std::vector<Float> var_lev_tmp(n_zh_tilt);
+        const int idx = ix + iy * n_x;
+        var_lev_tmp[0] = var_lev[idx];
+
+        // --- Half-level interpolation using zh_tilted ---
+        for (int ilev = 1; ilev < n_zh_tilt; ++ilev)
+        {
+            Float zp = zh_tilted[ilev];
+            ijk offset = tilted_path[ilev - 1];
+
+            // Look for an exact match in the half-level heights.
+            int zp_in_zh = -1;
+            for (int i = 0; i < n_zh_in; ++i)
             {
-                const int idx_out  = ix + iy*n_y;
-                const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + zp_in_zf*n_y*n_x;
-                p_out[idx_out] = play_in[idx_in];
-            } 
-    }
-    else
-    {
-        int posh_bot = 0;
-        int posf_bot = 0;
-        for (int ilev=0; ilev<n_lev_in-1; ++ilev)
-            if (zh_in[ilev] < zp)
-                posh_bot = ilev;     
-        for (int ilay=0; ilay<n_lay_in; ++ilay)
-            if (zf_in[ilay] < zp)
-                posf_bot = ilay;         
-        const Float* p_top;
-        const Float* p_bot;
-        Float  z_top;
-        Float  z_bot;
+                if (std::abs(zh_in[i] - zp) < 1e-2)
+                    zp_in_zh = i;
+            }
 
-        const int zh_top = zh_in[posh_bot+1];
-        const int zh_bot = zh_in[posh_bot];
-        const int zf_top = (posf_bot+1 < n_lay_in) ? zf_in[posf_bot+1] : zh_top+1;
-        const int zf_bot = zf_in[posf_bot];
-
-        if (zh_top > zf_top)
-        {
-            p_top = &play_in.data()[(posf_bot+1)*n_x*n_y];       
-            z_top = zf_in[posf_bot+1];       
-        }
-        else
-        {   
-            p_top = &plev_in.data()[(posh_bot+1)*n_x*n_y];       
-            z_top = zh_in[posh_bot+1];
-        }
-        if (zh_bot < zf_bot)
-        {
-            p_bot = &play_in.data()[(posf_bot)*n_x*n_y];       
-            z_bot = zf_in[posf_bot];       
-        }
-        else
-        {   
-            p_bot = &plev_in.data()[(posh_bot)*n_x*n_y];       
-            z_bot = zh_in[posh_bot];
-        }
-
-        Float dz = z_top-z_bot;
-
-        for (int iy=0; iy<n_y; ++iy)
-            for (int ix=0; ix<n_x; ++ix)
+            // Look for an exact match in the full-level heights.
+            int zp_in_zf = -1;
+            for (int i = 0; i < n_z_in; ++i)
             {
-                const int idx_out  = ix + iy*n_y;
-                const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x;
-                const Float pres = (zp-z_bot)/dz*p_top[idx_in] + (z_top-zp)/dz*p_bot[idx_in];
-                p_out[idx_out] = pres;
+                if (std::abs(z_in[i] - zp) < 1e-2)
+                    zp_in_zf = i;
+            }
+
+            if (zp_in_zh > -1)
+            {
+                // Use the half-level variable.
+                int idx_in = (ix + offset.i) % n_x +
+                            ((iy + offset.j) % n_y) * n_x +
+                            zp_in_zh * n_y * n_x;
+                var_lev_tmp[ilev] = var_lev[idx_in];
+            }
+            else if (zp_in_zf > -1)
+            {
+                // Use the full-level variable.
+                int idx_in = (ix + offset.i) % n_x +
+                            ((iy + offset.j) % n_y) * n_x +
+                            zp_in_zf * n_y * n_x;
+                var_lev_tmp[ilev] = var_lay[idx_in];
+            }
+            else
+            {
+                // No exact match; perform linear interpolation.
+                int posh_bot = 0;
+                int posf_bot = 0;
+                for (int i = 0; i < n_zh_in - 1; ++i)
+                {
+                    if (zh_in[i] < zp)
+                        posh_bot = i;
+                }
+                for (int i = 0; i < n_z_in; ++i)
+                {
+                    if (z_in[i] < zp)
+                        posf_bot = i;
+                }
+                
+                const Float* p_top;
+                const Float* p_bot;
+                Float z_top, z_bot;
+                Float zh_top = zh_in[posh_bot + 1];
+                Float zh_bot = zh_in[posh_bot];
+                Float zf_top = (posf_bot + 1 < n_z_in) ? z_in[posf_bot + 1] : zh_top + 1;
+                Float zf_bot = z_in[posf_bot];
+
+                // Decide which array to use for the top value.
+                if (zh_top > zf_top)
+                {
+                    p_top = &var_lay[(posf_bot + 1) * n_x * n_y];
+                    z_top = z_in[posf_bot + 1];
+                }
+                else
+                {
+                    p_top = &var_lev[(posh_bot + 1) * n_x * n_y];
+                    z_top = zh_in[posh_bot + 1];
+                }
+                // Decide which array to use for the bottom value.
+                if (zh_bot < zf_bot)
+                {
+                    p_bot = &var_lay[posf_bot * n_x * n_y];
+                    z_bot = z_in[posf_bot];
+                }
+                else
+                {
+                    p_bot = &var_lev[posh_bot * n_x * n_y];
+                    z_bot = zh_in[posh_bot];
+                }
+
+                Float dz = z_top - z_bot;
+                int idx_in = (ix + offset.i) % n_x +
+                            ((iy + offset.j) % n_y) * n_x;
+                Float pres = (zp - z_bot) / dz * p_top[idx_in] +
+                            (z_top - zp) / dz * p_bot[idx_in];
+                var_lev_tmp[ilev] = pres;
+            }
+        }
+
+        // --- Full-level interpolation using computed z_tilted ---
+        for (int ilay = 0; ilay < n_z_tilt; ++ilay)
+        {
+            Float zp = z_tilted[ilay];
+            ijk offset = tilted_path[ilay];
+
+            // Look for an exact match in the half-level heights.
+            int zp_in_zh = -1;
+            for (int i = 0; i < n_zh_in; ++i)
+            {
+                if (std::abs(zh_in[i] - zp) < 1e-2)
+                    zp_in_zh = i;
+            }
+            // Look for an exact match in the full-level heights.
+            int zp_in_zf = -1;
+            for (int i = 0; i < n_z_in; ++i)
+            {
+                if (std::abs(z_in[i] - zp) < 1e-2)
+                    zp_in_zf = i;
+            }
+
+            if (zp_in_zh > -1)
+            {
+                int idx_in = (ix + offset.i) % n_x +
+                            ((iy + offset.j) % n_y) * n_x +
+                            zp_in_zh * n_y * n_x;
+                var_lay_tmp[ilay] = var_lev[idx_in];
+            }
+            else if (zp_in_zf > -1)
+            {
+                int idx_in = (ix + offset.i) % n_x +
+                            ((iy + offset.j) % n_y) * n_x +
+                            zp_in_zf * n_y * n_x;
+                var_lay_tmp[ilay] = var_lay[idx_in];
+            }
+            else
+            {
+                int posh_bot = 0;
+                int posf_bot = 0;
+                for (int i = 0; i < n_zh_in - 1; ++i)
+                {
+                    if (zh_in[i] < zp)
+                        posh_bot = i;
+                }
+                for (int i = 0; i < n_z_in; ++i)
+                {
+                    if (z_in[i] < zp)
+                        posf_bot = i;
+                }
+                
+                const Float* p_top;
+                const Float* p_bot;
+                Float z_top, z_bot;
+                Float zh_top = zh_in[posh_bot + 1];
+                Float zh_bot = zh_in[posh_bot];
+                Float zf_top = (posf_bot + 1 < n_z_in) ? z_in[posf_bot + 1] : zh_top + 1;
+                Float zf_bot = z_in[posf_bot];
+
+                if (zh_top > zf_top)
+                {
+                    p_top = &var_lay[(posf_bot + 1) * n_x * n_y];
+                    z_top = z_in[posf_bot + 1];
+                }
+                else
+                {
+                    p_top = &var_lev[(posh_bot + 1) * n_x * n_y];
+                    z_top = zh_in[posh_bot + 1];
+                }
+                if (zh_bot < zf_bot)
+                {
+                    p_bot = &var_lay[posf_bot * n_x * n_y];
+                    z_bot = z_in[posf_bot];
+                }
+                else
+                {
+                    p_bot = &var_lev[posh_bot * n_x * n_y];
+                    z_bot = zh_in[posh_bot];
+                }
+
+                Float dz = z_top - z_bot;
+                int idx_in = (ix + offset.i) % n_x +
+                            ((iy + offset.j) % n_y) * n_x;
+                Float pres = (zp - z_bot) / dz * p_top[idx_in] +
+                            (z_top - zp) / dz * p_bot[idx_in];
+                var_lay_tmp[ilay] = pres;
+            }
+        }
+        var_lay_tilted.resize(n_z_tilt);
+        var_lay_tilted = var_lay_tmp;
+
+        std::vector<Float> var_compress_lay(n_z_in );
+        std::vector<Float> var_compress_lev(n_zh_in);
+
+        #pragma omp parallel for
+        for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
+        {
+            const int out_idx =ilay;
+            var_compress_lay[ilay] = var_lev_tmp[ilay];
+            var_compress_lev[ilay] = var_lev_tmp[ilay];
+        }
+        var_compress_lev[compress_lay_start_idx] = var_lev_tmp[compress_lay_start_idx];
+
+        #pragma omp parallel for
+        for (int ilev = (compress_lay_start_idx + 1); ilev < (n_z_in + 1); ++ilev)
+        {
+            int i_lev_in;
+            if (ilev == n_z_in)
+            {
+                i_lev_in = n_z_tilt;
+            }
+            else
+            {
+                i_lev_in = (compress_lay_start_idx + 2) + 2 * (ilev - (compress_lay_start_idx + 1));
+            }
+            var_compress_lev[ilev] = var_lev_tmp[i_lev_in];
+        }
+
+        #pragma omp parallel for
+        for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
+        {
+            const int in_offset = ilay - compress_lay_start_idx;
+            int i_lev_to_lay_in;
+            if (ilay == (n_z_in - 1))
+            {
+                i_lev_to_lay_in = n_z_tilt - 1; // in some cases this is a slight approximation.
+            }
+            else 
+            {
+                i_lev_to_lay_in = (compress_lay_start_idx + 2 * in_offset - 1);
+            }
+            var_compress_lay[ilay] = var_lev_tmp[i_lev_to_lay_in];
+        }
+
+        var_lay.resize(n_z_in);
+        var_lev.resize(n_zh_in);
+        var_lay = var_compress_lay;
+        var_lev = var_compress_lev;
+    }
+
+
+void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_idx,
+    const int n_z_in, const int n_zh_in, 
+    const int n_x, const int n_y,
+    const int n_z_tilt, const int n_zh_tilt,
+    const Array<Float,1> zh_tilt, const std::vector<ijk>& tilted_path, 
+    std::vector<Float>& var,
+    std::vector<Float>& var_weighted_tilted)
+    {
+
+        const int n_col = n_x*n_y;
+        std::vector<Float> var_tmp(n_z_tilt);
+        for (int ilay=0; ilay < n_z_tilt; ++ilay)
+        {
+            Float dz = zh_tilt({ilay + 1}) - zh_tilt({ilay});
+            const ijk offset = tilted_path[ilay];
+            const int idx_out  = ilay;
+            const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
+            var_tmp[idx_out] = var[idx_in];
+        }
+
+        std::vector<Float> var_compress(n_z_in);
+        
+        #pragma omp parallel for
+        for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
+        {
+            var_compress[ilay] = var_tmp[ilay];
+
+        }
+
+        #pragma omp parallel for
+        for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
+        {
+            const int in_offset = ilay - compress_lay_start_idx;
+            const int i_lay_in = (compress_lay_start_idx + 2 * in_offset);
+            int num_inputs;
+            if (ilay < (n_z_in - 1)) {
+                num_inputs = 2;
+            } else {
+                num_inputs = ((i_lay_in + 1) == (n_z_tilt - 1)) ? 2 : 3;
+            }
+
+            Float t_sum = 0.0;
+            Float w_sum = 0.0;
+            for (int k = 0; k < num_inputs; ++k)
+            {
+                int in_idx = (i_lay_in + k);
+                t_sum += var_tmp[in_idx] * var_weighted_tilted[in_idx];
+                w_sum += var_weighted_tilted[in_idx];
+            }
+
+            if (w_sum > 1e-6)
+            {
+                var_compress[ilay] = t_sum / w_sum;
             } 
-
-    }
-}
-
-void interpolate_single_column(const int ix, const int iy, const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                 const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
-                 const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
-                 const Float zp, const ijk offset,
-                 Float* p_out)
-{
-    int zp_in_zh = -1; // half level
-    int zp_in_zf = -1; // full level
-    for (int ilev=0; ilev<n_lev_in; ++ilev)
-        if (std::abs(zh_in[ilev]-zp) < 1e-2)
-            zp_in_zh= ilev;
-    for (int ilay=0; ilay<n_lay_in; ++ilay)
-        if (std::abs(zf_in[ilay]-zp) < 1e-2)
-            zp_in_zf = ilay;
-    if (zp_in_zh > -1)
-    {
-        const int idx_out  = 0;
-        const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + zp_in_zh*n_y*n_x;
-        p_out[idx_out] = plev_in[idx_in];
-    }
-    else if (zp_in_zf > -1)
-    {
-        const int idx_out  = 0;
-        const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + zp_in_zf*n_y*n_x;
-        p_out[idx_out] = play_in[idx_in]; 
-    }
-    else
-    {
-        int posh_bot = 0;
-        int posf_bot = 0;
-        for (int ilev=0; ilev<n_lev_in-1; ++ilev)
-            if (zh_in[ilev] < zp)
-                posh_bot = ilev;     
-        for (int ilay=0; ilay<n_lay_in; ++ilay)
-            if (zf_in[ilay] < zp)
-                posf_bot = ilay;         
-        const Float* p_top;
-        const Float* p_bot;
-        Float  z_top;
-        Float  z_bot;
-
-        const int zh_top = zh_in[posh_bot+1];
-        const int zh_bot = zh_in[posh_bot];
-        const int zf_top = (posf_bot+1 < n_lay_in) ? zf_in[posf_bot+1] : zh_top+1;
-        const int zf_bot = zf_in[posf_bot];
-
-        if (zh_top > zf_top)
-        {
-            p_top = &play_in.data()[(posf_bot+1)*n_x*n_y];       
-            z_top = zf_in[posf_bot+1];       
+            else 
+            {
+                Float avg = 0.0;
+                for (int k = 0; k < num_inputs; ++k)
+                {
+                    int in_idx = (i_lay_in + k);
+                    avg += var_compress[in_idx];
+                }
+                var_compress[ilay] = avg / num_inputs;
+            }
         }
-        else
-        {   
-            p_top = &plev_in.data()[(posh_bot+1)*n_x*n_y];       
-            z_top = zh_in[posh_bot+1];
-        }
-        if (zh_bot < zf_bot)
-        {
-            p_bot = &play_in.data()[(posf_bot)*n_x*n_y];       
-            z_bot = zf_in[posf_bot];       
-        }
-        else
-        {   
-            p_bot = &plev_in.data()[(posh_bot)*n_x*n_y];       
-            z_bot = zh_in[posh_bot];
-        }
-
-        Float dz = z_top-z_bot;
-        const int idx_out  = 0;
-        const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x;
-        const Float pres = (zp-z_bot)/dz*p_top[idx_in] + (z_top-zp)/dz*p_bot[idx_in];
-        p_out[idx_out] = pres; 
-
+        var.resize(n_z_in);
+        var = var_tmp;
     }
-}
-
-void create_tilted_columns_levlay(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                                 const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
-                                 const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                                 std::vector<Float>& var_lay, std::vector<Float>& var_lev)
-
-{
-    const int n_lay = tilted_path.size();
-    const int n_lev = zh_tilted.size();
-    std::vector<Float> z_tilted(n_lay);
-    for (int ilay=0; ilay<n_lay; ++ilay)
-        z_tilted[ilay] = (zh_tilted[ilay]+zh_tilted[ilay+1])/Float(2.);
-
-    std::vector<Float> var_lay_tmp(n_lay*n_x*n_y);
-    std::vector<Float> var_lev_tmp(n_lev*n_x*n_y);
-    for (int iy=0; iy<n_y; ++iy)
-        for (int ix=0; ix<n_x; ++ix)
-        {
-            const int idx = ix + iy*n_y;
-            var_lev_tmp[idx] = var_lev[idx];
-        } 
-
-    #pragma omp parallel for
-    for (int ilev=1; ilev<n_lev; ++ilev)
-        interpolate(n_x, n_y, n_lay_in, n_lev_in, zh_in, z_in, var_lay, var_lev, zh_tilted[ilev], tilted_path[ilev-1], &var_lev_tmp.data()[ilev*n_y*n_x]);
-    #pragma omp parallel for
-    for (int ilay=0; ilay<n_lay; ++ilay)
-        interpolate(n_x, n_y, n_lay_in, n_lev_in, zh_in, z_in, var_lay, var_lev, z_tilted[ilay], tilted_path[ilay], &var_lay_tmp.data()[ilay*n_y*n_x]);
-
-    var_lay.resize(n_lay*n_y*n_x);
-    var_lev.resize(n_lev*n_y*n_x);
-    var_lay = var_lay_tmp;
-    var_lev = var_lev_tmp;
-}
-
-void create_single_tilted_columns_levlay(const int ix, const int iy,
-                                 const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                                 const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
-                                 const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                                 std::vector<Float>& var_lay, std::vector<Float>& var_lev)
-
-{
-    const int n_lay = tilted_path.size();
-    const int n_lev = zh_tilted.size();
-    std::vector<Float> z_tilted(n_lay);
-    for (int ilay=0; ilay<n_lay; ++ilay)
-        z_tilted[ilay] = (zh_tilted[ilay]+zh_tilted[ilay+1])/Float(2.);
-
-    std::vector<Float> var_lay_tmp(n_lay);
-    std::vector<Float> var_lev_tmp(n_lev);
-    const int idx = ix + iy * n_x;
-    var_lev_tmp[0] = var_lev[idx];
-
-    #pragma omp parallel for
-    for (int ilev=1; ilev<n_lev; ++ilev)
-        interpolate_single_column(ix, iy, n_x, n_y, n_lay_in, n_lev_in, zh_in, z_in, var_lay, var_lev, zh_tilted[ilev], tilted_path[ilev-1], &var_lev_tmp.data()[ilev]);
-    #pragma omp parallel for
-    for (int ilay=0; ilay<n_lay; ++ilay)
-        interpolate_single_column(ix, iy,n_x, n_y, n_lay_in, n_lev_in, zh_in, z_in, var_lay, var_lev, z_tilted[ilay], tilted_path[ilay], &var_lay_tmp.data()[ilay]);
-
-    var_lay.resize(n_lay);
-    var_lev.resize(n_lev); 
-    var_lay = var_lay_tmp;
-    var_lev = var_lev_tmp;
-}
 

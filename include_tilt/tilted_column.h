@@ -1,13 +1,7 @@
-#ifndef RADIATION_SOLVER_H
-#define RADIATION_SOLVER_H
-
-#include "Array.h"
-#include "Gas_concs.h"
-#include "Gas_optics_rrtmgp.h"
-#include "Cloud_optics.h"
-#include "Aerosol_optics.h"
-#include "Rte_lw.h"
-#include "Rte_sw.h"
+#include <cmath>
+#include <iostream>
+#include <vector>
+#include <numeric>
 #include "Source_functions.h"
 
 struct ijk
@@ -29,58 +23,30 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<ijk>& tilted_path,
                  std::vector<Float>& dz_tilted);
 
-void create_tilted_columns(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                           const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                           std::vector<Float>& var);
-
-void create_single_tilted_columns(const int ix, const int iy,
-                           const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                           const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                           std::vector<Float>& var);
-
-void create_single_tilted_columns_optimized(
-    const int ix, const int iy,
-    const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-    const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
+void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_idx,
+    const int n_z_in, const int n_zh_in, 
+    const int n_x, const int n_y,
+    const int n_z_tilt, const int n_zh_tilt,
+    const Array<Float,1> zh_tilt, const std::vector<ijk>& tilted_path, 
     std::vector<Float>& var,
-    std::vector<Float>& buffer);
+    std::vector<Float>& var_tilted);
 
-void create_tilted_columns_levlay(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                                  const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
-                                  const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                                  std::vector<Float>& var_lay, std::vector<Float>& var_lev);
+void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx,
+                        const int n_z_in, const int n_zh_in, 
+                        const int n_x, const int n_y,
+                        const int n_z_tilt, const int n_zh_tilt,
+                        const std::vector<Float>& zh_in,
+                        const std::vector<Float>& z_in,
+                        const std::vector<Float>& zh_tilted,
+                        const std::vector<ijk>& tilted_path,
+                        std::vector<Float>& var_lay,
+                        std::vector<Float>& var_lev,
+                        std::vector<Float>& var_lay_tilted);
 
-void create_single_tilted_columns_levlay(const int ix, const int iy,
-                                 const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                                 const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
-                                 const std::vector<Float>& zh_tilted, const std::vector<ijk>& tilted_path,
-                                 std::vector<Float>& var_lay, std::vector<Float>& var_lev);
-
-void interpolate(const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                 const std::vector<Float>& zh_in, const std::vector<Float>& z_in,
-                 const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
-                 const Float zp, const ijk offset,
-                 Float* p_out);
-
-void interpolate_single_column(const int ix, const int iy, const int n_x, const int n_y, const int n_lay_in, const int n_lev_in,
-                 const std::vector<Float>& zh_in, const std::vector<Float>& zf_in,
-                 const std::vector<Float>& play_in, const std::vector<Float>& plev_in,
-                 const Float zp, const ijk offset,
-                 Float* p_out);
-
-void compress_columns(const int n_x, const int n_y, 
-                      const int n_out, const int n_tilt,
-                      const int compress_lay_start_idx,
-                      std::vector<Float>& var);
-
-void compress_columns_weighted_avg(const int n_x, const int n_y,  
-                      const int n_out, const int n_tilt,
-                      const int compress_lay_start_idx,
-                      std::vector<Float>& var, std::vector<Float>& var_weighting);
-
-void compress_columns_p_or_t(const int n_x, const int n_y, 
-                      const int n_out_lay, const int n_tilt,
-                      const int compress_lay_start_idx,
-                      std::vector<Float>& var_lev, std::vector<Float>& var_lay);
-
-#endif
+void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_idx,
+    const int n_z_in, const int n_zh_in, 
+    const int n_x, const int n_y,
+    const int n_z_tilt, const int n_zh_tilt,
+    const Array<Float,1> zh_tilt, const std::vector<ijk>& tilted_path, 
+    std::vector<Float>& var,
+    std::vector<Float>& var_weighted_tilted);
