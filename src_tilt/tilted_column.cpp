@@ -369,7 +369,6 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
         var_lay_out.resize(n_z_in);
         var_lev_out.resize(n_zh_in);
 
-        #pragma omp parallel for
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
             const int out_idx =ilay;
@@ -378,7 +377,6 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
         }
         var_lev_out[compress_lay_start_idx] = var_lev_tmp[compress_lay_start_idx];
 
-        #pragma omp parallel for
         for (int ilev = (compress_lay_start_idx + 1); ilev < (n_z_in + 1); ++ilev)
         {
             int i_lev_in;
@@ -393,7 +391,6 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
             var_lev_out[ilev] = var_lev_tmp[i_lev_in];
         }
 
-        #pragma omp parallel for
         for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
         {
             const int in_offset = ilay - compress_lay_start_idx;
@@ -433,14 +430,12 @@ void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_
         }
 
         var_out.resize(n_z_in);
-        #pragma omp parallel for
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
             var_out[ilay] = var_tmp[ilay];
 
         }
 
-        #pragma omp parallel for
         for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
         {
             const int in_offset = ilay - compress_lay_start_idx;

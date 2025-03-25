@@ -380,7 +380,6 @@ void tilt_input(int argc, char** argv)
     std::cout << "n_col: " << n_col << std::endl;
 
     auto time_start_loop = std::chrono::high_resolution_clock::now();
-    #pragma omp parallel for schedule(static)
     for (int idx_y = 0; idx_y < n_col_y; idx_y++)
     {
         for (int idx_x = 0; idx_x < n_col_x; idx_x++)
