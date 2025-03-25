@@ -132,7 +132,6 @@ void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_id
         var_tilted.resize(n_z_tilt);
         var_tilted = var_tmp;
         
-        var_out.resize(n_z_in);
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
             var_out[ilay] = var_tmp[ilay];
@@ -366,9 +365,6 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
         var_lay_tilted.resize(n_z_tilt);
         var_lay_tilted = var_lay_tmp;
 
-        var_lay_out.resize(n_z_in);
-        var_lev_out.resize(n_zh_in);
-
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
             const int out_idx =ilay;
@@ -429,7 +425,6 @@ void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_
             var_tmp[idx_out] = var[idx_in];
         }
 
-        var_out.resize(n_z_in);
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
             var_out[ilay] = var_tmp[ilay];
