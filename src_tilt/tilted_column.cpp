@@ -111,8 +111,10 @@ void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_id
     const int n_z_in, const int n_zh_in, 
     const int n_x, const int n_y,
     const int n_z_tilt, const int n_zh_tilt,
-    const Array<Float,1> zh_tilt, const std::vector<ijk>& tilted_path, 
-    std::vector<Float>& var,
+    const Array<Float,1> zh_tilt, 
+    const std::vector<ijk>& tilted_path, 
+    const std::vector<Float> var,
+    std::vector<Float>& var_out,
     std::vector<Float>& var_tilted)
     {
 
@@ -129,11 +131,11 @@ void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_id
 
         var_tilted.resize(n_z_tilt);
         var_tilted = var_tmp;
-
-        std::vector<Float> var_compress(n_z_in);    
+        
+        var_out.resize(n_z_in);
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
-            var_compress[ilay] = var_tmp[ilay];
+            var_out[ilay] = var_tmp[ilay];
         }
 
         for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
@@ -153,9 +155,8 @@ void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_id
                 int in_idx = i_lay_in + k;
             sum += var_tmp[in_idx];
             }
-            var_compress[ilay] = sum;
+            var_out[ilay] = sum;
     }
-    var = var_compress;
     }
 
 void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx,
@@ -166,8 +167,10 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
                         const std::vector<Float>& z_in,
                         const std::vector<Float>& zh_tilted,
                         const std::vector<ijk>& tilted_path,
-                        std::vector<Float>& var_lay,
-                        std::vector<Float>& var_lev,
+                        const std::vector<Float> var_lay,
+                        const std::vector<Float> var_lev,
+                        std::vector<Float>& var_lay_out,
+                        std::vector<Float>& var_lev_out,
                         std::vector<Float>& var_lay_tilted)
     {
         std::vector<Float> z_tilted(n_zh_tilt);
@@ -363,17 +366,17 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
         var_lay_tilted.resize(n_z_tilt);
         var_lay_tilted = var_lay_tmp;
 
-        std::vector<Float> var_compress_lay(n_z_in );
-        std::vector<Float> var_compress_lev(n_zh_in);
+        var_lay_out.resize(n_z_in);
+        var_lev_out.resize(n_zh_in);
 
         #pragma omp parallel for
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
             const int out_idx =ilay;
-            var_compress_lay[ilay] = var_lev_tmp[ilay];
-            var_compress_lev[ilay] = var_lev_tmp[ilay];
+            var_lay_out[ilay] = var_lev_tmp[ilay];
+            var_lev_out[ilay] = var_lev_tmp[ilay];
         }
-        var_compress_lev[compress_lay_start_idx] = var_lev_tmp[compress_lay_start_idx];
+        var_lev_out[compress_lay_start_idx] = var_lev_tmp[compress_lay_start_idx];
 
         #pragma omp parallel for
         for (int ilev = (compress_lay_start_idx + 1); ilev < (n_z_in + 1); ++ilev)
@@ -387,7 +390,7 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
             {
                 i_lev_in = (compress_lay_start_idx + 2) + 2 * (ilev - (compress_lay_start_idx + 1));
             }
-            var_compress_lev[ilev] = var_lev_tmp[i_lev_in];
+            var_lev_out[ilev] = var_lev_tmp[i_lev_in];
         }
 
         #pragma omp parallel for
@@ -403,13 +406,8 @@ void process_p_or_t(const int ix, const int iy, const int compress_lay_start_idx
             {
                 i_lev_to_lay_in = (compress_lay_start_idx + 2 * in_offset - 1);
             }
-            var_compress_lay[ilay] = var_lev_tmp[i_lev_to_lay_in];
+            var_lay_out[ilay] = var_lev_tmp[i_lev_to_lay_in];
         }
-
-        var_lay.resize(n_z_in);
-        var_lev.resize(n_zh_in);
-        var_lay = var_compress_lay;
-        var_lev = var_compress_lev;
     }
 
 
@@ -418,8 +416,9 @@ void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_
     const int n_x, const int n_y,
     const int n_z_tilt, const int n_zh_tilt,
     const Array<Float,1> zh_tilt, const std::vector<ijk>& tilted_path, 
-    std::vector<Float>& var,
-    std::vector<Float>& var_weighted_tilted)
+    const std::vector<Float> var,
+    std::vector<Float>& var_out,
+    const std::vector<Float> var_weighted_tilted)
     {
 
         const int n_col = n_x*n_y;
@@ -433,12 +432,11 @@ void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_
             var_tmp[idx_out] = var[idx_in];
         }
 
-        std::vector<Float> var_compress(n_z_in);
-        
+        var_out.resize(n_z_in);
         #pragma omp parallel for
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
         {
-            var_compress[ilay] = var_tmp[ilay];
+            var_out[ilay] = var_tmp[ilay];
 
         }
 
@@ -465,7 +463,7 @@ void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_
 
             if (w_sum > 1e-6)
             {
-                var_compress[ilay] = t_sum / w_sum;
+                var_out[ilay] = t_sum / w_sum;
             } 
             else 
             {
@@ -473,12 +471,10 @@ void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_
                 for (int k = 0; k < num_inputs; ++k)
                 {
                     int in_idx = (i_lay_in + k);
-                    avg += var_compress[in_idx];
+                    avg += var_out[in_idx];
                 }
-                var_compress[ilay] = avg / num_inputs;
+                var_out[ilay] = avg / num_inputs;
             }
         }
-        var.resize(n_z_in);
-        var = var_tmp;
     }
 
