@@ -28,8 +28,10 @@
 #include "Array.h"
 #include "Gas_concs.h"
 #include "tilted_column.h"
+#include "tilted_column_bulk.h"
 #include "tilt_prep_utils.h"
 #include "types.h"
+#include <omp.h>
 
 void tilt_input(int argc, char** argv)
 {
@@ -210,118 +212,124 @@ void tilt_input(int argc, char** argv)
         }
     }
 
-    ////// SETUP FOR TILTING //////
+    ////// SETUP FOR CENTER START POINT TILTING //////
+    Array<Float,2> t_lay_out = t_lay;
+    Array<Float,2> t_lev_out = t_lev;
+    Array<Float,2> p_lay_out = p_lay;
+    Array<Float,2> p_lev_out = p_lev;
+    Gas_concs gas_concs_out = gas_concs;
 
-    std::vector<std::pair<Float, Float>> x_y_start_arr(n_col);
-    std::vector<Array<ijk,1>> by_col_paths(n_col);
-    std::vector<Array<Float,1>> by_col_zh_tilt(n_col);
-    std::vector<Float> by_col_n_zh_tilt(n_col);
-    std::vector<Float> by_col_n_z_tilt(n_col);
+    Array<ijk,1> center_path;
+    Array<Float,1> center_zh_tilt;
 
-    std::mt19937_64 rng;
-    uint64_t timeSeed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-    std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed>>32)};
-    rng.seed(ss);
-    std::uniform_real_distribution<double> unif(0.001, 0.999);
-    for (int i = 0; i < n_col; i++)
-    {
-        Float x_point = unif(rng);
-        Float y_point = unif(rng);
-        x_y_start_arr[i] = std::make_pair(x_point, y_point);
+    tilted_path(xh.v(),yh.v(),zh.v(),z.v(),sza,azi, 0.5, 0.5, center_path.v(), center_zh_tilt.v());
+    int n_zh_tilt_center = center_zh_tilt.v().size();
+    int n_z_tilt_center = n_zh_tilt_center - 1;
+
+    tilt_fields(n_z_in, n_zh_in, n_col_x, n_col_y,
+        n_z_tilt_center, n_zh_tilt_center, n_col,
+        zh, z,
+        center_zh_tilt, center_path,
+        &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
+        gas_concs_out, gas_names
+    );
+    int idx_hold = 2*(n_z_tilt_center - n_z_in);
+    if ((n_z_tilt_center - idx_hold) % 2 != 0) {
+        idx_hold--;
     }
 
-
-    Status::print_message("###### Starting Tilting ######");
-    auto time_start = std::chrono::high_resolution_clock::now();
-    #pragma omp parallel for
-    for (int i = 0; i < n_col; i++) {
-        Float x_start = x_y_start_arr[i].first;
-        Float y_start = x_y_start_arr[i].second;
-        Array<ijk,1> path;
-        Array<Float,1> zh_tilt;
-        
-        tilted_path(xh.v(), yh.v(), zh.v(), z.v(), sza, azi, x_start, y_start, path.v(), zh_tilt.v());
-        int n_zh_tilt = zh_tilt.v().size();
-        int n_z_tilt = n_zh_tilt - 1;
-        path.set_dims({n_z_tilt}); 
-        zh_tilt.set_dims({n_zh_tilt}); 
-
-        by_col_paths[i] = path;
-        by_col_zh_tilt[i] = zh_tilt;
-        by_col_n_zh_tilt[i] = n_zh_tilt;
-        by_col_n_z_tilt[i] = n_zh_tilt - 1;
-    }
-    auto time_end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
-
-    Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
-    Status::print_message("###### Finish Tilting ######");
-
-    Status::print_message("###### Check Sizes ######");
-    std::vector<Float> by_col_compress_start(n_col);
-    int max_n_z_tilt = 0;
-    for (int i = 0; i < n_col; i++) {
-        const Float n_zh_tilt = by_col_n_zh_tilt[i];
-        const Float n_z_tilt = by_col_n_z_tilt[i];
-        if (n_z_tilt > max_n_z_tilt) {
-            max_n_z_tilt = n_z_tilt;
-        }
-        int idx_hold = 2*(n_z_tilt - n_z_in);
-
-        int n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
-        int n_lev_compress = n_lay_compress + 1;
-        int compress_lay_start_idx = (n_z_tilt - idx_hold);
-        if (compress_lay_start_idx < 0) {
-            throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
-        }
-        by_col_compress_start[i] = compress_lay_start_idx;
+    int compress_lay_start_idx_center = (n_z_tilt_center - idx_hold);
+    if (compress_lay_start_idx_center < 0) {
+        throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
     }
 
-    Status::print_message("###### Make output arrays ######");
+    compress_fields(compress_lay_start_idx_center, n_col_x, n_col_y,
+                n_z_in, n_zh_in, n_z_tilt_center,
+                &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
+                gas_concs_out, gas_names);
+
+    ////// SETUP FOR RANDOM START POINT TILTING //////
     Array<Float,2> lwp_out;
     lwp_out.set_dims({n_col, n_z_in});
     Array<Float,2> rel_out;
     rel_out.set_dims({n_col, n_z_in});
-
     Array<Float,2> iwp_out;
     iwp_out.set_dims({n_col, n_z_in});
     Array<Float,2> dei_out;
     dei_out.set_dims({n_col, n_z_in});
 
-    Array<Float,2> p_lay_out;
-    p_lay_out.set_dims({n_col, n_z_in});
-
-    Array<Float,2> t_lay_out;
-    t_lay_out.set_dims({n_col, n_z_in});
-
-    Array<Float,2> p_lev_out;
-    p_lev_out.set_dims({n_col, n_zh_in});
-
-    Array<Float,2> t_lev_out;
-    t_lev_out.set_dims({n_col, n_zh_in});
-
-    Gas_concs gas_concs_out = gas_concs;
-    for (const auto& gas_name : gas_names) {
-        if (!gas_concs_out.exists(gas_name)) {
-            continue;
-        }
-        const Array<Float,2>& gas = gas_concs_out.get_vmr(gas_name);
-        if (gas.size() > 1) {
-            Array<Float,2> gas_tmp;
-            gas_tmp.set_dims({n_col, n_z_in});
-            gas_concs_out.set_vmr(gas_name, gas_tmp);
-        }
-    }
-
-    const int total_iterations = n_col_x * n_col_y;
-    std::vector<ColumnResult> col_results(total_iterations);
-
-    // Do Normalization of lwp iwp first OUTSIDE OF LOOP
-    Array<Float,2> lwp_norm = lwp;
-    Array<Float,2> iwp_norm = iwp;
-
     if (switch_cloud_optics)
-    { 
+    {
+        std::vector<std::pair<Float, Float>> x_y_start_arr(n_col);
+        std::vector<Array<ijk,1>> by_col_paths(n_col);
+        std::vector<Array<Float,1>> by_col_zh_tilt(n_col);
+        std::vector<Float> by_col_n_zh_tilt(n_col);
+        std::vector<Float> by_col_n_z_tilt(n_col);
+    
+        std::mt19937_64 rng;
+        uint64_t timeSeed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed>>32)};
+        rng.seed(ss);
+        std::uniform_real_distribution<double> unif(0.001, 0.999);
+        for (int i = 0; i < n_col; i++)
+        {
+            Float x_point = unif(rng);
+            Float y_point = unif(rng);
+            x_y_start_arr[i] = std::make_pair(x_point, y_point);
+        }
+    
+        Status::print_message("###### Starting Tilting ######");
+        auto time_start = std::chrono::high_resolution_clock::now();
+        #pragma omp parallel for
+        for (int i = 0; i < n_col; i++) {
+            Float x_start = x_y_start_arr[i].first;
+            Float y_start = x_y_start_arr[i].second;
+            Array<ijk,1> path;
+            Array<Float,1> zh_tilt;
+            
+            tilted_path(xh.v(), yh.v(), zh.v(), z.v(), sza, azi, x_start, y_start, path.v(), zh_tilt.v());
+            int n_zh_tilt = zh_tilt.v().size();
+            int n_z_tilt = n_zh_tilt - 1;
+            path.set_dims({n_z_tilt}); 
+            zh_tilt.set_dims({n_zh_tilt}); 
+    
+            by_col_paths[i] = path;
+            by_col_zh_tilt[i] = zh_tilt;
+            by_col_n_zh_tilt[i] = n_zh_tilt;
+            by_col_n_z_tilt[i] = n_zh_tilt - 1;
+        }
+        auto time_end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
+    
+        Status::print_message("Duration tilting columns: " + std::to_string(duration) + " (ms)");
+        Status::print_message("###### Finish Tilting ######");
+    
+        Status::print_message("###### Check Sizes ######");
+        std::vector<Float> by_col_compress_start(n_col);
+        int max_n_z_tilt = 0;
+        for (int i = 0; i < n_col; i++) {
+            const Float n_zh_tilt = by_col_n_zh_tilt[i];
+            const Float n_z_tilt = by_col_n_z_tilt[i];
+            if (n_z_tilt > max_n_z_tilt) {
+                max_n_z_tilt = n_z_tilt;
+            }
+            int idx_hold = 2*(n_z_tilt - n_z_in);
+    
+            int n_lay_compress = (n_z_tilt - idx_hold) + (idx_hold)/2;
+            int n_lev_compress = n_lay_compress + 1;
+            int compress_lay_start_idx = (n_z_tilt - idx_hold);
+            if (compress_lay_start_idx < 0) {
+                throw std::runtime_error("compress_lay_start_idx is negative - SZA too high.");
+            }
+            by_col_compress_start[i] = compress_lay_start_idx;
+        }
+
+        const int total_iterations = n_col_x * n_col_y;
+        std::vector<ColumnResult> col_results(total_iterations);
+    
+        // Do Normalization of lwp iwp first OUTSIDE OF LOOP
+        Array<Float,2> lwp_norm = lwp;
+        Array<Float,2> iwp_norm = iwp;
         for (int ilay = 1; ilay <= n_zh_in; ++ilay)    
         {
             Float dz = zh({ilay + 1}) - zh({ilay});
@@ -337,180 +345,99 @@ void tilt_input(int argc, char** argv)
                 }
             }
         }
-    }
-
-    Array<Float,2> lwp_compress;
-    lwp_compress.set_dims({1, n_z_in});
-    Array<Float,2> iwp_compress;
-    iwp_compress.set_dims({1, n_z_in});
-
-    Array<Float,2> rel_compress;
-    rel_compress.set_dims({1, n_z_in});
-    Array<Float,2> dei_compress;
-    dei_compress.set_dims({1, n_z_in});
-
-    Array<Float,2> o3_compress;
-    o3_compress.set_dims({1, n_z_in});
-    Array<Float,2> h2o_compress;
-    h2o_compress.set_dims({1, n_z_in});
-
-    Array<Float,2> p_lay_compress;
-    p_lay_compress.set_dims({1, n_z_in});
-    Array<Float,2> t_lay_compress;
-    t_lay_compress.set_dims({1, n_z_in});
+        Array<Float,2> lwp_compress;
+        lwp_compress.set_dims({1, n_z_in});
+        Array<Float,2> iwp_compress;
+        iwp_compress.set_dims({1, n_z_in});
     
-    Array<Float,2> p_lev_compress;
-    p_lev_compress.set_dims({1, n_zh_in});
-    Array<Float,2> t_lev_compress;
-    t_lev_compress.set_dims({1, n_zh_in});
-
-    const Array<Float,2> h2o = gas_concs.get_vmr("h2o");
-    const Array<Float,2> o3 = gas_concs.get_vmr("o3");
-
-    Array<Float,2> lwp_tilted;
-    lwp_tilted.set_dims({1, max_n_z_tilt});
-    Array<Float,2> iwp_tilted;
-    iwp_tilted.set_dims({1, max_n_z_tilt});
-    Array<Float,2> p_lay_tilted;
-    p_lay_tilted.set_dims({1, max_n_z_tilt});
-    Array<Float,2> t_lay_tilted; // unused ...
-    t_lay_tilted.set_dims({1, max_n_z_tilt});
-
-    Status::print_message("###### Start Loop ######");
-    std::cout << "n_col: " << n_col << std::endl;
-
-    auto time_start_loop = std::chrono::high_resolution_clock::now();
-    for (int idx_y = 0; idx_y < n_col_y; idx_y++)
-    {
-        for (int idx_x = 0; idx_x < n_col_x; idx_x++)
+        Array<Float,2> rel_compress;
+        rel_compress.set_dims({1, n_z_in});
+        Array<Float,2> dei_compress;
+        dei_compress.set_dims({1, n_z_in});
+    
+        Status::print_message("###### Start Loop ######");
+        std::cout << "n_col: " << n_col << std::endl;
+    
+        auto time_start_loop = std::chrono::high_resolution_clock::now();
+        for (int idx_y = 0; idx_y < n_col_y; idx_y++)
         {
-            int i = idx_x + idx_y*n_col_y;
-            const Array<ijk,1> tilted_path = by_col_paths[i];
-            const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
-            const int n_zh_tilt = by_col_n_zh_tilt[i];
-            const int n_z_tilt = by_col_n_z_tilt[i];
-
-            int idx_hold = 2 * (n_z_tilt - n_z_in);
-            if ((n_z_tilt - idx_hold) % 2 != 0) {
-                idx_hold--;
-            }
-            int compress_lay_start_idx = by_col_compress_start[i];
-
-            if (switch_liq_cloud_optics){
-                process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
-                                n_z_in, n_zh_in, 
-                                n_col_x, n_col_y,
-                                n_z_tilt, n_zh_tilt,
-                                zh_tilt, 
-                                tilted_path.v(), 
-                                lwp_norm.v(),
-                                lwp_compress.v(),
-                                lwp_tilted.v());
-                process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
+            for (int idx_x = 0; idx_x < n_col_x; idx_x++)
+            {
+                int i = idx_x + idx_y * n_col_y;
+                const Array<ijk,1> tilted_path = by_col_paths[i];
+                const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
+                const int n_zh_tilt = by_col_n_zh_tilt[i];
+                const int n_z_tilt = by_col_n_z_tilt[i];
+                int compress_lay_start_idx = by_col_compress_start[i];
+    
+                Array<Float,2> lwp_tilted;
+                lwp_tilted.set_dims({1, n_z_tilt});
+                Array<Float,2> iwp_tilted;
+                iwp_tilted.set_dims({1, n_z_tilt});
+    
+                if (switch_liq_cloud_optics){
+                    process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
                                     n_z_in, n_zh_in, 
                                     n_col_x, n_col_y,
                                     n_z_tilt, n_zh_tilt,
                                     zh_tilt, 
                                     tilted_path.v(), 
-                                    rel.v(),
-                                    rel_compress.v(),
+                                    lwp_norm.v(),
+                                    lwp_compress.v(),
                                     lwp_tilted.v());
-
-                col_results[i].lwp   = std::move(lwp_compress);
-                col_results[i].rel   = std::move(rel_compress);
-            }
-            if (switch_ice_cloud_optics){
-                process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
-                                n_z_in, n_zh_in, 
-                                n_col_x, n_col_y,
-                                n_z_tilt, n_zh_tilt,
-                                zh_tilt, 
-                                tilted_path.v(), 
-                                iwp_norm.v(),
-                                iwp_compress.v(),
-                                iwp_tilted.v());
-                process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
+                    process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
+                                        n_z_in, n_zh_in, 
+                                        n_col_x, n_col_y,
+                                        n_z_tilt, n_zh_tilt,
+                                        zh_tilt, 
+                                        tilted_path.v(), 
+                                        rel.v(),
+                                        rel_compress.v(),
+                                        lwp_tilted.v());
+    
+                    col_results[i].lwp   = std::move(lwp_compress);
+                    col_results[i].rel   = std::move(rel_compress);
+                }
+    
+                if (switch_ice_cloud_optics){
+                    process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
                                     n_z_in, n_zh_in, 
                                     n_col_x, n_col_y,
                                     n_z_tilt, n_zh_tilt,
                                     zh_tilt, 
                                     tilted_path.v(), 
-                                    dei.v(),
-                                    dei_compress.v(),
+                                    iwp_norm.v(),
+                                    iwp_compress.v(),
                                     iwp_tilted.v());
-
-                col_results[i].iwp   = std::move(iwp_compress);
-                col_results[i].dei   = std::move(dei_compress);
-
+                    process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
+                                        n_z_in, n_zh_in, 
+                                        n_col_x, n_col_y,
+                                        n_z_tilt, n_zh_tilt,
+                                        zh_tilt, 
+                                        tilted_path.v(), 
+                                        dei.v(),
+                                        dei_compress.v(),
+                                        iwp_tilted.v());
+    
+                    col_results[i].iwp   = std::move(iwp_compress);
+                    col_results[i].dei   = std::move(dei_compress);
+    
+                }            
             }
-            process_p_or_t(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh.v(), z.v(),
-                                    zh_tilt.v(),  
-                                    tilted_path.v(), 
-                                    t_lay.v(),
-                                    t_lev.v(),
-                                    t_lay_compress.v(),
-                                    t_lev_compress.v(),
-                                    t_lay_tilted.v());
-
-            process_p_or_t(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh.v(), z.v(),
-                                    zh_tilt.v(), 
-                                    tilted_path.v(),  
-                                    p_lay.v(),
-                                    p_lev.v(),
-                                    p_lay_compress.v(),
-                                    p_lev_compress.v(),
-                                    p_lay_tilted.v());
-            process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    h2o.v(),
-                                    h2o_compress.v(),
-                                    p_lay_tilted.v());
-            process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    o3.v(),
-                                    o3_compress.v(),
-                                    p_lay_tilted.v());
-
-            col_results[i].p_lay   = std::move(p_lay_compress);
-            col_results[i].p_lev   = std::move(p_lev_compress);
-            col_results[i].t_lay   = std::move(t_lay_compress);
-            col_results[i].t_lev   = std::move(t_lev_compress);
-
-            col_results[i].o3   = std::move(o3_compress);
-            col_results[i].h2o   = std::move(h2o_compress);
-            
         }
-    }
+    
+        auto time_end_loop = std::chrono::high_resolution_clock::now();
+        auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();
+        Status::print_message("Duration loop: " + std::to_string(duration_loop) + " (ms)");
+    
+        post_process_output(col_results, n_col_x, n_col_y, n_z_in, n_zh_in,
+            &lwp_out, &iwp_out, &rel_out, &dei_out,
+            switch_liq_cloud_optics, switch_ice_cloud_optics);
 
-    auto time_end_loop = std::chrono::high_resolution_clock::now();
-    auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();
-    Status::print_message("Duration loop: " + std::to_string(duration_loop) + " (ms)");
+    }
 
     std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_in);
     std::vector<Float> zh_out_compress = linspace(zh.v()[0], zh.v()[n_zh_in - 1], n_zh_in);
-
-    post_process_output(col_results, n_col_x, n_col_y, n_z_in, n_zh_in,
-                    &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
-                    &lwp_out, &iwp_out, &rel_out, &dei_out,
-                    gas_concs_out,
-                    gas_names, 
-                    switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics);
 
     restore_bkg_profile_bundle(n_col_x, n_col_y, 
         n_lay, n_lev, n_lay, n_lev, 
@@ -522,7 +449,7 @@ void tilt_input(int argc, char** argv)
         &lwp, &iwp, &rel, &dei,
         gas_concs, 
         gas_names,
-        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+        switch_liq_cloud_optics, switch_ice_cloud_optics
     );
 
     Status::print_message("Prepare Netcdf.");

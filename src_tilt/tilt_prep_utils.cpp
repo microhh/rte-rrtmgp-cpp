@@ -350,7 +350,7 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y,
     Array<Float,2>* lwp, Array<Float,2>* iwp, Array<Float,2>* rel, Array<Float,2>* dei, 
     Gas_concs& gas_concs, 
     std::vector<std::string> gas_names,
-    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics
+    bool switch_liq_cloud_optics, bool switch_ice_cloud_optics
 )
 {
     const int n_col = n_col_x*n_col_y;
@@ -419,21 +419,13 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y,
     t_lev_copy->expand_dims({n_col, n_lev_tot});
 }
 
-
 void post_process_output(const std::vector<ColumnResult>& col_results,
                          const int n_col_x, const int n_col_y,
                          const int n_z, const int n_zh,
-                         Array<Float,2>* p_lay_out,
-                         Array<Float,2>* t_lay_out,
-                         Array<Float,2>* p_lev_out,
-                         Array<Float,2>* t_lev_out,
                          Array<Float,2>* lwp_out,
                          Array<Float,2>* iwp_out,
                          Array<Float,2>* rel_out,
                          Array<Float,2>* dei_out,
-                         Gas_concs& gas_concs_out,
-                         const std::vector<std::string>& gas_names,
-                         const bool switch_cloud_optics,
                          const bool switch_liq_cloud_optics,
                          const bool switch_ice_cloud_optics)
 {
@@ -444,8 +436,6 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
             const ColumnResult& col = col_results[col_idx];
             for (int j = 0; j < n_z; ++j) {
                 int out_idx = col_idx + j * total_cols;
-                p_lay_out->v()[out_idx] = col.p_lay.v()[j];
-                t_lay_out->v()[out_idx] = col.t_lay.v()[j];
                 if (switch_liq_cloud_optics) {
                     lwp_out->v()[out_idx] = col.lwp.v()[j];
                     rel_out->v()[out_idx] = col.rel.v()[j];
@@ -455,26 +445,8 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
                     dei_out->v()[out_idx] = col.dei.v()[j];
                 }
             }
-
-            for (int j = 0; j < n_zh; ++j) {
-                int out_idx = col_idx + j * total_cols;
-                p_lev_out->v()[out_idx] = col.p_lev.v()[j];
-                t_lev_out->v()[out_idx] = col.t_lev.v()[j];
-            }
-            
-            Array<Float,2>& h2o_dest = const_cast<Array<Float,2>&>(gas_concs_out.get_vmr("h2o"));
-            for (int j = 0; j < n_z; ++j) {
-                const int out_idx = col_idx + j * total_cols;
-                h2o_dest.v()[out_idx] = col.h2o.v()[j];
-            }
-
-            Array<Float,2>& o3_dest = const_cast<Array<Float,2>&>(gas_concs_out.get_vmr("o3"));
-            for (int j = 0; j < n_z; ++j) {
-                const int out_idx = col_idx + j * total_cols;
-                o3_dest.v()[out_idx] = col.o3.v()[j];
-            }
-
         }
     }
 }
+
 

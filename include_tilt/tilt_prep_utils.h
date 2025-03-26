@@ -2,34 +2,21 @@
 #include "Source_functions.h"
 
 struct ColumnResult {
-    Array<Float,2> p_lay;
-    Array<Float,2> t_lay;
-    Array<Float,2> p_lev;
-    Array<Float,2> t_lev;
     Array<Float,2> lwp;
     Array<Float,2> iwp;
     Array<Float,2> rel;
     Array<Float,2> dei;
-    Array<Float,2> h2o;
-    Array<Float,2> o3;
 };
 
 void post_process_output(const std::vector<ColumnResult>& col_results,
-                         const int n_col_x, const int n_col_y,
-                         const int n_z, const int n_zh,
-                         Array<Float,2>* p_lay_out,
-                         Array<Float,2>* t_lay_out,
-                         Array<Float,2>* p_lev_out,
-                         Array<Float,2>* t_lev_out,
-                         Array<Float,2>* lwp_out,
-                         Array<Float,2>* iwp_out,
-                         Array<Float,2>* rel_out,
-                         Array<Float,2>* dei_out,
-                         Gas_concs& gas_concs_out,
-                         const std::vector<std::string>& gas_names,
-                         const bool switch_cloud_optics,
-                         const bool switch_liq_cloud_optics,
-                         const bool switch_ice_cloud_optics);
+        const int n_col_x, const int n_col_y,
+        const int n_z, const int n_zh,
+        Array<Float,2>* lwp_out,
+        Array<Float,2>* iwp_out,
+        Array<Float,2>* rel_out,
+        Array<Float,2>* dei_out,
+        const bool switch_liq_cloud_optics,
+        const bool switch_ice_cloud_optics);
 
 void read_and_set_vmr(
         const std::string& gas_name, const int n_col_x, const int n_col_y, const int n_lay,
@@ -70,7 +57,6 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y, const int 
     Array<Float,2>* p_lay, Array<Float,2>* t_lay, Array<Float,2>* p_lev, Array<Float,2>* t_lev, 
     Array<Float,2>* lwp, Array<Float,2>* iwp, Array<Float,2>* rel, Array<Float,2>* dei, 
     Gas_concs& gas_concs, 
-    std::vector<std::string> gas_names,
-    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics
+    std::vector<std::string> gas_names, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics
 );
 
