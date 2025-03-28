@@ -354,73 +354,189 @@ void tilt_input(int argc, char** argv)
                 }
             }
         }
+        
+        if (switch_liq_cloud_optics){
+            Array<Float,1> lwp_compress;
+            lwp_compress.set_dims({n_z_in});
+            Array<Float,1> rel_compress;
+            rel_compress.set_dims({n_z_in});
+            const std::vector<Float> var_lwp = lwp_norm_reshaped.v();
+            const std::vector<Float> var_rel = rel_reshaped.v();
 
-        Array<Float,1> lwp_compress;
-        lwp_compress.set_dims({n_z_in});
-        Array<Float,1> iwp_compress;
-        iwp_compress.set_dims({n_z_in});
-    
-        Array<Float,1> rel_compress;
-        rel_compress.set_dims({n_z_in});
-        Array<Float,1> dei_compress;
-        dei_compress.set_dims({n_z_in});
-    
-        Status::print_message("###### Start Loop ######");
-        std::cout << "n_col: " << n_col << std::endl;
-    
-        auto time_start_loop = std::chrono::high_resolution_clock::now();
-        int idx_y;
-        int idx_x;
-        for (idx_y = 0; idx_y < n_col_y; idx_y++)
-        {
-            for (idx_x = 0; idx_x < n_col_x; idx_x++)
+            Status::print_message("###### Start Loop ######");
+            auto time_start_loop = std::chrono::high_resolution_clock::now();
+            for (int idx_y = 0; idx_y < n_col_y; idx_y++)
             {
-                int i = idx_x + idx_y * n_col_x;
-                const Array<ijk,1> tilted_path = by_col_paths[i];
-                const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
-                const int n_zh_tilt = by_col_n_zh_tilt[i];
-                const int n_z_tilt = by_col_n_z_tilt[i];
-                int compress_lay_start_idx = by_col_compress_start[i];
-    
-                if (switch_liq_cloud_optics){
-                    process_liq_or_ice(idx_x, idx_y, compress_lay_start_idx,
-                        n_z_in, n_zh_in, 
-                        n_col_x, n_col_y,
-                        n_z_tilt, n_zh_tilt,
-                        zh_tilt, 
-                        tilted_path.v(), 
-                        lwp_norm_reshaped.v(),
-                        lwp_compress.v(),
-                        rel_reshaped.v(),
-                        rel_compress.v());
-    
-                    col_results[i].lwp   = std::move(lwp_compress);
-                    col_results[i].rel   = std::move(rel_compress);
+                for (int idx_x = 0; idx_x < n_col_x; idx_x++)
+                {
+                    int i = idx_x + idx_y * n_col_x;
+                    const Array<ijk,1> tilted_path = by_col_paths[i];
+                    const std::vector<ijk>& tilted_path_v = tilted_path.v();
+                    const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
+                    const int n_z_tilt = by_col_n_z_tilt[i];
+                    const int compress_lay_start_idx = by_col_compress_start[i];
+
+                    std::vector<Float> var_lwp_tmp(n_z_tilt);
+                    std::vector<Float> var_rel_tmp(n_z_tilt);
+                    std::vector<Float> var_lwp_out(n_z_in);
+                    std::vector<Float> var_rel_out(n_z_in);
+                    
+                    for (int ilay=0; ilay < n_z_tilt; ++ilay)
+                    {
+                        Float dz = zh_tilt({ilay + 1}) - zh_tilt({ilay});
+                        const ijk offset = tilted_path_v[ilay];
+                        const int i_col_new  = ((idx_y+offset.j)%n_col_y) * n_col_x + ((idx_x + offset.i)%n_col_x);
+                        const int idx_in = offset.k + i_col_new*n_z_in;
+                        var_lwp_tmp[ilay] = var_lwp[idx_in] * dz;
+                        var_rel_tmp[ilay] = var_rel[idx_in];
+                    }  
+                    
+                    for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
+                    {
+                        var_lwp_out[ilay] = var_lwp_tmp[ilay];
+                        var_rel_out[ilay] = var_rel_tmp[ilay];
+                    }
+            
+                    for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
+                    {
+                        const int in_offset = ilay - compress_lay_start_idx;
+                        const int i_lay_in = compress_lay_start_idx + 2 * in_offset;
+                        int num_inputs;
+                        if (ilay < (n_z_in - 1)) {
+                            num_inputs = 2;
+                        } 
+                        else {
+                            num_inputs = ((i_lay_in + 1) == (n_z_tilt - 1)) ? 2 : 3;
+                        }
+                        Float sum = 0.0;
+                        Float t_sum = 0.0;
+                        Float w_sum = 0.0;
+            
+                        for (int k = 0; k < num_inputs; ++k)
+                        {
+                            int in_idx = i_lay_in + k;
+                            sum += var_lwp_tmp[in_idx];
+                            t_sum += var_rel_tmp[in_idx] * var_lwp_tmp[in_idx];
+                            w_sum += var_lwp_tmp[in_idx];
+                        }
+                        var_lwp_out[ilay] = sum;
+                        if (w_sum > 1e-6)
+                        {
+                            var_rel_out[ilay] = t_sum / w_sum;
+                        } 
+                        else 
+                        {
+                            Float avg = 0.0;
+                            for (int k = 0; k < num_inputs; ++k)
+                            {
+                                int in_idx = (i_lay_in + k);
+                                avg += var_rel_out[in_idx];
+                            }
+                            var_rel_out[ilay] = avg / num_inputs;
+                        }
+                    }
+
+                    col_results[i].lwp   = std::move(var_lwp_out);
+                    col_results[i].rel   = std::move(var_rel_out);
                 }
-    
-                if (switch_ice_cloud_optics){
-                    process_liq_or_ice(idx_x, idx_y, compress_lay_start_idx,
-                        n_z_in, n_zh_in, 
-                        n_col_x, n_col_y,
-                        n_z_tilt, n_zh_tilt,
-                        zh_tilt, 
-                        tilted_path.v(), 
-                        iwp_norm_reshaped.v(),
-                        iwp_compress.v(),
-                        dei_reshaped.v(),
-                        dei_compress.v());
-    
-                    col_results[i].iwp   = std::move(iwp_compress);
-                    col_results[i].dei   = std::move(dei_compress);
-    
-                }            
             }
+        
+            auto time_end_loop = std::chrono::high_resolution_clock::now();
+            auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();
+            Status::print_message("Duration liq loop: " + std::to_string(duration_loop) + " (ms)");
         }
-    
-        auto time_end_loop = std::chrono::high_resolution_clock::now();
-        auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();
-        Status::print_message("Duration loop: " + std::to_string(duration_loop) + " (ms)");
-    
+
+        if (switch_ice_cloud_optics){
+            Array<Float,1> iwp_compress;
+            iwp_compress.set_dims({n_z_in});
+            Array<Float,1> dei_compress;
+            dei_compress.set_dims({n_z_in});
+            const std::vector<Float> var_iwp = iwp_norm_reshaped.v();
+            const std::vector<Float> var_dei = dei_reshaped.v();
+        
+            Status::print_message("###### Start Loop ######");
+            auto time_start_loop = std::chrono::high_resolution_clock::now();
+            for (int idx_y = 0; idx_y < n_col_y; idx_y++)
+            {
+                for (int idx_x = 0; idx_x < n_col_x; idx_x++)
+                {
+                    int i = idx_x + idx_y * n_col_x;
+                    const Array<ijk,1> tilted_path = by_col_paths[i];
+                    const std::vector<ijk>& tilted_path_v = tilted_path.v();
+                    const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
+                    const int n_z_tilt = by_col_n_z_tilt[i];
+                    const int compress_lay_start_idx = by_col_compress_start[i];
+        
+                    std::vector<Float> var_iwp_tmp(n_z_tilt);
+                    std::vector<Float> var_dei_tmp(n_z_tilt);
+                    std::vector<Float> var_iwp_out(n_z_in);
+                    std::vector<Float> var_dei_out(n_z_in);
+                    
+                    for (int ilay=0; ilay < n_z_tilt; ++ilay)
+                    {
+                        Float dz = zh_tilt({ilay + 1}) - zh_tilt({ilay});
+                        const ijk offset = tilted_path_v[ilay];
+                        const int i_col_new  = ((idx_y+offset.j)%n_col_y) * n_col_x + ((idx_x + offset.i)%n_col_x);
+                        const int idx_in = offset.k + i_col_new*n_z_in;
+                        var_iwp_tmp[ilay] = var_iwp[idx_in] * dz;
+                        var_dei_tmp[ilay] = var_dei[idx_in];
+                    }  
+                    
+                    for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
+                    {
+                        var_iwp_out[ilay] = var_iwp_tmp[ilay];
+                        var_dei_out[ilay] = var_dei_tmp[ilay];
+                    }
+            
+                    for (int ilay = compress_lay_start_idx; ilay < n_z_in; ++ilay)
+                    {
+                        const int in_offset = ilay - compress_lay_start_idx;
+                        const int i_lay_in = compress_lay_start_idx + 2 * in_offset;
+                        int num_inputs;
+                        if (ilay < (n_z_in - 1)) {
+                            num_inputs = 2;
+                        } 
+                        else {
+                            num_inputs = ((i_lay_in + 1) == (n_z_tilt - 1)) ? 2 : 3;
+                        }
+                        Float sum = 0.0;
+                        Float t_sum = 0.0;
+                        Float w_sum = 0.0;
+            
+                        for (int k = 0; k < num_inputs; ++k)
+                        {
+                            int in_idx = i_lay_in + k;
+                            sum += var_iwp_tmp[in_idx];
+                            t_sum += var_dei_tmp[in_idx] * var_iwp_tmp[in_idx];
+                            w_sum += var_iwp_tmp[in_idx];
+                        }
+                        var_iwp_out[ilay] = sum;
+                        if (w_sum > 1e-6)
+                        {
+                            var_dei_out[ilay] = t_sum / w_sum;
+                        } 
+                        else 
+                        {
+                            Float avg = 0.0;
+                            for (int k = 0; k < num_inputs; ++k)
+                            {
+                                int in_idx = (i_lay_in + k);
+                                avg += var_dei_out[in_idx];
+                            }
+                            var_dei_out[ilay] = avg / num_inputs;
+                        }
+                    }
+        
+                    col_results[i].iwp   = std::move(var_iwp_out);
+                    col_results[i].dei   = std::move(var_dei_out);
+                }
+            }
+        
+            auto time_end_loop = std::chrono::high_resolution_clock::now();
+            auto duration_loop = std::chrono::duration<double, std::milli>(time_end_loop - time_start_loop).count();
+            Status::print_message("Duration ice loop: " + std::to_string(duration_loop) + " (ms)");
+        }
+        
         post_process_output(col_results, n_col_x, n_col_y, n_z_in, n_zh_in,
             &lwp_out, &iwp_out, &rel_out, &dei_out,
             switch_liq_cloud_optics, switch_ice_cloud_optics);
