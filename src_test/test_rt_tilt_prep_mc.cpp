@@ -327,33 +327,43 @@ void tilt_input(int argc, char** argv)
         const int total_iterations = n_col_x * n_col_y;
         std::vector<ColumnResult> col_results(total_iterations);
     
-        // Do Normalization of lwp iwp first OUTSIDE OF LOOP
-        Array<Float,2> lwp_norm = lwp;
-        Array<Float,2> iwp_norm = iwp;
-        for (int ilay = 1; ilay <= n_zh_in; ++ilay)    
+        // Do Normalization and Reshaping OUTSIDE OF LOOP
+        Array<Float,2> lwp_norm_reshaped;
+        lwp_norm_reshaped.set_dims({n_z_in, n_col});
+        Array<Float,2> rel_reshaped;
+        rel_reshaped.set_dims({n_z_in, n_col});
+        Array<Float,2> iwp_norm_reshaped;
+        iwp_norm_reshaped.set_dims({n_z_in, n_col});
+        Array<Float,2> dei_reshaped;
+        dei_reshaped.set_dims({n_z_in, n_col});
+
+        for (int icol = 1; icol <= n_col; ++icol)    
         {
-            Float dz = zh({ilay + 1}) - zh({ilay});
-            for (int icol = 1; icol <= n_col; ++icol)    
+            for (int ilay = 1; ilay <= n_zh_in; ++ilay)    
             {
+                Float dz = zh({ilay + 1}) - zh({ilay});
                 if (switch_liq_cloud_optics)
                 {
-                    (lwp_norm)({icol, ilay}) /= dz;
+                    (lwp_norm_reshaped)({ilay, icol}) = (lwp)({icol, ilay})/dz;
+                    (rel_reshaped)({ilay, icol}) = (rel)({icol, ilay});
                 }
                 if (switch_ice_cloud_optics)
                 {
-                    (iwp_norm)({icol, ilay}) /= dz;
+                    (iwp_norm_reshaped)({ilay, icol}) = (iwp)({icol, ilay})/dz;
+                    (dei_reshaped)({ilay, icol}) = (dei)({icol, ilay});
                 }
             }
         }
-        Array<Float,2> lwp_compress;
-        lwp_compress.set_dims({1, n_z_in});
-        Array<Float,2> iwp_compress;
-        iwp_compress.set_dims({1, n_z_in});
+
+        Array<Float,1> lwp_compress;
+        lwp_compress.set_dims({n_z_in});
+        Array<Float,1> iwp_compress;
+        iwp_compress.set_dims({n_z_in});
     
-        Array<Float,2> rel_compress;
-        rel_compress.set_dims({1, n_z_in});
-        Array<Float,2> dei_compress;
-        dei_compress.set_dims({1, n_z_in});
+        Array<Float,1> rel_compress;
+        rel_compress.set_dims({n_z_in});
+        Array<Float,1> dei_compress;
+        dei_compress.set_dims({n_z_in});
     
         Status::print_message("###### Start Loop ######");
         std::cout << "n_col: " << n_col << std::endl;
@@ -363,17 +373,17 @@ void tilt_input(int argc, char** argv)
         {
             for (int idx_x = 0; idx_x < n_col_x; idx_x++)
             {
-                int i = idx_x + idx_y * n_col_y;
+                int i = idx_x + idx_y * n_col_x;
                 const Array<ijk,1> tilted_path = by_col_paths[i];
                 const Array<Float,1> zh_tilt = by_col_zh_tilt[i];
                 const int n_zh_tilt = by_col_n_zh_tilt[i];
                 const int n_z_tilt = by_col_n_z_tilt[i];
                 int compress_lay_start_idx = by_col_compress_start[i];
     
-                Array<Float,2> lwp_tilted;
-                lwp_tilted.set_dims({1, n_z_tilt});
-                Array<Float,2> iwp_tilted;
-                iwp_tilted.set_dims({1, n_z_tilt});
+                Array<Float, 1> lwp_tilted;
+                lwp_tilted.set_dims({n_z_tilt});
+                Array<Float, 1> iwp_tilted;
+                iwp_tilted.set_dims({n_z_tilt});
     
                 if (switch_liq_cloud_optics){
                     process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
@@ -382,7 +392,7 @@ void tilt_input(int argc, char** argv)
                                     n_z_tilt, n_zh_tilt,
                                     zh_tilt, 
                                     tilted_path.v(), 
-                                    lwp_norm.v(),
+                                    lwp_norm_reshaped.v(),
                                     lwp_compress.v(),
                                     lwp_tilted.v());
                     process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
@@ -391,7 +401,7 @@ void tilt_input(int argc, char** argv)
                                         n_z_tilt, n_zh_tilt,
                                         zh_tilt, 
                                         tilted_path.v(), 
-                                        rel.v(),
+                                        rel_reshaped.v(),
                                         rel_compress.v(),
                                         lwp_tilted.v());
     
@@ -406,7 +416,7 @@ void tilt_input(int argc, char** argv)
                                     n_z_tilt, n_zh_tilt,
                                     zh_tilt, 
                                     tilted_path.v(), 
-                                    iwp_norm.v(),
+                                    iwp_norm_reshaped.v(),
                                     iwp_compress.v(),
                                     iwp_tilted.v());
                     process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
@@ -415,7 +425,7 @@ void tilt_input(int argc, char** argv)
                                         n_z_tilt, n_zh_tilt,
                                         zh_tilt, 
                                         tilted_path.v(), 
-                                        dei.v(),
+                                        dei_reshaped.v(),
                                         dei_compress.v(),
                                         iwp_tilted.v());
     

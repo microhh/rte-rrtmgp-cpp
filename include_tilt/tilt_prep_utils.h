@@ -2,10 +2,10 @@
 #include "Source_functions.h"
 
 struct ColumnResult {
-    Array<Float,2> lwp;
-    Array<Float,2> iwp;
-    Array<Float,2> rel;
-    Array<Float,2> dei;
+    Array<Float,1> lwp;
+    Array<Float,1> iwp;
+    Array<Float,1> rel;
+    Array<Float,1> dei;
 };
 
 void post_process_output(const std::vector<ColumnResult>& col_results,

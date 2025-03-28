@@ -124,9 +124,9 @@ void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_id
         {
             Float dz = zh_tilt({ilay + 1}) - zh_tilt({ilay});
             const ijk offset = tilted_path[ilay];
-            const int idx_out  = ilay;
-            const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
-            var_tmp[idx_out] = var[idx_in] * dz;
+            const int i_col_new  = ((iy+offset.j)%n_y) * n_x + ((ix + offset.i)%n_x);
+            const int idx_in = offset.k + i_col_new*n_z_in;
+            var_tmp[ilay] = var[idx_in] * dz;
         }
 
         var_tilted.resize(n_z_tilt);
@@ -155,7 +155,7 @@ void process_lwp_iwp(const int ix, const int iy, const int compress_lay_start_id
             sum += var_tmp[in_idx];
             }
             var_out[ilay] = sum;
-    }
+        }
     }
 
 void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_idx,
@@ -168,15 +168,16 @@ void process_w_avg_var(const int ix, const int iy, const int compress_lay_start_
     const std::vector<Float> var_weighted_tilted)
     {
 
+        const int input_size = var.size();
         const int n_col = n_x*n_y;
         std::vector<Float> var_tmp(n_z_tilt);
         for (int ilay=0; ilay < n_z_tilt; ++ilay)
         {
             Float dz = zh_tilt({ilay + 1}) - zh_tilt({ilay});
             const ijk offset = tilted_path[ilay];
-            const int idx_out  = ilay;
-            const int idx_in = (ix + offset.i)%n_x + (iy+offset.j)%n_y * n_x + offset.k*n_y*n_x;
-            var_tmp[idx_out] = var[idx_in];
+            const int i_col_new  = ((iy+offset.j)%n_y) * n_x + ((ix + offset.i)%n_x);
+            const int idx_in = offset.k + i_col_new*n_z_in;
+            var_tmp[ilay] = var[idx_in];
         }
 
         for (int ilay = 0; ilay < compress_lay_start_idx; ++ilay)
