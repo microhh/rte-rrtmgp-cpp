@@ -369,9 +369,11 @@ void tilt_input(int argc, char** argv)
         std::cout << "n_col: " << n_col << std::endl;
     
         auto time_start_loop = std::chrono::high_resolution_clock::now();
-        for (int idx_y = 0; idx_y < n_col_y; idx_y++)
+        int idx_y;
+        int idx_x;
+        for (idx_y = 0; idx_y < n_col_y; idx_y++)
         {
-            for (int idx_x = 0; idx_x < n_col_x; idx_x++)
+            for (idx_x = 0; idx_x < n_col_x; idx_x++)
             {
                 int i = idx_x + idx_y * n_col_x;
                 const Array<ijk,1> tilted_path = by_col_paths[i];
@@ -380,54 +382,33 @@ void tilt_input(int argc, char** argv)
                 const int n_z_tilt = by_col_n_z_tilt[i];
                 int compress_lay_start_idx = by_col_compress_start[i];
     
-                Array<Float, 1> lwp_tilted;
-                lwp_tilted.set_dims({n_z_tilt});
-                Array<Float, 1> iwp_tilted;
-                iwp_tilted.set_dims({n_z_tilt});
-    
                 if (switch_liq_cloud_optics){
-                    process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    lwp_norm_reshaped.v(),
-                                    lwp_compress.v(),
-                                    lwp_tilted.v());
-                    process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                        n_z_in, n_zh_in, 
-                                        n_col_x, n_col_y,
-                                        n_z_tilt, n_zh_tilt,
-                                        zh_tilt, 
-                                        tilted_path.v(), 
-                                        rel_reshaped.v(),
-                                        rel_compress.v(),
-                                        lwp_tilted.v());
+                    process_liq_or_ice(idx_x, idx_y, compress_lay_start_idx,
+                        n_z_in, n_zh_in, 
+                        n_col_x, n_col_y,
+                        n_z_tilt, n_zh_tilt,
+                        zh_tilt, 
+                        tilted_path.v(), 
+                        lwp_norm_reshaped.v(),
+                        lwp_compress.v(),
+                        rel_reshaped.v(),
+                        rel_compress.v());
     
                     col_results[i].lwp   = std::move(lwp_compress);
                     col_results[i].rel   = std::move(rel_compress);
                 }
     
                 if (switch_ice_cloud_optics){
-                    process_lwp_iwp(idx_x, idx_y, compress_lay_start_idx,
-                                    n_z_in, n_zh_in, 
-                                    n_col_x, n_col_y,
-                                    n_z_tilt, n_zh_tilt,
-                                    zh_tilt, 
-                                    tilted_path.v(), 
-                                    iwp_norm_reshaped.v(),
-                                    iwp_compress.v(),
-                                    iwp_tilted.v());
-                    process_w_avg_var(idx_x, idx_y, compress_lay_start_idx,
-                                        n_z_in, n_zh_in, 
-                                        n_col_x, n_col_y,
-                                        n_z_tilt, n_zh_tilt,
-                                        zh_tilt, 
-                                        tilted_path.v(), 
-                                        dei_reshaped.v(),
-                                        dei_compress.v(),
-                                        iwp_tilted.v());
+                    process_liq_or_ice(idx_x, idx_y, compress_lay_start_idx,
+                        n_z_in, n_zh_in, 
+                        n_col_x, n_col_y,
+                        n_z_tilt, n_zh_tilt,
+                        zh_tilt, 
+                        tilted_path.v(), 
+                        iwp_norm_reshaped.v(),
+                        iwp_compress.v(),
+                        dei_reshaped.v(),
+                        dei_compress.v());
     
                     col_results[i].iwp   = std::move(iwp_compress);
                     col_results[i].dei   = std::move(dei_compress);
