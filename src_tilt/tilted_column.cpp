@@ -35,74 +35,127 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
     Float dir_z = std::cos(sza);  
 
     int z_idx = -1;
+    
+    const Float epsilon = 1e-8; // Small value to handle floating-point precision
+    const Float min_step = 1e-2; // Minimum step size in meters
+    
+    tilted_path.push_back({i, j, k}); // Add starting point
+    dz_tilted.push_back(0.0);
+    z_idx = 0;
+    
     while (zp < z_top)
-    {   
-        // Check bounds before accessing zh[k+1]
+    {           
+        // Check bounds before accessing arrays
         if (k + 1 >= zh.size()) {
             std::cerr << "Error: k+1 (" << k + 1 << ") out of bounds for zh (size=" << zh.size() << ")" << std::endl;
             break;
         }
-        Float lz = (zh[k+1] - zp) / dir_z;
-
-        // Check bounds before accessing yh[j+1]
         if (j + 1 >= yh.size()) {
             std::cerr << "Error: j+1 (" << j + 1 << ") out of bounds for yh (size=" << yh.size() << ")" << std::endl;
             break;
         }
-        Float ly = (dir_y < 0) ? std::abs(yp - yh[j]) / std::abs(dir_y) 
-                            : (dir_y > 0) ? (yh[j+1] - yp) / dir_y 
-                            : 100000.;
-
-        // Check bounds before accessing xh[i+1]
         if (i + 1 >= xh.size()) {
             std::cerr << "Error: i+1 (" << i + 1 << ") out of bounds for xh (size=" << xh.size() << ")" << std::endl;
             break;
         }
-        Float lx = (dir_x < 0) ? std::abs(xp - xh[i]) / std::abs(dir_x) 
-                            : (dir_x > 0) ? (xh[i+1] - xp) / dir_x 
-                            : 100000.;
-
-
-        Float l = std::min({lz, ly, lx}); 
-        Float dz0 = l*dir_z;
-        Float dy0 = l*dir_y;
-        Float dx0 = l*dir_x;
-        // Move along axes:
-        zp += l*dir_z;
-        yp += l*dir_y;
-        xp += l*dir_x;  
-
-        if (l < 1e-2) // ignore cell if crossed for less than 2 cm
-        {
-            dl = dz0/Float(2.);
-            dz_tilted[z_idx] += dl;
-        }
-        else
-        {
-            dz_tilted.push_back(dz0+dl);
-            tilted_path.push_back({i,j,k});
-            z_idx =+ 1;
-        }
-        //new indices + making sure we start at hor. domain bndry once crossed
-        if (l==lz)
-        {
+        
+        // Calculate distances to next cell boundaries
+        Float lz = (std::abs(dir_z) < epsilon) ? 
+                    100000.: (zh[k+1] - zp) / dir_z;
+        
+        // Handle cases where we're extremely close to a boundary
+        if (std::abs(zp - zh[k+1]) < epsilon && dir_z > 0) {
             k += 1;
+            zp = zh[k];
+            if (k + 1 >= zh.size()) {
+                break; // We've reached the top
+            }
+            continue;
         }
-        else if (l==ly)
-        {
+        
+        Float ly;
+        if (std::abs(dir_y) < epsilon) {
+            ly = 100000.;
+        } else if (dir_y < 0) {
+            if (std::abs(yp - yh[j]) < epsilon) {
+                // Already at the lower boundary, move to the previous cell
+                j = (j == 0) ? n_y - 1 : j - 1;
+                yp = yh[j+1] - epsilon; // Position just inside the cell
+                continue;
+            }
+            ly = (yp - yh[j]) / (-dir_y);
+        } else { // dir_y > 0
+            if (std::abs(yp - yh[j+1]) < epsilon) {
+                // Already at the upper boundary, move to the next cell
+                j = (j + 1) % n_y;
+                yp = yh[j] + epsilon;
+                continue;
+            }
+            ly = (yh[j+1] - yp) / dir_y;
+        }
+        
+        Float lx;
+        if (std::abs(dir_x) < epsilon) {
+            lx = 100000.;
+        } else if (dir_x < 0) {
+            if (std::abs(xp - xh[i]) < epsilon) {
+                // Already at the lower boundary, move to the previous cell
+                i = (i == 0) ? n_x - 1 : i - 1;
+                xp = xh[i+1] - epsilon;
+                continue;
+            }
+            lx = (xp - xh[i]) / (-dir_x);
+        } else { // dir_x > 0
+            if (std::abs(xp - xh[i+1]) < epsilon) {
+                // Already at the upper boundary, move to the next cell
+                i = (i + 1) % n_x;
+                xp = xh[i] + epsilon;
+                continue;
+            }
+            lx = (xh[i+1] - xp) / dir_x;
+        }
+
+        Float l = std::min({lx, ly, lz});
+        Float dx0 = l * dir_x;
+        Float dy0 = l * dir_y;
+        Float dz0 = l * dir_z;
+        // Move along axes:
+        xp += dx0;
+        yp += dy0;
+        zp += dz0;
+        
+        // Record the path segment
+        dz_tilted[z_idx] += dz0;
+        
+        // Check z boundary crossing
+        if (std::abs(l - lz) < epsilon || zp >= zh[k+1]) {
+            k += 1;
+            // Create a new path segment after crossing boundary
+            tilted_path.push_back({i, j, k});
+            dz_tilted.push_back(0.0);
+            z_idx += 1;
+        }
+        
+        // Check y boundary crossing
+        if (std::abs(l - ly) < epsilon) {
+
             j = int(j + sign(dy0));
             j = (j == -1) ? n_y - 1 : j%n_y;
             yp = dy0 < 0 ? yh[j+1] : yh[j];
+            
         }
-        else if (l==lx)
-        {
+        
+        // Check x boundary crossing
+        if (std::abs(l - lx) < epsilon) {
             i = int(i + sign(dx0));
             i = (i == -1) ? n_x - 1 : i%n_x;
             xp = dx0 < 0 ? xh[i+1] : xh[i];
-
-        } 
-    }
+        }
+    }    
+    // Construct final zh_tilted
+    zh_tilted.clear();
     zh_tilted.push_back(0.);
-    for (int iz=0; iz<dz_tilted.size(); ++iz)
-        zh_tilted.push_back(zh_tilted[iz]+dz_tilted[iz]);
+    for (int iz = 0; iz < dz_tilted.size(); ++iz) {
+        zh_tilted.push_back(zh_tilted[iz] + dz_tilted[iz]);
+    }
 }
