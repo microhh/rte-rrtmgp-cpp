@@ -31,7 +31,7 @@ void lw_secants_array_kernel(
     }
 }
 
- 
+
 __device__
 void lw_transport_noscat_kernel(
         const int icol, const int igpt, const int ncol, const int nlay, const int ngpt, const Bool top_at_1,
@@ -186,9 +186,9 @@ void lw_solver_noscat_step_3_kernel(
         const Float pi = acos(Float(-1.));
 
         const int idx = icol + ilev*ncol + igpt*ncol*(nlay+1);
-        radn_up[idx] *= Float(2.) * pi * weight[0];
-        radn_dn[idx] *= Float(2.) * pi * weight[0];
-        radn_up_jac[idx] *= Float(2.) * pi * weight[0];
+        radn_up[idx] *= pi * weight[0];
+        radn_dn[idx] *= pi * weight[0];
+        radn_up_jac[idx] *= pi * weight[0];
     }
 }
 
@@ -585,7 +585,7 @@ void sw_2stream_function(
         *t_dir = -rt_term2 * ((Float(1.) + k_mu) * (alpha1 + k_gamma4) * t_noscat[0]   -
                                   (Float(1.) - k_mu) * (alpha1 - k_gamma4) * exp_minus2ktau * t_noscat[0] -
                                    Float(2.) * (k_gamma4 + alpha1 * k_mu)  * exp_minusktau);
-        
+
         // fix thanks to peter ukkonen (see https://github.com/earth-system-radiation/rte-rrtmgp/pull/39#issuecomment-1026698541)
         *r_dir = max(tmin<Float>(), min(*r_dir, Float(1.0) - *t_noscat));
         *t_dir = max(tmin<Float>(), min(*t_dir, Float(1.0) - *t_noscat - *r_dir));
