@@ -303,7 +303,7 @@ void ray_tracer_kernel_bw(
 {
     extern __shared__ Float shared_arrays[];
     Float* mie_cdf_shared = &shared_arrays[0];
-    Float* mie_phase_ang_shared = &shared_arrays[mie_phase_table_size];
+    Float* mie_phase_ang_shared = &shared_arrays[mie_cdf_table_size];
     Float* bg_tau_cum = &shared_arrays[mie_phase_table_size+mie_cdf_table_size];
     if (threadIdx.x==0)
     {

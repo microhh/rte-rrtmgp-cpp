@@ -749,7 +749,7 @@ void Radiation_solver_shortwave::load_mie_tables(
         const int n_mie = mie_nc.get_dimension_size("n_ang");
         const int n_mie_cdf = mie_nc.get_dimension_size("n_ang_cdf");
 
-        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie_cdf}), {n_mie, 1, n_bnd_sw});
+        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_mie_cdf}), {n_mie_cdf, 1, n_bnd_sw});
         Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_re, n_mie_cdf}), {n_mie_cdf, n_re, 1, n_bnd_sw});
 
         Array<Float,4> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, n_re, n_mie}), {n_mie, n_re, 1, n_bnd_sw});
@@ -768,10 +768,11 @@ void Radiation_solver_shortwave::load_mie_tables(
         const int n_bnd_sw = this->get_n_bnd_gpu();
         const int n_re  = mie_nc.get_dimension_size("r_eff");
         const int n_mie = mie_nc.get_dimension_size("n_ang");
+        const int n_mie_cdf = mie_nc.get_dimension_size("n_ang_cdf");
         const int n_sub = mie_nc.get_dimension_size("sub_band");
 
-        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_sub, n_mie}), {n_mie, n_sub, n_bnd_sw});
-        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_sub, n_re, n_mie}), {n_mie, n_re, n_sub, n_bnd_sw});
+        Array<Float,3> mie_cdf(mie_nc.get_variable<Float>("phase_cdf", {n_bnd_sw, n_sub, n_mie_cdf}), {n_mie_cdf, n_sub, n_bnd_sw});
+        Array<Float,4> mie_ang(mie_nc.get_variable<Float>("phase_cdf_angle", {n_bnd_sw, n_sub, n_re, n_mie_cdf}), {n_mie_cdf, n_re, n_sub, n_bnd_sw});
 
         Array<Float,4> mie_phase(mie_nc.get_variable<Float>("phase", {n_bnd_sw, n_sub, n_re, n_mie}), {n_mie, n_re, n_sub, n_bnd_sw});
         Array<Float,1> mie_phase_ang(mie_nc.get_variable<Float>("phase_angle", {n_mie}), {n_mie});
@@ -828,7 +829,8 @@ void Radiation_solver_shortwave::solve_gpu(
     const int n_gpt = this->kdist_gpu->get_ngpt();
     const int n_bnd = this->kdist_gpu->get_nband();
 
-    const int n_mie = (switch_cloud_mie) ? this->mie_angs.dim(1) : 0;
+    const int n_mie = (switch_cloud_mie) ? this->mie_phase_angs.dim(1) : 0;
+    const int n_mie_cdf = (switch_cloud_mie) ? this->mie_angs.dim(1) : 0;
     const int n_re = (switch_cloud_mie) ? this->mie_angs.dim(2) : 0;
     const int n_sub = (switch_cloud_mie) ? this->mie_angs.dim(3) : 3;
 
@@ -1029,8 +1031,8 @@ void Radiation_solver_shortwave::solve_gpu(
 
                 if (switch_cloud_mie)
                 {
-                    mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {iwv+1,iwv+1}, {band, band} }});
-                    mie_angs_sub = mie_angs.subset({{ {1, n_mie}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
+                    mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie_cdf}, {iwv+1,iwv+1}, {band, band} }});
+                    mie_angs_sub = mie_angs.subset({{ {1, n_mie_cdf}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
                     mie_phase_sub = mie_phase.subset({{ {1, n_mie}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
                 }
 
