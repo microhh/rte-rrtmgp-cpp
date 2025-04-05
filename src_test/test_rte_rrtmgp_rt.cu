@@ -352,6 +352,22 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> p_lev(input_nc.get_variable<Float>("p_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
     Array<Float,2> t_lev(input_nc.get_variable<Float>("t_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
 
+    
+    
+    if (input_nc.variable_exists("col_dry") & switch_tica)
+    {
+        std::string error = "col_dry is not supported in tica mode";
+        throw std::runtime_error(error);
+
+    }
+
+    if (input_nc.variable_exists("tsi") & switch_tica)
+    {
+        std::string error = "tsi is overwritten in tica mode";
+        throw std::runtime_error(error);
+
+    }
+
     // Fetch the col_dry in case present.
     Array<Float,2> col_dry;
     if (input_nc.variable_exists("col_dry"))
@@ -459,20 +475,20 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_tica)
     {
-        std::cout << "tica_azi: " << tica_azi << std::endl;
-        std::cout << "tica_sza: " << tica_sza << std::endl;
         for (int icol=1; icol<=n_col; ++icol)
         {
             mu0({icol}) = 1.0;
             azi({icol}) = 0.0;
         }    
-        // what to do about col dry and aerosols?
-        // what to do about tsi
 
         std::vector<std::string> gas_names = {
             "h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "n2", "ccl4", "cfc11", 
             "cfc12", "cfc22", "hfc143a", "hfc125", "hfc23", "hfc32", "hfc134a", 
             "cf4", "no2"
+        };
+        std::vector<std::string> aerosol_names = {
+            "aermr01", "aermr02", "aermr03", "aermr04", "aermr05", "aermr06", "aermr07", 
+            "aermr08", "aermr09", "aermr10","aermr11"
         };
         
         Array<Float,1> xh;
@@ -495,6 +511,8 @@ void solve_radiation(int argc, char** argv)
         Array<Float,2> p_lay_out = p_lay;
         Array<Float,2> p_lev_out = p_lev;
         Gas_concs gas_concs_out = gas_concs;
+        Aerosol_concs aerosol_concs_out = aerosol_concs;
+        Array<Float,2> rh_out = rh;
     
         Array<Float,2> lwp_out;
         lwp_out.set_dims({n_col, n_z_in});
@@ -511,13 +529,13 @@ void solve_radiation(int argc, char** argv)
             n_lay, n_lev, n_z_in, n_zh_in ,
             xh, yh, zh, z,
             p_lay, t_lay, p_lev, t_lev, 
-            lwp, iwp, rel, dei, 
-            gas_concs,
+            lwp, iwp, rel, dei, rh,
+            gas_concs, aerosol_concs,
             p_lay_out, t_lay_out, p_lev_out, t_lev_out, 
-            lwp_out, iwp_out, rel_out, dei_out, 
-            gas_concs_out, 
-            gas_names,
-            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+            lwp_out, iwp_out, rel_out, dei_out, rh_out,
+            gas_concs_out, aerosol_concs_out,
+            gas_names, aerosol_names,
+            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics, switch_aerosol_optics
         );
 
         lwp_out.expand_dims({n_col, n_lay});

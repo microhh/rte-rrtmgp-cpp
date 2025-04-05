@@ -11,6 +11,7 @@
 #include "Netcdf_interface.h"
 #include "Array.h"
 #include "Gas_concs.h"
+#include "Aerosol_optics_rt.h"
 #include "tilt_utils.h"
 #include "types.h"
 
@@ -375,13 +376,13 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y,
     const int n_z_in, const int n_zh_in,
     const int bkg_start_z, const int bkg_start_zh, 
     Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
-    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, 
-    Gas_concs& gas_concs_copy,
+    Array<Float,2>* lwp_copy, Array<Float,2>* iwp_copy, Array<Float,2>* rel_copy, Array<Float,2>* dei_copy, Array<Float,2>* rh_copy, 
+    Gas_concs& gas_concs_copy, Aerosol_concs& aerosol_concs_copy,
     Array<Float,2>* p_lay, Array<Float,2>* t_lay, Array<Float,2>* p_lev, Array<Float,2>* t_lev, 
-    Array<Float,2>* lwp, Array<Float,2>* iwp, Array<Float,2>* rel, Array<Float,2>* dei, 
-    Gas_concs& gas_concs, 
-    std::vector<std::string> gas_names,
-    bool switch_liq_cloud_optics, bool switch_ice_cloud_optics
+    Array<Float,2>* lwp, Array<Float,2>* iwp, Array<Float,2>* rel, Array<Float,2>* dei, Array<Float,2>* rh, 
+    Gas_concs& gas_concs, Aerosol_concs& aerosol_concs, 
+    std::vector<std::string> gas_names, std::vector<std::string> aerosol_names,
+    bool switch_liq_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
 )
 {
     const int n_col = n_col_x*n_col_y;
@@ -423,6 +424,37 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y,
             
             gas_concs_copy.set_vmr(gas_name, gas_tmp);
             
+        }
+    }
+    if (switch_aerosol_optics)
+    {
+        // TODO RH
+        restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, bkg_start_z, rh_copy->v(), rh->v());
+        rh_copy->expand_dims({n_col, n_lay_tot});
+
+        for (const auto& aerosol_name : aerosol_names) {
+            if (!aerosol_concs_copy.exists(aerosol_name)) {
+                continue;
+            }
+            const Array<Float,2>& gas = aerosol_concs_copy.get_vmr(aerosol_name);
+            const Array<Float,2>& gas_full = aerosol_concs.get_vmr(aerosol_name);
+
+            std::string var_name = "vmr_" + aerosol_name;
+            if (gas.size() > 1) {
+                std::vector<Float> gas_copy = gas.v();
+                std::vector<Float> gas_full_copy = gas_full.v();
+                restore_bkg_profile(n_col_x, n_col_y, 
+                                    n_lay, n_z_in, 
+                                    bkg_start_z, 
+                                    gas_copy, gas_full_copy);
+                
+                Array<Float,2> gas_tmp({n_col, n_lay_tot});
+                gas_tmp = std::move(gas_copy);
+                gas_tmp.expand_dims({n_col, n_lay_tot});
+                
+                aerosol_concs_copy.set_vmr(aerosol_name, gas_tmp);
+                
+            }
         }
     }
 
@@ -637,7 +669,9 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
     const Array<Float,1> zh, const Array<Float,1> z,
     const Array<Float,1> zh_tilt, const Array<ijk,1> path,
     Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
-    Gas_concs& gas_concs_copy, const std::vector<std::string> gas_names
+    Array<Float,2>* rh_copy, 
+    Gas_concs& gas_concs_copy, const std::vector<std::string> gas_names,
+    Aerosol_concs& aerosol_concs_copy, const std::vector<std::string> aerosol_names, const bool switch_aerosol_optics
 ) {
     for (const auto& gas_name : gas_names) {
         if (!gas_concs_copy.exists(gas_name)) {
@@ -659,6 +693,33 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
         }
     }
 
+    if (switch_aerosol_optics)
+    {
+        create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), rh_copy->v());
+        rh_copy->expand_dims({n_col, n_z_tilt});
+
+        for (const auto& aerosol_name : aerosol_names) {
+            if (!aerosol_concs_copy.exists(aerosol_name)) {
+                continue;
+            }
+            const Array<Float,2>& gas = aerosol_concs_copy.get_vmr(aerosol_name);
+
+            if (gas.size() > 1) {
+                Array<Float,2> gas_tmp(gas);
+                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
+                gas_tmp.expand_dims({n_col, n_z_tilt});
+                aerosol_concs_copy.set_vmr(aerosol_name, gas_tmp);
+            } 
+            else if (gas.size() == 1) {
+                // Do nothing for single profiles
+            } 
+            else {
+                throw std::runtime_error("No tilted column implementation for single profiles.");
+            }
+        }
+    }
+
+
     // Create tilted columns for T and p. Important: create T first!!
     create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), t_lay_copy->v(), t_lev_copy->v());
     create_tilted_columns_levlay(n_col_x, n_col_y, n_z_in, n_zh_in, zh.v(), z.v(), zh_tilt.v(), path.v(), p_lay_copy->v(), p_lev_copy->v());
@@ -672,7 +733,9 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
 void compress_fields(const int compress_lay_start_idx, const int n_col_x, const int n_col_y,
     const int n_z_in, const int n_zh_in,  const int n_z_tilt,
     Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
-    Gas_concs& gas_concs_copy, std::vector<std::string> gas_names)
+    Array<Float,2>* rh_copy, 
+    Gas_concs& gas_concs_copy, std::vector<std::string> gas_names,
+    Aerosol_concs& aerosol_concs_copy, std::vector<std::string> aerosol_names, const bool switch_aerosol_optics)
 {
     const int n_col = n_col_x*n_col_y;
 
@@ -693,6 +756,34 @@ void compress_fields(const int compress_lay_start_idx, const int n_col_x, const 
         }
     }
 
+    if (switch_aerosol_optics)
+    {
+        // TODO RH
+        std::vector<Float> ones(p_lay_copy->v().size(), 1.0);
+        compress_columns_weighted_avg(n_col_x, n_col_y,
+            n_z_in, n_z_tilt,
+            compress_lay_start_idx, 
+            rh_copy->v(), 
+            ones);
+        rh_copy->expand_dims({n_col, n_z_in});
+
+        for (const auto& aerosol_name : aerosol_names) {
+            if (!aerosol_concs_copy.exists(aerosol_name)) {
+                continue;
+            }
+            const Array<Float,2>& gas = aerosol_concs_copy.get_vmr(aerosol_name);
+            if (gas.size() > 1) {
+                Array<Float,2> gas_tmp(gas);
+                compress_columns_weighted_avg(n_col_x, n_col_y,
+                                                n_z_in, n_z_tilt,
+                                                compress_lay_start_idx, 
+                                                gas_tmp.v(), 
+                                                p_lay_copy->v());
+                gas_tmp.expand_dims({n_col, n_z_in});
+                aerosol_concs_copy.set_vmr(aerosol_name, gas_tmp);
+            }
+        }
+    }
     compress_columns_p_or_t(n_col_x, n_col_y, n_z_in, n_z_tilt,
                             compress_lay_start_idx, 
                             p_lev_copy->v(), p_lay_copy->v());
@@ -862,13 +953,13 @@ void tica_tilt(
     const int n_lay, const int n_lev, const int n_z_in, const int n_zh_in ,
     Array<Float,1> xh, Array<Float,1> yh, Array<Float,1> zh, Array<Float,1> z,
     Array<Float,2> p_lay, Array<Float,2> t_lay, Array<Float,2> p_lev, Array<Float,2> t_lev, 
-    Array<Float,2> lwp, Array<Float,2> iwp, Array<Float,2> rel, Array<Float,2> dei, 
-    Gas_concs gas_concs,
+    Array<Float,2> lwp, Array<Float,2> iwp, Array<Float,2> rel, Array<Float,2> dei, Array<Float,2> rh, 
+    Gas_concs gas_concs, Aerosol_concs aerosol_concs,
     Array<Float,2>& p_lay_out, Array<Float,2>& t_lay_out, Array<Float,2>& p_lev_out, Array<Float,2>& t_lev_out, 
-    Array<Float,2>& lwp_out, Array<Float,2>& iwp_out, Array<Float,2>& rel_out, Array<Float,2>& dei_out, 
-    Gas_concs& gas_concs_out, 
-    std::vector<std::string> gas_names,
-    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics
+    Array<Float,2>& lwp_out, Array<Float,2>& iwp_out, Array<Float,2>& rel_out, Array<Float,2>& dei_out, Array<Float,2>& rh_out, 
+    Gas_concs& gas_concs_out, Aerosol_concs aerosol_concs_out,
+    std::vector<std::string> gas_names, std::vector<std::string> aerosol_names,
+    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
 )
 {
        // if t lev all 0, interpolate from t lay
@@ -896,8 +987,8 @@ void tica_tilt(
            n_z_tilt_center, n_zh_tilt_center, n_col,
            zh, z,
            center_zh_tilt, center_path,
-           &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
-           gas_concs_out, gas_names
+           &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, &rh_out,
+           gas_concs_out, gas_names, aerosol_concs_out, aerosol_names, switch_aerosol_optics
        );
        
        int idx_hold = 2*(n_z_tilt_center - n_z_in);
@@ -911,8 +1002,8 @@ void tica_tilt(
        }
        compress_fields(compress_lay_start_idx_center, n_col_x, n_col_y,
                    n_z_in, n_zh_in, n_z_tilt_center,
-                   &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
-                   gas_concs_out, gas_names);
+                   &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, &rh_out,
+                   gas_concs_out, gas_names, aerosol_concs_out, aerosol_names, switch_aerosol_optics);
        
        ////// SETUP FOR RANDOM START POINT TILTING //////    
        if (switch_cloud_optics)
@@ -1205,13 +1296,13 @@ void tica_tilt(
            n_lay, n_lev, n_lay, n_lev, 
            n_z_in, n_zh_in, n_z_in, n_zh_in,
            &p_lay_out, &t_lay_out, &p_lev_out, &t_lev_out, 
-           &lwp_out, &iwp_out, &rel_out, &dei_out,
-           gas_concs_out,
+           &lwp_out, &iwp_out, &rel_out, &dei_out, &rh_out,
+           gas_concs_out, aerosol_concs_out, 
            &p_lay, &t_lay, &p_lev, &t_lev, 
-           &lwp, &iwp, &rel, &dei,
-           gas_concs, 
-           gas_names,
-           switch_liq_cloud_optics, switch_ice_cloud_optics
+           &lwp, &iwp, &rel, &dei, &rh,
+           gas_concs, aerosol_concs, 
+           gas_names, aerosol_names,
+           switch_liq_cloud_optics, switch_ice_cloud_optics, switch_aerosol_optics
        );
 }
 

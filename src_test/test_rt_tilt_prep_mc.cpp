@@ -1,33 +1,68 @@
 /*
- * This file is a stand-alone executable developed for the
- * testing of the C++ interface to the RTE+RRTMGP radiation code.
- *
- * It is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this software.  If not, see <http://www.gnu.org/licenses/>.
- */
+* This file is a stand-alone executable developed for the
+* testing of the C++ interface to the RTE+RRTMGP radiation code.
+*
+* It is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This software is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this software.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
- #include <boost/algorithm/string.hpp>
- #include <chrono>
- #include <cmath>
- #include <iomanip>
- #include <cuda_profiler_api.h>
- 
- #include "Status.h"
- #include "Netcdf_interface.h"
- #include "Array.h"
- #include "Gas_concs.h"
- #include "tilt_utils.h"
- #include "types.h"
+#include <boost/algorithm/string.hpp>
+#include <chrono>
+#include <cmath>
+#include <iomanip>
+#include <cuda_profiler_api.h>
+
+#include "Status.h"
+#include "Netcdf_interface.h"
+#include "Array.h"
+#include "Gas_concs.h"
+#include "Aerosol_optics_rt.h"
+#include "tilt_utils.h"
+#include "types.h"
+
+void read_and_set_aer(
+        const std::string& aerosol_name, const int n_col_x, const int n_col_y, const int n_lay,
+        const Netcdf_handle& input_nc, Aerosol_concs& aerosol_concs)
+{
+    if (input_nc.variable_exists(aerosol_name))
+    {
+        std::map<std::string, int> dims = input_nc.get_variable_dimensions(aerosol_name);
+        const int n_dims = dims.size();
+
+        if (n_dims == 1)
+        {
+            if (dims.at("lay") == n_lay)
+                aerosol_concs.set_vmr(aerosol_name,
+                        Array<Float,1>(input_nc.get_variable<Float>(aerosol_name, {n_lay}), {n_lay}));
+            else
+                throw std::runtime_error("Illegal dimensions of \"" + aerosol_name + "\" in input");
+        }
+        else if (n_dims == 3)
+        {
+            if (dims.at("lay") == n_lay && dims.at("y") == n_col_y && dims.at("x") == n_col_x)
+                aerosol_concs.set_vmr(aerosol_name,
+                        Array<Float,2>(input_nc.get_variable<Float>(aerosol_name, {n_lay, n_col_y, n_col_x}), {n_col_x * n_col_y, n_lay}));
+            else
+                throw std::runtime_error("Illegal dimensions of \"" + aerosol_name + "\" in input");
+        }
+        else
+            throw std::runtime_error("Illegal dimensions of \"" + aerosol_name + "\" in input");
+    }
+    else
+    {
+        throw std::runtime_error("Aerosol type \"" + aerosol_name + "\" not available in input file.");
+    }
+}
 
 void read_and_set_vmr(
         const std::string& gas_name, const int n_col_x, const int n_col_y, const int n_lay,
@@ -164,6 +199,11 @@ void print_command_line_options(
         "cf4", "no2"
     };
 
+    std::vector<std::string> aerosol_names = {
+        "aermr01", "aermr02", "aermr03", "aermr04", "aermr05", "aermr06", "aermr07", 
+        "aermr08", "aermr09", "aermr10","aermr11"
+    };
+
     Status::print_message("###### Starting Script ######");
 
     ////// FLOW CONTROL SWITCHES //////
@@ -172,6 +212,7 @@ void print_command_line_options(
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
+        {"aerosol-optics"    , { false, "aerosol optics."                    }},
         {"tilt-sza"          , { false, "tilt provided value of sza in input file. IN DEGREES. '--tilt-sza 50': use a sza of 50 degrees" }},
         {"tilt-azi"          , { false, "tilt provided value of azi in input file. FROM POS Y, CLOCKWISE, IN DEGREES. '--tilt-azi 240': use of azi of 240 degrees"   }}};
 
@@ -185,6 +226,7 @@ void print_command_line_options(
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
+    const bool switch_aerosol_optics = command_line_switches.at("aerosol-optics").first;
     const bool switch_tilt_sza             = command_line_switches.at("tilt-sza"    ).first;
     const bool switch_tilt_azi             = command_line_switches.at("tilt-azi"    ).first;
 
@@ -276,6 +318,27 @@ void print_command_line_options(
     read_and_set_vmr("cf4"    , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
     read_and_set_vmr("no2"    , n_col_x, n_col_y, n_lay, input_nc, gas_concs);
 
+    Array<Float,2> rh;
+    Aerosol_concs aerosol_concs;
+
+    if (switch_aerosol_optics)
+    {
+        rh.set_dims({n_col, n_lay});
+        rh = std::move(input_nc.get_variable<Float>("rh", {n_lay, n_col_y, n_col_x}));
+
+        read_and_set_aer("aermr01", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr02", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr03", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr04", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr05", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr06", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr07", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr08", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr09", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr10", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+        read_and_set_aer("aermr11", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+    }
+
     for (const auto& gas_name : gas_names) {
         if (!gas_concs.exists(gas_name)) {
             continue;
@@ -320,6 +383,8 @@ void print_command_line_options(
     Array<Float,2> p_lay_out = p_lay;
     Array<Float,2> p_lev_out = p_lev;
     Gas_concs gas_concs_out = gas_concs;
+    Aerosol_concs aerosol_concs_out = aerosol_concs;
+    Array<Float,2> rh_out = rh;
 
     Array<Float,2> lwp_out;
     lwp_out.set_dims({n_col, n_z_in});
@@ -336,13 +401,13 @@ void print_command_line_options(
         n_lay, n_lev, n_z_in, n_zh_in ,
         xh, yh, zh, z,
         p_lay, t_lay, p_lev, t_lev, 
-        lwp, iwp, rel, dei, 
-        gas_concs,
+        lwp, iwp, rel, dei, rh,
+        gas_concs, aerosol_concs,
         p_lay_out, t_lay_out, p_lev_out, t_lev_out, 
-        lwp_out, iwp_out, rel_out, dei_out, 
-        gas_concs_out, 
-        gas_names,
-        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+        lwp_out, iwp_out, rel_out, dei_out, rh_out,
+        gas_concs_out, aerosol_concs_out,
+        gas_names, aerosol_names,
+        switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics, switch_aerosol_optics
     );
      
     std::vector<Float> z_out_compress = linspace(z.v()[0], z.v()[n_z_in - 1], n_z_in);
