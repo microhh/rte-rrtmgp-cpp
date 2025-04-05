@@ -41,7 +41,3 @@ endif()
 add_executable(test_rte_rrtmgp Radiation_solver.cpp test_rte_rrtmgp.cpp)
 target_link_libraries(test_rte_rrtmgp rte_rrtmgp ${LIBS} m)
 
-add_executable(test_rt_tilt_prep 
-    test_rt_tilt_prep_mc.cpp
-    ../src_tilt/tilt_utils.cpp)
-target_link_libraries(test_rt_tilt_prep rte_rrtmgp ${LIBS} m)
