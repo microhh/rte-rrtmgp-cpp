@@ -45,8 +45,6 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
         const bool switch_liq_cloud_optics,
         const bool switch_ice_cloud_optics);
 
-std::vector<Float> linspace(Float start, Float end, int num_points);
-
 bool prepare_netcdf(Netcdf_handle& input_nc, std::string file_name, int n_lay, int n_lev, int n_col_x, int n_col_y,
                     int n_zh, int n_z, 
                     Float sza, std::vector<Float> zh, std::vector<Float> z,

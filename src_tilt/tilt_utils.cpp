@@ -15,22 +15,6 @@
 #include "tilt_utils.h"
 #include "types.h"
 
-std::vector<Float> linspace(Float start, Float end, int num_points) {
-    std::vector<Float> result;
-    if (num_points <= 0) {
-        return result; // Return empty vector for invalid input
-    }
-    if (num_points == 1) {
-        result.push_back(start);
-        return result;
-    }
-
-    Float step = (end - start) / (num_points - 1);
-    for (int i = 0; i < num_points; ++i) {
-        result.push_back(start + i * step);
-    }
-    return result;
-}
 
 void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
                  std::vector<Float>& zh, std::vector<Float>& z,
