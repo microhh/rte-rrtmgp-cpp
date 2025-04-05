@@ -240,15 +240,11 @@ void solve_radiation(int argc, char** argv)
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
-        {"override-sza"     , { false, ""   }},
-        {"override-azi"     , { false, ""   }},
         {"tica"              , { false, "attenuate path when doing an overhead 1D calculation of tilted input"   }}};
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
         {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
-        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }},
-        {"override-sza", {0, "solar zenith angle (theta) in degrees."}},
-        {"override-azi", {0, "Solar azimuth angle in degrees."}}};
+        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }}};
 
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
         return;
@@ -269,12 +265,8 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
     const bool switch_tica              = command_line_switches.at("tica"     ).first;
-    const bool switch_override_sza     = command_line_switches.at("override-sza"     ).first;
-    const bool switch_override_azi     = command_line_switches.at("override-azi"     ).first;
 
     Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
-    int sza_deg = Int(command_line_ints.at("override-sza").first);
-    int azi_deg = Int(command_line_ints.at("override-azi").first);
 
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
     {
@@ -453,26 +445,13 @@ void solve_radiation(int argc, char** argv)
 
     Float tica_sza;
     Float tica_azi;
-    if (switch_override_sza) {
-        tica_sza = sza_deg * M_PI / 180.0f;
-        Float mu0_in = cosf(sza_deg * M_PI / 180.0f);
-        for (int icol=1; icol<=n_col; ++icol)
-            mu0({icol}) = mu0_in;
-    } else {
-        mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
-        tica_sza = acos(mu0.v()[0]) * 180.0 / M_PI;
-    }
 
-    if (switch_override_azi) {
-        tica_azi = azi_deg * M_PI/ 180.0f;
-        Float azi_in = azi_deg * M_PI/ 180.0f;
-        for (int icol=1; icol<=n_col; ++icol)
-                azi({icol}) = azi_in;
-    } else {
-        azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
-        tica_azi = azi.v()[0];
-    }
+    mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
+    azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
 
+    tica_sza = acos(mu0.v()[0]) * 180.0 / M_PI;
+    tica_azi = azi.v()[0];
+    
     if (switch_tica)
     {
         for (int icol=1; icol<=n_col; ++icol)
