@@ -346,14 +346,14 @@ void solve_radiation(int argc, char** argv)
 
     
     
-    if (input_nc.variable_exists("col_dry") & switch_tica)
+    if (input_nc.variable_exists("col_dry") && switch_tica)
     {
         std::string error = "col_dry is not supported in tica mode";
         throw std::runtime_error(error);
 
     }
 
-    if (input_nc.variable_exists("tsi") & switch_tica)
+    if (input_nc.variable_exists("tsi") && switch_tica)
     {
         std::string error = "tsi is overwritten in tica mode";
         throw std::runtime_error(error);
