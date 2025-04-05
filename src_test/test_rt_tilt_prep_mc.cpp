@@ -28,7 +28,134 @@
  #include "Gas_concs.h"
  #include "tilt_utils.h"
  #include "types.h"
-  
+
+void read_and_set_vmr(
+        const std::string& gas_name, const int n_col_x, const int n_col_y, const int n_lay,
+        const Netcdf_handle& input_nc, Gas_concs& gas_concs)
+{
+    const std::string vmr_gas_name = "vmr_" + gas_name;
+
+    if (input_nc.variable_exists(vmr_gas_name))
+    {
+        std::map<std::string, int> dims = input_nc.get_variable_dimensions(vmr_gas_name);
+        const int n_dims = dims.size();
+
+        if (n_dims == 0)
+        {
+            gas_concs.set_vmr(gas_name, input_nc.get_variable<Float>(vmr_gas_name));
+        }
+        else if (n_dims == 1)
+        {
+            if (dims.at("lay") == n_lay)
+                gas_concs.set_vmr(gas_name,
+                        Array<Float,1>(input_nc.get_variable<Float>(vmr_gas_name, {n_lay}), {n_lay}));
+            else
+                throw std::runtime_error("Illegal dimensions of gas \"" + gas_name + "\" in input");
+        }
+        else if (n_dims == 3)
+        {
+            if (dims.at("lay") == n_lay && dims.at("y") == n_col_y && dims.at("x") == n_col_x)
+                gas_concs.set_vmr(gas_name,
+                        Array<Float,2>(input_nc.get_variable<Float>(vmr_gas_name, {n_lay, n_col_y, n_col_x}), {n_col_x * n_col_y, n_lay}));
+            else
+                throw std::runtime_error("Illegal dimensions of gas \"" + gas_name + "\" in input");
+        }
+    }
+    else
+    {
+        Status::print_warning("Gas \"" + gas_name + "\" not available in input file.");
+    }
+}
+
+
+bool parse_command_line_options(
+        std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
+        std::map<std::string, std::pair<int, std::string>>& command_line_ints,
+        int argc, char** argv)
+{
+    for (int i=1; i<argc; ++i)
+    {
+        std::string argument(argv[i]);
+        boost::trim(argument);
+
+        if (argument == "-h" || argument == "--help")
+        {
+            Status::print_message("Possible usage:");
+            for (const auto& clo : command_line_switches)
+            {
+                std::ostringstream ss;
+                ss << std::left << std::setw(30) << ("--" + clo.first);
+                ss << clo.second.second << std::endl;
+                Status::print_message(ss);
+            }
+            return true;
+        }
+
+        // Check if option starts with --
+        if (argument[0] != '-' || argument[1] != '-')
+        {
+            std::string error = argument + " is an illegal command line option.";
+            throw std::runtime_error(error);
+        }
+        else
+            argument.erase(0, 2);
+
+        // Check if option has prefix no-
+        bool enable = true;
+        if (argument[0] == 'n' && argument[1] == 'o' && argument[2] == '-')
+        {
+            enable = false;
+            argument.erase(0, 3);
+        }
+
+        if (command_line_switches.find(argument) == command_line_switches.end())
+        {
+            std::string error = argument + " is an illegal command line option.";
+            throw std::runtime_error(error);
+        }
+        else
+        {
+            command_line_switches.at(argument).first = enable;
+        }
+
+        // Check if a is integer is too be expect and if so, supplied
+        if (command_line_ints.find(argument) != command_line_ints.end() && i+1 < argc)
+        {
+            std::string next_argument(argv[i+1]);
+            boost::trim(next_argument);
+
+            bool arg_is_int = true;
+            for (int j=0; j<next_argument.size(); ++j)
+                arg_is_int *= std::isdigit(next_argument[j]);
+
+            if (arg_is_int)
+            {
+                command_line_ints.at(argument).first = std::stoi(argv[i+1]);
+                ++i;
+            }
+        }
+    }
+
+    return false;
+}
+
+void print_command_line_options(
+        const std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
+        const std::map<std::string, std::pair<int, std::string>>& command_line_ints)
+{
+    Status::print_message("Solver settings:");
+    for (const auto& option : command_line_switches)
+    {
+        std::ostringstream ss;
+        ss << std::left << std::setw(20) << (option.first);
+        if (command_line_ints.find(option.first) != command_line_ints.end() && option.second.first)
+            ss << " = " << std::boolalpha << command_line_ints.at(option.first).first << std::endl;
+        else
+            ss << " = " << std::boolalpha << option.second.first << std::endl;
+        Status::print_message(ss);
+   }
+}
+
  void tilt_input(int argc, char** argv)
  {
     std::vector<std::string> gas_names = {

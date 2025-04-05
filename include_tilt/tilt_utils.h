@@ -45,19 +45,6 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
         const bool switch_liq_cloud_optics,
         const bool switch_ice_cloud_optics);
 
-void read_and_set_vmr(
-        const std::string& gas_name, const int n_col_x, const int n_col_y, const int n_lay,
-        const Netcdf_handle& input_nc, Gas_concs& gas_concs);
-
-bool parse_command_line_options(
-        std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        std::map<std::string, std::pair<int, std::string>>& command_line_ints,
-        int argc, char** argv);
-
-void print_command_line_options(
-        const std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        const std::map<std::string, std::pair<int, std::string>>& command_line_ints);
-
 std::vector<Float> linspace(Float start, Float end, int num_points);
 
 bool prepare_netcdf(Netcdf_handle& input_nc, std::string file_name, int n_lay, int n_lev, int n_col_x, int n_col_y,

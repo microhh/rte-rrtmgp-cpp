@@ -31,6 +31,7 @@
 #include "Gas_concs.h"
 #include "types.h"
 #include "mem_pool_gpu.h"
+#include "tilt_utils.h"
 
 void read_and_set_vmr(
         const std::string& gas_name, const int n_col_x, const int n_col_y, const int n_lay,
@@ -257,7 +258,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
     const bool switch_twostream         = command_line_switches.at("two-stream"        ).first;
     const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
-    const bool switch_independent_column= command_line_switches.at("independent-column").first;
+    bool switch_independent_column= command_line_switches.at("independent-column").first;
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
@@ -267,7 +268,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
     const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
-    const bool switch_attenuate_tica     = command_line_switches.at("tica"     ).first;
+    const bool switch_tica              = command_line_switches.at("tica"     ).first;
     const bool switch_override_sza     = command_line_switches.at("override-sza"     ).first;
     const bool switch_override_azi     = command_line_switches.at("override-azi"     ).first;
 
@@ -302,6 +303,11 @@ void solve_radiation(int argc, char** argv)
         switch_cloud_optics = true;
     }
 
+    if (switch_tica)
+    {
+        switch_independent_column = true;
+    }
+
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
@@ -321,6 +327,7 @@ void solve_radiation(int argc, char** argv)
     const int n_lev = input_nc.get_dimension_size("lev");
 
     const int n_z_in = input_nc.get_dimension_size("z");
+    const int n_zh_in = input_nc.get_dimension_size("zh");
 
     // Number of vertical levels in the raytrace grid.
     // We add 1 layer on top, in which we add integrated optical properties between TOD and TOA,
@@ -423,6 +430,112 @@ void solve_radiation(int argc, char** argv)
         read_and_set_aer("aermr09", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
         read_and_set_aer("aermr10", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
         read_and_set_aer("aermr11", n_col_x, n_col_y, n_lay, input_nc, aerosol_concs);
+    }
+
+    Array<Float,1> mu0({n_col});
+    Array<Float,1> azi({n_col});
+
+    Float tica_sza;
+    Float tica_azi;
+    if (switch_override_sza) {
+        tica_sza = sza_deg * M_PI / 180.0f;
+        Float mu0_in = cosf(sza_deg * M_PI / 180.0f);
+        for (int icol=1; icol<=n_col; ++icol)
+            mu0({icol}) = mu0_in;
+    } else {
+        mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
+        tica_sza = acos(mu0.v()[0]) * 180.0 / M_PI;
+    }
+
+    if (switch_override_azi) {
+        tica_azi = azi_deg * M_PI/ 180.0f;
+        Float azi_in = azi_deg * M_PI/ 180.0f;
+        for (int icol=1; icol<=n_col; ++icol)
+                azi({icol}) = azi_in;
+    } else {
+        azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
+        tica_azi = azi.v()[0];
+    }
+
+    if (switch_tica)
+    {
+        std::cout << "tica_azi: " << tica_azi << std::endl;
+        std::cout << "tica_sza: " << tica_sza << std::endl;
+        for (int icol=1; icol<=n_col; ++icol)
+        {
+            mu0({icol}) = 1.0;
+            azi({icol}) = 0.0;
+        }    
+        // what to do about col dry and aerosols?
+        // what to do about tsi
+
+        std::vector<std::string> gas_names = {
+            "h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "n2", "ccl4", "cfc11", 
+            "cfc12", "cfc22", "hfc143a", "hfc125", "hfc23", "hfc32", "hfc134a", 
+            "cf4", "no2"
+        };
+        
+        Array<Float,1> xh;
+        Array<Float,1> yh;
+        Array<Float,1> zh;
+        Array<Float,1> z;
+
+        xh.set_dims({n_col_x+1});
+        xh = std::move(input_nc.get_variable<Float>("xh", {n_col_x+1})); 
+        yh.set_dims({n_col_y+1});
+        yh = std::move(input_nc.get_variable<Float>("yh", {n_col_y+1})); 
+
+        zh.set_dims({n_zh_in});
+        zh = std::move(input_nc.get_variable<Float>("zh", {n_zh_in})); 
+        z.set_dims({n_z_in});
+        z = std::move(input_nc.get_variable<Float>("z", {n_z_in}));
+
+        Array<Float,2> t_lay_out = t_lay;
+        Array<Float,2> t_lev_out = t_lev;
+        Array<Float,2> p_lay_out = p_lay;
+        Array<Float,2> p_lev_out = p_lev;
+        Gas_concs gas_concs_out = gas_concs;
+    
+        Array<Float,2> lwp_out;
+        lwp_out.set_dims({n_col, n_z_in});
+        Array<Float,2> rel_out;
+        rel_out.set_dims({n_col, n_z_in});
+        Array<Float,2> iwp_out;
+        iwp_out.set_dims({n_col, n_z_in});
+        Array<Float,2> dei_out;
+        dei_out.set_dims({n_col, n_z_in});
+     
+        tica_tilt(
+            tica_sza, tica_azi,
+            n_col_x, n_col_y, n_col,
+            n_lay, n_lev, n_z_in, n_zh_in ,
+            xh, yh, zh, z,
+            p_lay, t_lay, p_lev, t_lev, 
+            lwp, iwp, rel, dei, 
+            gas_concs,
+            p_lay_out, t_lay_out, p_lev_out, t_lev_out, 
+            lwp_out, iwp_out, rel_out, dei_out, 
+            gas_concs_out, 
+            gas_names,
+            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics
+        );
+
+        lwp_out.expand_dims({n_col, n_lay});
+        rel_out.expand_dims({n_col, n_lay});
+        iwp_out.expand_dims({n_col, n_lay});
+        dei_out.expand_dims({n_col, n_lay});
+
+        lwp = lwp_out;
+        rel = rel_out;
+        iwp = iwp_out;
+        dei = dei_out;
+
+        p_lay = p_lay_out;
+        p_lev = p_lev_out;
+        t_lay = t_lay_out;
+        t_lev = t_lev_out;
+        gas_concs = gas_concs_out;
+
     }
 
 
@@ -677,24 +790,6 @@ void solve_radiation(int argc, char** argv)
             rad_sw.load_mie_tables("mie_lut_broadband.nc");
         }
 
-        Array<Float,1> mu0({n_col});
-        Array<Float,1> azi({n_col});
-        if (switch_override_sza) {
-            Float mu0_in = cosf(sza_deg * 3.14159f / 180.0f);
-            for (int icol=1; icol<=n_col; ++icol)
-                mu0({icol}) = mu0_in;
-        } else {
-            mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
-        }
-
-        if (switch_override_azi) {
-            Float azi_in = azi_deg * 3.14159f / 180.0f;
-        for (int icol=1; icol<=n_col; ++icol)
-                azi({icol}) = azi_in;
-        } else {
-            azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
-        }
-
         Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
         Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
 
@@ -716,6 +811,12 @@ void solve_radiation(int argc, char** argv)
         {
             for (int icol=1; icol<=n_col; ++icol)
                 tsi_scaling({icol}) = Float(1.);
+        }
+
+        if (switch_tica)
+        {
+            for (int icol=1; icol<=n_col; ++icol)
+                tsi_scaling({icol}) = std::cos(tica_sza);
         }
 
         // Create output arrays.
@@ -831,7 +932,7 @@ void solve_radiation(int argc, char** argv)
                     switch_single_gpt,
                     switch_delta_cloud,
                     switch_delta_aerosol,
-                    switch_attenuate_tica,
+                    switch_tica,
                     single_gpt,
                     photons_per_pixel,
                     grid_cells,
