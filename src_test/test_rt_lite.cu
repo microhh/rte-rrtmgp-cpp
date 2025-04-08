@@ -411,6 +411,7 @@ void solve_radiation(int argc, char** argv)
 
             cudaEventRecord(start, 0);
             // do something.
+            
 	        raytracer.trace_rays(
                    0,
                    switch_independent_column,

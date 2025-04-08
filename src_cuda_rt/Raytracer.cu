@@ -35,7 +35,8 @@ namespace
     {
         cuda_safe_call(cudaMemcpy(cpu_data, gpu_data, length*sizeof(T), cudaMemcpyDeviceToHost));
     }
-    
+
+
     __global__
     void create_knull_grid(
             const Vector<int> grid_cells, const Float k_ext_null_min,
@@ -163,6 +164,7 @@ namespace
             scat_asy[idx].asy_aer = tauscag_aer_sum / tausca_aer_sum;
         }
     }
+
 
     __global__
     void count_to_flux_2d(
@@ -293,7 +295,6 @@ void Raytracer::trace_rays(
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
             k_ext.ptr(), scat_asy.ptr());
-
 
     // create k_null_grid
     const int block_kn_x = 8;
