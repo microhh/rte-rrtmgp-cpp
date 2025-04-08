@@ -449,11 +449,11 @@ void solve_radiation(int argc, char** argv)
     mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
     azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
 
-    tica_sza = acos(mu0.v()[0]) * 180.0 / M_PI;
-    tica_azi = azi.v()[0];
     
     if (switch_tica)
     {
+        tica_sza = acos(mu0.v()[0]);
+        tica_azi = azi.v()[0];
         for (int icol=1; icol<=n_col; ++icol)
         {
             mu0({icol}) = 1.0;
