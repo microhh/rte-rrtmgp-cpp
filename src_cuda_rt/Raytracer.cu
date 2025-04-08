@@ -164,35 +164,6 @@ namespace
         }
     }
 
-
-    __global__
-    void scale_kext_kernel(const Vector<int> grid_cells, Float* __restrict__ k_ext, Float scale_factor) {
-        const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
-        const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
-        const int iz = blockIdx.z*blockDim.z + threadIdx.z;
-
-        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < (grid_cells.z)) )
-        {
-            const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
-            k_ext[idx] = k_ext[idx] * scale_factor;
-        }
-    } 
-
-    __global__
-    void scale_k_sca_kernel(const Vector<int> grid_cells, Optics_scat* __restrict__ scat_asy, Float scale_factor) {
-        const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
-        const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
-        const int iz = blockIdx.z*blockDim.z + threadIdx.z;
-
-        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < (grid_cells.z)) )
-        {
-            const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
-            scat_asy[idx].k_sca_gas *= scale_factor;
-            scat_asy[idx].k_sca_cld *= scale_factor;
-            scat_asy[idx].k_sca_aer *= scale_factor;
-        }
-    } 
-
     __global__
     void count_to_flux_2d(
             const Vector<int> grid_cells, const Float photons_per_col, const Float toa_src,
@@ -259,8 +230,6 @@ Raytracer::Raytracer()
 void Raytracer::trace_rays(
         const int igpt,
         const bool switch_independent_column,
-        const bool switch_attenuate_path,
-        const Float attenuate_scale_factor,
         const Int photons_per_pixel,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
@@ -325,10 +294,6 @@ void Raytracer::trace_rays(
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
             k_ext.ptr(), scat_asy.ptr());
 
-    if (switch_attenuate_path){
-        scale_kext_kernel<<<grid_3d, block_3d>>>(grid_cells, k_ext.ptr(), attenuate_scale_factor);
-        scale_k_sca_kernel<<<grid_3d, block_3d>>>(grid_cells, scat_asy.ptr(), attenuate_scale_factor);
-    }
 
     // create k_null_grid
     const int block_kn_x = 8;
