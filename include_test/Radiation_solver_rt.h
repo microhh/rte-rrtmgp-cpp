@@ -108,6 +108,7 @@ class Radiation_solver_shortwave
                 const bool switch_single_gpt,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
+                const bool switch_attenuate_tica,
                 const int single_gpt,
                 const Int ray_count,
                 const Vector<int> grid_cells,
