@@ -469,6 +469,18 @@ void solve_radiation(int argc, char** argv)
             "aermr01", "aermr02", "aermr03", "aermr04", "aermr05", "aermr06", "aermr07", 
             "aermr08", "aermr09", "aermr10","aermr11"
         };
+
+        for (const auto& aerosol_name : aerosol_names) {
+            if (!aerosol_concs.exists(aerosol_name)) {
+                continue;
+            }
+            const Array<Float,2>& gas = aerosol_concs.get_vmr(aerosol_name);
+            if (gas.size() > 1) {
+                if (gas.get_dims()[0] == 1){
+                    aerosol_concs.set_vmr(aerosol_name, aerosol_concs.get_vmr(aerosol_name).subset({ {{1,n_col}, {1, n_lay}}} ));
+                }
+            }
+        }
         
         Array<Float,1> xh;
         Array<Float,1> yh;
