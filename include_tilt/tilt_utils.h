@@ -45,14 +45,6 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
         const bool switch_liq_cloud_optics,
         const bool switch_ice_cloud_optics);
 
-bool prepare_netcdf(Netcdf_handle& input_nc, std::string file_name, int n_lay, int n_lev, int n_col_x, int n_col_y,
-                    int n_zh, int n_z, 
-                    Float sza, std::vector<Float> zh, std::vector<Float> z,
-                    Array<Float,2> p_lay, Array<Float,2> t_lay, Array<Float,2> p_lev, Array<Float,2> t_lev, 
-                    Array<Float,2> lwp, Array<Float,2> iwp, Array<Float,2> rel, Array<Float,2> dei, 
-                    Gas_concs& gas_concs, std::vector<std::string> gas_names,
-                    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics);
-
 void restore_bkg_profile(const int n_x, const int n_y, 
                       const int n_full,
                       const int n_tilt, 

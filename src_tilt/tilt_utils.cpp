@@ -138,13 +138,17 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
         // Record the path segment
         dz_tilted[z_idx] += dz0;
         
-        // Check z boundary crossing
-        if (std::abs(l - lz) < epsilon || zp >= zh[k+1]) {
-            k += 1;
+        // Record boundary crossing
+        if ((std::abs(l - lx) < epsilon) ||  (std::abs(l - ly) < epsilon) || ( (std::abs(l - lz) < epsilon || zp >= zh[k+1]))){
             // Create a new path segment after crossing boundary
             tilted_path.push_back({i, j, k});
             dz_tilted.push_back(0.0);
             z_idx += 1;
+        }
+
+        // Check z boundary crossing
+        if ((std::abs(l - lz) < epsilon || zp >= zh[k+1])) {
+            k += 1;
         }
         
         // Check y boundary crossing
@@ -170,149 +174,6 @@ void tilted_path(std::vector<Float>& xh, std::vector<Float>& yh,
         zh_tilted.push_back(zh_tilted[iz] + dz_tilted[iz]);
     }
 }
-
-bool prepare_netcdf(Netcdf_handle& input_nc, std::string file_name, int n_lay, int n_lev, int n_col_x, int n_col_y,
-                    int n_zh, int n_z, 
-                    Float sza, std::vector<Float> zh, std::vector<Float> z,
-                    Array<Float,2> p_lay, Array<Float,2> t_lay, Array<Float,2> p_lev, Array<Float,2> t_lev, 
-                    Array<Float,2> lwp, Array<Float,2> iwp, Array<Float,2> rel, Array<Float,2> dei, 
-                    Gas_concs& gas_concs, std::vector<std::string> gas_names,
-                    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics) {
-    const int n_col = n_col_x * n_col_y;
-
-    // Create the new NetCDF file
-    Netcdf_file output_nc(file_name, Netcdf_mode::Create);
-    // Copy dimensions from the input file  
-    const int n_bnd_sw = 14;
-    const int n_bnd_lw = 16;
-    output_nc.add_dimension("band_sw", n_bnd_sw);
-    output_nc.add_dimension("band_lw", n_bnd_lw);
-
-    output_nc.add_dimension("lay", n_lay);
-    output_nc.add_dimension("lev", n_lev);
-
-    output_nc.add_dimension("x", n_col_x);
-    output_nc.add_dimension("y", n_col_y);
-    output_nc.add_dimension("z", n_z);
-
-    output_nc.add_dimension("xh", n_col_x+1);
-    output_nc.add_dimension("yh", n_col_y+1);
-    output_nc.add_dimension("zh", n_zh);
-
-    Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {n_col_x}), {n_col_x});
-    Array<Float,1> grid_xh(input_nc.get_variable<Float>("xh", {n_col_x+1}), {n_col_x+1});
-    Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {n_col_y}), {n_col_y});
-    Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
-
-    // Create and write the grid coordinate variables
-    auto nc_x = output_nc.add_variable<Float>("x", {"x"});
-    auto nc_y = output_nc.add_variable<Float>("y", {"y"});
-    auto nc_xh = output_nc.add_variable<Float>("xh", {"xh"});
-    auto nc_yh = output_nc.add_variable<Float>("yh", {"yh"});
-
-    nc_x.insert(grid_x.v(), {0});
-    nc_y.insert(grid_y.v(), {0});
-    nc_xh.insert(grid_xh.v(), {0});
-    nc_yh.insert(grid_yh.v(), {0});
-
-    // Create and write surface properties
-    Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
-    Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
-    Array<Float,2> emis_sfc(input_nc.get_variable<Float>("emis_sfc", {n_col_y, n_col_x, n_bnd_lw}), {n_bnd_lw, n_col});
-    Array<Float,1> t_sfc(input_nc.get_variable<Float>("t_sfc", {n_col_y, n_col_x}), {n_col});
-
-    auto nc_sfc_alb_dir = output_nc.add_variable<Float>("sfc_alb_dir", {"y", "x", "band_sw"});
-    auto nc_sfc_alb_dif = output_nc.add_variable<Float>("sfc_alb_dif", {"y", "x", "band_sw"});
-    auto nc_emis_sfc = output_nc.add_variable<Float>("emis_sfc", {"y", "x", "band_lw"});
-    auto nc_t_sfc = output_nc.add_variable<Float>("t_sfc", {"y", "x"});
-
-    nc_sfc_alb_dir.insert(sfc_alb_dir.v(), {0, 0, 0});
-    nc_sfc_alb_dif.insert(sfc_alb_dif.v(), {0, 0, 0});
-    nc_emis_sfc.insert(emis_sfc.v(), {0, 0, 0});
-    nc_t_sfc.insert(t_sfc.v(), {0, 0});
-
-    // Write tsi scaling
-    auto nc_tsi_scaling = output_nc.add_variable<Float>("tsi_scaling", {});
-    nc_tsi_scaling.insert(std::cos(sza), {0});
-
-    // Write the grid coordinates
-    auto nc_z = output_nc.add_variable<Float>("z", {"z"});
-    auto nc_zh = output_nc.add_variable<Float>("zh", {"zh"});
-    nc_zh.insert(zh, {0});
-    nc_z.insert(z, {0}); 
-
-    // Write the atmospheric fields
-    auto nc_play = output_nc.add_variable<Float>("p_lay", {"lay", "y", "x"});
-    auto nc_plev = output_nc.add_variable<Float>("p_lev", {"lev", "y", "x"});
-
-    nc_play.insert(p_lay.v(), {0, 0, 0});
-    nc_plev.insert(p_lev.v(), {0, 0, 0});
-
-    auto nc_tlay = output_nc.add_variable<Float>("t_lay", {"lay", "y", "x"});
-    auto nc_tlev = output_nc.add_variable<Float>("t_lev", {"lev", "y", "x"});
-
-    nc_tlay.insert(t_lay.v(), {0, 0, 0});
-    nc_tlev.insert(t_lev.v(), {0, 0, 0});
-
-    // Write the cloud optical properties if applicable
-    if (switch_cloud_optics) {
-        if (switch_liq_cloud_optics) 
-        {
-            auto nc_lwp = output_nc.add_variable<Float>("lwp", {"lay", "y", "x"});
-            nc_lwp.insert(lwp.v(), {0, 0, 0});
-            auto nc_rel = output_nc.add_variable<Float>("rel", {"lay", "y", "x"});
-            nc_rel.insert(rel.v(), {0, 0, 0});
-        }
-
-        if (switch_ice_cloud_optics) 
-        {
-            auto nc_iwp = output_nc.add_variable<Float>("iwp", {"lay", "y", "x"});
-            auto nc_dei = output_nc.add_variable<Float>("dei", {"lay", "y", "x"});
-            nc_iwp.insert(iwp.v(), {0, 0, 0});
-            nc_dei.insert(dei.v(), {0, 0, 0});
-        }
-    }
-
-    // Write the gas concentrations
-    for (const auto& gas_name : gas_names) {
-        if (!gas_concs.exists(gas_name)) {
-            continue;
-        }
-        const Array<Float,2>& gas = gas_concs.get_vmr(gas_name);
-        std::string var_name = "vmr_" + gas_name;
-        if (gas.size() == 1) {
-            auto nc_gas = output_nc.add_variable<Float>(var_name);
-            nc_gas.insert(gas.v(), {}); 
-        } else {
-            auto nc_gas = output_nc.add_variable<Float>(var_name, {"lay", "y", "x"});
-            const std::vector<Float>& flat_data = gas.v();
-            nc_gas.insert(flat_data, {0, 0, 0});
-        }
-    }
-    auto nc_mu = output_nc.add_variable<Float>("mu0", {"y", "x"});
-    auto nc_azi = output_nc.add_variable<Float>("azi", {"y", "x"});
-
-    Array<Float, 2> mu_array(std::array<int, 2>{n_col_y, n_col_x});
-    Array<Float, 2> azi_array(std::array<int, 2>{n_col_y, n_col_x});
-
-    mu_array.fill(1.0);
-    azi_array.fill(0.0);
-
-    nc_mu.insert(mu_array.v(), {0, 0});
-    nc_azi.insert(azi_array.v(), {0, 0});
-
-    auto nc_ng_x = output_nc.add_variable<Float>("ngrid_x", {});
-    auto nc_ng_y = output_nc.add_variable<Float>("ngrid_y", {});
-    auto nc_ng_z = output_nc.add_variable<Float>("ngrid_z", {});
-
-    nc_ng_x.insert(48, {0});
-    nc_ng_y.insert(48, {0});
-    nc_ng_z.insert(32, {0});
-
-    output_nc.sync();
-    return true;
-}
-
 
 void restore_bkg_profile(const int n_x, const int n_y, 
                       const int n_full,
@@ -412,7 +273,6 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y,
     }
     if (switch_aerosol_optics)
     {
-        // TODO RH
         restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, bkg_start_z, rh_copy->v(), rh->v());
         rh_copy->expand_dims({n_col, n_lay_tot});
 
@@ -662,19 +522,17 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
             continue;
         }
         const Array<Float,2>& gas = gas_concs_copy.get_vmr(gas_name);
-
         if (gas.size() > 1) {
-            Array<Float,2> gas_tmp(gas);
-            create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
-            gas_tmp.expand_dims({n_col, n_z_tilt});
-            gas_concs_copy.set_vmr(gas_name, gas_tmp);
+            if (gas.get_dims()[0] > 1) { // checking: do we have 3D field?
+                Array<Float,2> gas_tmp(gas);
+                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
+                gas_tmp.expand_dims({n_col, n_z_tilt});
+                gas_concs_copy.set_vmr(gas_name, gas_tmp);
+            }
+            else {
+                throw std::runtime_error("No tilted column implementation for single column profiles.");
+            }
         } 
-        else if (gas.size() == 1) {
-            // Do nothing for single profiles
-        } 
-        else {
-            throw std::runtime_error("No tilted column implementation for single profiles.");
-        }
     }
 
     if (switch_aerosol_optics)
@@ -689,17 +547,16 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
             const Array<Float,2>& gas = aerosol_concs_copy.get_vmr(aerosol_name);
 
             if (gas.size() > 1) {
-                Array<Float,2> gas_tmp(gas);
-                create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
-                gas_tmp.expand_dims({n_col, n_z_tilt});
-                aerosol_concs_copy.set_vmr(aerosol_name, gas_tmp);
+                if (gas.get_dims()[0] > 1) { // checking: do we have 3D field?
+                    Array<Float,2> gas_tmp(gas);
+                    create_tilted_columns(n_col_x, n_col_y, n_z_in, n_zh_in, zh_tilt.v(), path.v(), gas_tmp.v());
+                    gas_tmp.expand_dims({n_col, n_z_tilt});
+                    aerosol_concs_copy.set_vmr(aerosol_name, gas_tmp);
+                }
+                else {
+                    throw std::runtime_error("No tilted column implementation for single column profiles.");
+                }
             } 
-            else if (gas.size() == 1) {
-                // Do nothing for single profiles
-            } 
-            else {
-                throw std::runtime_error("No tilted column implementation for single profiles.");
-            }
         }
     }
 
@@ -742,7 +599,6 @@ void compress_fields(const int compress_lay_start_idx, const int n_col_x, const 
 
     if (switch_aerosol_optics)
     {
-        // TODO RH
         std::vector<Float> ones(p_lay_copy->v().size(), 1.0);
         compress_columns_weighted_avg(n_col_x, n_col_y,
             n_z_in, n_z_tilt,
