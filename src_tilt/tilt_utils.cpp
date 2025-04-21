@@ -586,6 +586,10 @@ void tica_tilt(
     bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
 )
 {
+        const Float sza_deg = sza * 180. / M_PI;
+        if (sza_deg > 75.0) {
+            throw std::runtime_error("SZA too high for TICA tilting.");
+        }
        // if t lev all 0, interpolate from t lay
        if (*std::max_element(t_lev_out.v().begin(), t_lev_out.v().end()) <= 0) {
        for (int i = 1; i <= n_col; ++i) {
