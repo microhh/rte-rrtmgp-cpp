@@ -544,6 +544,7 @@ void solve_radiation(int argc, char** argv)
         t_lay = t_lay_out;
         t_lev = t_lev_out;
         gas_concs = gas_concs_out;
+        aerosol_concs = gas_concs_out;
 
     }
 
