@@ -569,6 +569,24 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
     t_lev_copy->expand_dims({n_col, n_zh_tilt});
     p_lay_copy->expand_dims({n_col, n_z_tilt});
     p_lev_copy->expand_dims({n_col, n_zh_tilt});
+
+    for (int ilay=0; ilay<n_zh_tilt; ++ilay) {
+        for (int iy=0; iy<n_col_y; ++iy) {
+            for (int ix=0; ix<n_col_x; ++ix) {
+                if (ilay > 0) {
+                    const int curr_idx = ix + iy*n_col_x + ilay*n_col_x*n_col_y;
+                    const int prev_idx = ix + iy*n_col_x + (ilay-1)*n_col_x*n_col_y;
+                    if (p_lev_copy->v()[curr_idx] == p_lev_copy->v()[prev_idx]) {
+                        p_lev_copy->v()[curr_idx] = p_lev_copy->v()[prev_idx] * 0.99999;
+                    } 
+                    else if (p_lev_copy->v()[curr_idx] > p_lev_copy->v()[prev_idx]) 
+                    {
+                        throw std::runtime_error("Pressure INCREASED at layer " + std::to_string(ilay));
+                    }
+                }
+            }
+        }
+    }
 }
 
 void compress_fields(const int compress_lay_start_idx, const int n_col_x, const int n_col_y,
@@ -1019,7 +1037,7 @@ void tica_tilt(
                                for (int k = 0; k < num_inputs; ++k)
                                {
                                    int in_idx = (i_lay_in + k);
-                                   avg += var_rel_out[in_idx];
+                                   avg += var_rel_tmp[in_idx];
                                }
                                var_rel_out[ilay] = avg / num_inputs;
                            }
