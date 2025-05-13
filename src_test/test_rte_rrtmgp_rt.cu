@@ -300,6 +300,11 @@ void solve_radiation(int argc, char** argv)
         switch_independent_column = true;
     }
 
+    if (switch_tica && switch_aerosol_optics) {
+        std::string error = "Aerosol optics are not supported in TICA mode"; // NOTE: Aersol optics with TICA has significant errors at high SZA.
+        throw std::runtime_error(error);
+    }
+
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
@@ -544,6 +549,7 @@ void solve_radiation(int argc, char** argv)
         t_lay = t_lay_out;
         t_lev = t_lev_out;
         gas_concs = gas_concs_out;
+        aerosol_concs = aerosol_concs_out;
 
     }
 
