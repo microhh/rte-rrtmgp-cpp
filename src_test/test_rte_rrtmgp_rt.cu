@@ -545,12 +545,18 @@ void solve_radiation(int argc, char** argv)
         iwp = iwp_out;
         dei = dei_out;
 
+        if (switch_aerosol_optics)
+        {
+            rh_out.expand_dims({n_col, n_lay});
+            rh  = rh_out;
+            aerosol_concs = aerosol_concs_out;
+        }
+
         p_lay = p_lay_out;
         p_lev = p_lev_out;
         t_lay = t_lay_out;
         t_lev = t_lev_out;
         gas_concs = gas_concs_out;
-        aerosol_concs = aerosol_concs_out;
 
     }
 
@@ -963,7 +969,7 @@ void solve_radiation(int argc, char** argv)
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu,
                     rh,
-                    aerosol_concs,
+                    aerosol_concs_gpu,
                     sw_tot_tau, sw_tot_ssa,
                     sw_cld_tau, sw_cld_ssa, sw_cld_asy,
                     sw_aer_tau, sw_aer_ssa, sw_aer_asy,
