@@ -356,11 +356,11 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
     }
 }
 
-void compress_columns_weighted_avg(const int n_x, const int n_y,  
-                      const int n_out, 
+void compress_columns_weighted_avg(const int n_x, const int n_y,
+                      const int n_out,
                       const int n_tilt,
                       const int compress_lay_start_idx,
-                      std::vector<Float>& var, std::vector<Float>& var_weighting)
+                      std::vector<Float>& var, std::vector<Float>& p_lev)
 {
     std::vector<Float> var_tmp(n_out * n_x * n_y);
 
@@ -400,15 +400,18 @@ void compress_columns_weighted_avg(const int n_x, const int n_y,
                 for (int k = 0; k < num_inputs; ++k)
                 {
                     int in_idx = ix + iy * n_x + (i_lay_in + k) * n_x * n_y;
-                    t_sum += var[in_idx] * var_weighting[in_idx];
-                    w_sum += var_weighting[in_idx];
+                    int in_idx_top = ix + iy * n_x + (i_lay_in + k + 1) * n_x * n_y;
+
+                    const Float dp_local =  abs(p_lev[in_idx] - p_lev[in_idx_top]);
+                    t_sum += var[in_idx] * dp_local;
+                    w_sum += dp_local;
                 }
 
                 if (w_sum > 1e-6)
                 {
                     var_tmp[out_idx] = t_sum / w_sum;
-                } 
-                else 
+                }
+                else
                 {
                     Float avg = 0.0;
                     for (int k = 0; k < num_inputs; ++k)
@@ -592,8 +595,8 @@ void tilt_fields(const int n_z_in, const int n_zh_in, const int n_col_x, const i
 
 void compress_fields(const int compress_lay_start_idx, const int n_col_x, const int n_col_y,
     const int n_z_in, const int n_zh_in,  const int n_z_tilt,
-    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy, 
-    Array<Float,2>* rh_copy, 
+    Array<Float,2>* p_lay_copy, Array<Float,2>* t_lay_copy, Array<Float,2>* p_lev_copy, Array<Float,2>* t_lev_copy,
+    Array<Float,2>* rh_copy,
     Gas_concs& gas_concs_copy, std::vector<std::string> gas_names,
     Aerosol_concs& aerosol_concs_copy, std::vector<std::string> aerosol_names, const bool switch_aerosol_optics)
 {
@@ -608,9 +611,9 @@ void compress_fields(const int compress_lay_start_idx, const int n_col_x, const 
             Array<Float,2> gas_tmp(gas);
             compress_columns_weighted_avg(n_col_x, n_col_y,
                                             n_z_in, n_z_tilt,
-                                            compress_lay_start_idx, 
-                                            gas_tmp.v(), 
-                                            p_lay_copy->v());
+                                            compress_lay_start_idx,
+                                            gas_tmp.v(),
+                                            p_lev_copy->v());
             gas_tmp.expand_dims({n_col, n_z_in});
             gas_concs_copy.set_vmr(gas_name, gas_tmp);
         }
@@ -618,12 +621,13 @@ void compress_fields(const int compress_lay_start_idx, const int n_col_x, const 
 
     if (switch_aerosol_optics)
     {
-        std::vector<Float> ones(p_lay_copy->v().size(), 1.0);
+        // should we just recompute relative humidity after tilting water vapour and temperature?
         compress_columns_weighted_avg(n_col_x, n_col_y,
             n_z_in, n_z_tilt,
-            compress_lay_start_idx, 
-            rh_copy->v(), 
-            ones);
+            compress_lay_start_idx,
+            rh_copy->v(),
+            p_lev_copy->v());
+
         rh_copy->expand_dims({n_col, n_z_in});
 
         for (const auto& aerosol_name : aerosol_names) {
@@ -635,9 +639,9 @@ void compress_fields(const int compress_lay_start_idx, const int n_col_x, const 
                 Array<Float,2> gas_tmp(gas);
                 compress_columns_weighted_avg(n_col_x, n_col_y,
                                                 n_z_in, n_z_tilt,
-                                                compress_lay_start_idx, 
-                                                gas_tmp.v(), 
-                                                p_lay_copy->v());
+                                                compress_lay_start_idx,
+                                                gas_tmp.v(),
+                                                p_lev_copy->v());
                 gas_tmp.expand_dims({n_col, n_z_in});
                 aerosol_concs_copy.set_vmr(aerosol_name, gas_tmp);
             }

@@ -630,6 +630,8 @@ void Radiation_solver_longwave::solve_gpu(
     */
 }
 
+// color matchin functions from https://jcgt.org/published/0002/02/01/paper.pdf
+
 
 Float get_x(const Float wv)
 {
