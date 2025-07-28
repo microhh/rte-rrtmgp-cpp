@@ -18,7 +18,6 @@ camera_variables = {
     "pitch": "Vertical direction of camera, -90: vertical upward, 0: horizontal, 90: vertically downward.",
     "roll": "Roll of camera over the direction of camera",
     "cam_type": "camera type (0: fisheye lens, 1: rectangular lens, 2: top-of-atmosphere upwelling radiance)",
-    "f_zoom": "Zoom factor (if fisheye=1)",
     "fov": "Field of view (if fisheye=0)",
     "px": "Location of camera in x-direction",
     "py": "Location of camera in y-direction",
@@ -65,7 +64,6 @@ if args['radiance']:
     cam["pitch"][:] = -90
     cam["roll"][:]  = 0
     cam["cam_type"][:]= 1
-    cam["f_zoom"][:]= 1
     cam["fov"][:] = 80
     cam["px"][:] = 0
     cam["py"][:] = 0
@@ -79,7 +77,6 @@ if args['image']:
     cam["pitch"][:] = 0
     cam["roll"][:]  = 0
     cam["cam_type"][:]= 0
-    cam["f_zoom"][:]= 1
     cam["fov"][:] = 80
     cam["px"][:] = 0.
     cam["py"][:] = 0.

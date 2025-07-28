@@ -200,7 +200,7 @@ namespace
         if (camera.cam_type == 0)
         {
             // Fish eye camera
-            const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
+            const Float photon_zenith = i * Float(.5) * camera.fov / Float(180.) * M_PI;
             const Float photon_azimuth = j * Float(2.) * M_PI;
             const Vector<Float> dir_tmp = {cos(photon_zenith), sin(photon_zenith) * cos(photon_azimuth), sin(photon_zenith) * sin(photon_azimuth)};
 

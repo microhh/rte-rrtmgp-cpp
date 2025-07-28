@@ -244,7 +244,6 @@ void solve_radiation(int argc, char** argv)
     if (switch_bw_raytracing)
     {
         Netcdf_group cam_in = input_nc.get_group("camera-settings");
-        camera.f_zoom = cam_in.get_variable<Float>("f_zoom");
         camera.fov    = cam_in.get_variable<Float>("fov");
         camera.cam_type = int(cam_in.get_variable<Float>("cam_type"));
         camera.position = {cam_in.get_variable<Float>("px"),

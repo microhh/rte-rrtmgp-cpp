@@ -312,7 +312,6 @@ void solve_radiation(int argc, char** argv)
     // Reading camera data
     Netcdf_group cam_in = input_nc.get_group("camera-settings");
     Camera camera;
-    camera.f_zoom = cam_in.get_variable<Float>("f_zoom");
     camera.fov    = cam_in.get_variable<Float>("fov");
     camera.cam_type = int(cam_in.get_variable<Float>("cam_type"));
     camera.position = {cam_in.get_variable<Float>("px"),
@@ -954,7 +953,7 @@ void solve_radiation(int argc, char** argv)
         // camera position and direction
         Netcdf_group output_cam = output_nc.add_group("camera-settings");
 
-        std::string cam_vars[] = {"yaw","pitch","roll","f_zoom","px","py","pz"};
+        std::string cam_vars[] = {"yaw","pitch","roll","px","py","pz"};
         for (auto &&cam_var : cam_vars)
         {
             auto nc_cam_out = output_cam.add_variable<Float>(cam_var);
