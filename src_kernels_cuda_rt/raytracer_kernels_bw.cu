@@ -198,18 +198,21 @@ namespace
 
         if (camera.fisheye)
         {
+            // Fish eye camera
             const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
             const Float photon_azimuth = j * Float(2.) * M_PI;
-            const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
+            const Vector<Float> dir_tmp = {cos(photon_zenith), sin(photon_zenith) * cos(photon_azimuth), sin(photon_zenith) * sin(photon_azimuth)};
 
             photon.direction.x = dot(camera.mx,  dir_tmp);
             photon.direction.y = dot(camera.my,  dir_tmp);
-            photon.direction.z = dot(camera.mz,  dir_tmp) * Float(-1);
+            photon.direction.z = dot(camera.mz,  dir_tmp);
+            photon.position = camera.position + s_min;
         }
         else
         {
             // Rectangular camera based on Villefranque et al. 2019
             photon.direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
+            photon.position = camera.position + s_min;
         }
 
         photon.position = camera.position + s_min;

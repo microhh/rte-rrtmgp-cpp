@@ -86,13 +86,19 @@ if args['image']:
     cam["nx"][:] = 256
     cam["ny"][:] = 256
 
+# example toa-radiance settings
+if args['toa']:
+    cam["cam_type"][:]= 2
+    cam["nx"][:] = 256
+    cam["ny"][:] = 256
+
 for var in camera_variables:
     if not args[var] is None:
         cam[var][:] = args[var]
 
 if not args['sza'] is None:
     try:
-        ncf.createVariable('sza','f4',ncf['mu0'].dimensions) 
+        ncf.createVariable('sza','f4',ncf['mu0'].dimensions)
     except:
         pass
     ncf['sza'][:] = np.deg2rad(args['sza'])

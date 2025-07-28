@@ -27,7 +27,7 @@ constexpr int bw_kernel_grid = 256;
 // sun has a half angle of .266 degrees
 constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
 constexpr Float sun_solid_angle = Float(6.799910294339209e-05); // 2.*M_PI*(1-cos_half_angle);
-constexpr Float sun_solid_angle_reciprocal = Float(14706.07635563193); 
+constexpr Float sun_solid_angle_reciprocal = Float(14706.07635563193);
 
 
 struct Grid_knull
@@ -76,7 +76,7 @@ struct Camera
             cam_width = Float(-1) * normalize(cross(dir_cam, dir_up));
             cam_height = normalize(cross(dir_cam, cam_width));
             cam_depth = dir_cam / tan(fov/Float(180)*M_PI/Float(2.));
-        
+
             if (camera.nx > camera.ny)
                 cam_height = cam_height * Float(camera.ny)/Float(camera.nx);
             else if (camera.ny > camera.nx)
