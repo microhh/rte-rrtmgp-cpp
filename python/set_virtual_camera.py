@@ -17,7 +17,7 @@ camera_variables = {
     "yaw": "Horizontal direction of camera, 0: east, 90: north, 180/-180: weast, -90/270: south",
     "pitch": "Vertical direction of camera, -90: vertical upward, 0: horizontal, 90: vertically downward.",
     "roll": "Roll of camera over the direction of camera",
-    "fisheye": "Whether to use fisheye lens (1) or a rectangular/square lens (0)",
+    "cam_type": "camera type (0: fisheye lens, 1: rectangular lens, 2: top-of-atmosphere upwelling radiance)",
     "f_zoom": "Zoom factor (if fisheye=1)",
     "fov": "Field of view (if fisheye=0)",
     "px": "Location of camera in x-direction",
@@ -30,6 +30,7 @@ camera_variables = {
 parser = argparse.ArgumentParser()
 parser.add_argument("--radiance", action='store_true', help="example settings for computing hemispheric radiance distributions with a sky view camera")
 parser.add_argument("--image", action='store_true', help="example settings for creating visual images with a square camera looking horizontally")
+parser.add_argument("--toa", action='store_true', help="example settings for obtaining top-of-atmosphere radiances")
 parser.add_argument("--sza", type=float, help="solar zenith angle")
 parser.add_argument("--azi", type=float, help="solar azimuth angle")
 parser.add_argument("--name", type=str, default='rte_rrtmgp_input.nc', help="raytracer input file")
@@ -54,16 +55,16 @@ else:
 # add variables: if not available yet
 for var in camera_variables:
     try:
-        cam.createVariable(var,"f8")
+        cam.createVariable(var,"i4" if var in ['cam_type'] else "f8")
     except:
         pass
 
-# example radiance settings
+# example camera radiance settings
 if args['radiance']:
     cam["yaw"][:]   = 0
     cam["pitch"][:] = -90
     cam["roll"][:]  = 0
-    cam["fisheye"][:]= 1
+    cam["cam_type"][:]= 1
     cam["f_zoom"][:]= 1
     cam["fov"][:] = 80
     cam["px"][:] = 0
@@ -77,7 +78,7 @@ if args['image']:
     cam["yaw"][:] = 0
     cam["pitch"][:] = 0
     cam["roll"][:]  = 0
-    cam["fisheye"][:]= 0
+    cam["cam_type"][:]= 0
     cam["f_zoom"][:]= 1
     cam["fov"][:] = 80
     cam["px"][:] = 0.
@@ -109,8 +110,12 @@ if not args['azi'] is None:
 
 print("Camera settings:")
 for v in camera_variables.keys():
-    print("{:6}{:>8}".format(v, str(cam[v][:])))
-print("{:6}{:>8}".format("sza", str(np.round(np.rad2deg(np.arccos(ncf['mu0'][:].flatten()[0])),1))))
-print("{:6}{:>8}".format("azi", str(np.round(np.rad2deg(ncf['azi'][:].flatten()[0]),1))))
+    if v == 'cam_type':
+        icam = int(cam[v][:])
+        print("{:8}{:>8} ({:s})".format(v, str(icam), ['fisheye','rectangular','TOA radiance'][icam]))
+    else:
+        print("{:8}{:>8}".format(v, str(cam[v][:])))
+print("{:8}{:>8}".format("sza", str(np.round(np.rad2deg(np.arccos(ncf['mu0'][:].flatten()[0])),1))))
+print("{:8}{:>8}".format("azi", str(np.round(np.rad2deg(ncf['azi'][:].flatten()[0]),1))))
 
 ncf.close()

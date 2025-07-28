@@ -40,7 +40,7 @@ struct Grid_knull
 struct Camera
 {
     Vector<Float> position;
-    bool fisheye = true;
+    int cam_type; // (0: fisheye, 1: rectangular, 2: top-of-atmosphere radiances)
 
     // rotation matrix for fisheye version - we need to do implement this in a nice way at some point
     Vector<Float> mx;
@@ -66,7 +66,7 @@ struct Camera
 
     void setup_normal_camera(const Camera camera)
     {
-        if (!fisheye)
+        if (camera.cam_type != 0)
         {
             const Vector<Float> dir_tmp = {1, 0, 0};
             const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)}));

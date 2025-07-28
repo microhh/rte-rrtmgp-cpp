@@ -314,7 +314,7 @@ void solve_radiation(int argc, char** argv)
     Camera camera;
     camera.f_zoom = cam_in.get_variable<Float>("f_zoom");
     camera.fov    = cam_in.get_variable<Float>("fov");
-    camera.fisheye= int(cam_in.get_variable<Float>("fisheye"));
+    camera.cam_type = int(cam_in.get_variable<Float>("cam_type"));
     camera.position = {cam_in.get_variable<Float>("px"),
                        cam_in.get_variable<Float>("py"),
                        cam_in.get_variable<Float>("pz")};
