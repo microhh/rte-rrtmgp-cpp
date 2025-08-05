@@ -104,19 +104,6 @@ void read_and_set_aer(
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbnds)
 {
     /* Heuristic way to set up memory pool queues */
@@ -239,7 +226,9 @@ void solve_radiation(int argc, char** argv)
         {"longwave"         , { false, "Enable computation of longwave radiation."   }},
         {"fluxes"           , { true,  "Enable computation of fluxes."               }},
         {"raytracing"       , { true,  "Use raytracing for flux computation."        }},
-        {"cloud-optics"     , { false, "Enable cloud optics."                        }},
+        {"cloud-optics"     , { false, "Enable cloud optics (both liquid and ice)."  }},
+        {"liq-cloud-optics" , { false, "liquid only cloud optics."                   }},
+        {"ice-cloud-optics" , { false, "ice only cloud optics."                      }},
         {"cloud-mie"        , { false, "mie cloud droplet scattering."               }},
         {"aerosol-optics"   , { false, "Enable aerosol optics."                      }},
         {"output-optical"   , { false, "Enable output of optical properties."        }},
@@ -260,7 +249,9 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave         = command_line_options.at("shortwave"        ).first;
     const bool switch_longwave          = command_line_options.at("longwave"         ).first;
     const bool switch_fluxes            = command_line_options.at("fluxes"           ).first;
-    const bool switch_cloud_optics      = command_line_options.at("cloud-optics"     ).first;
+    bool switch_cloud_optics            = command_line_options.at("cloud-optics"     ).first;
+    bool switch_liq_cloud_optics        = command_line_options.at("liq-cloud-optics" ).first;
+    bool switch_ice_cloud_optics        = command_line_options.at("ice-cloud-optics" ).first;
     const bool switch_cloud_mie         = command_line_options.at("cloud-mie"        ).first;
     const bool switch_aerosol_optics    = command_line_options.at("aerosol-optics"   ).first;
     const bool switch_output_optical    = command_line_options.at("output-optical"   ).first;
@@ -277,6 +268,22 @@ void solve_radiation(int argc, char** argv)
     if (switch_longwave)
     {
         std::string error = "No longwave radiation implemented in the ray tracer";
+        throw std::runtime_error(error);
+    }
+
+    if (switch_cloud_optics)
+    {
+        switch_liq_cloud_optics = true;
+        switch_ice_cloud_optics = true;
+    }
+    if (switch_liq_cloud_optics || switch_ice_cloud_optics)
+    {
+        switch_cloud_optics = true;
+    }
+
+    if (switch_cloud_mie && switch_ice_cloud_optics)
+    {
+        std::string error = "Thou shall not use mie tables as long as ice optics are enabled";
         throw std::runtime_error(error);
     }
 
@@ -312,9 +319,8 @@ void solve_radiation(int argc, char** argv)
     // Reading camera data
     Netcdf_group cam_in = input_nc.get_group("camera-settings");
     Camera camera;
-    camera.f_zoom = cam_in.get_variable<Float>("f_zoom");
     camera.fov    = cam_in.get_variable<Float>("fov");
-    camera.fisheye= int(cam_in.get_variable<Float>("fisheye"));
+    camera.cam_type = int(cam_in.get_variable<Float>("cam_type"));
     camera.position = {cam_in.get_variable<Float>("px"),
                        cam_in.get_variable<Float>("py"),
                        cam_in.get_variable<Float>("pz")};
@@ -386,17 +392,23 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_cloud_optics || switch_cloud_cam)
     {
-        lwp.set_dims({n_col, n_lay});
-        lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
+        if (switch_liq_cloud_optics)
+        {
+            lwp.set_dims({n_col, n_lay});
+            lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
 
-        iwp.set_dims({n_col, n_lay});
-        iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
+            rel.set_dims({n_col, n_lay});
+            rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+        }
 
-        rel.set_dims({n_col, n_lay});
-        rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+        if(switch_ice_cloud_optics)
+        {
+            iwp.set_dims({n_col, n_lay});
+            iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
 
-        dei.set_dims({n_col, n_lay});
-        dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
+            dei.set_dims({n_col, n_lay});
+            dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
+        }
     }
     else
     {
@@ -954,7 +966,7 @@ void solve_radiation(int argc, char** argv)
         // camera position and direction
         Netcdf_group output_cam = output_nc.add_group("camera-settings");
 
-        std::string cam_vars[] = {"yaw","pitch","roll","f_zoom","px","py","pz"};
+        std::string cam_vars[] = {"yaw","pitch","roll","px","py","pz"};
         for (auto &&cam_var : cam_vars)
         {
             auto nc_cam_out = output_cam.add_variable<Float>(cam_var);

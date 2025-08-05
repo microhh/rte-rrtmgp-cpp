@@ -196,23 +196,53 @@ namespace
         const Float i = (Float(ij_cam % camera.nx) + rng())/ Float(camera.nx);
         const Float j = (Float(ij_cam / camera.nx) + rng())/ Float(camera.ny);
 
-        if (camera.fisheye)
+
+        if (camera.cam_type == 0)
         {
-            const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
+            // Fish eye camera
+            const Float photon_zenith = i * Float(.5) * camera.fov / Float(180.) * M_PI;
             const Float photon_azimuth = j * Float(2.) * M_PI;
-            const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
+            const Vector<Float> dir_tmp = {cos(photon_zenith), sin(photon_zenith) * cos(photon_azimuth), sin(photon_zenith) * sin(photon_azimuth)};
 
             photon.direction.x = dot(camera.mx,  dir_tmp);
             photon.direction.y = dot(camera.my,  dir_tmp);
-            photon.direction.z = dot(camera.mz,  dir_tmp) * Float(-1);
+            photon.direction.z = dot(camera.mz,  dir_tmp);
+            photon.position = camera.position + s_min;
         }
-        else
+        else if (camera.cam_type == 1)
         {
             // Rectangular camera based on Villefranque et al. 2019
             photon.direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
+            photon.position = camera.position + s_min;
+        }
+        else
+        {
+            // Top-of-atmosphere upwelling radiances
+            photon.direction = {Float(0.), Float(0.), Float(-1)};
+            photon.position.x = (Float(ij_cam % camera.nx) + Float(0.5)) * (grid_size.x / camera.nx);
+            photon.position.y = (Float(ij_cam / camera.nx) + Float(0.5)) * (grid_size.y / camera.ny);
+            photon.position.z = z_lev_bg[kbg] - s_min;
         }
 
-        photon.position = camera.position + s_min;
+        // if camera starts above domain top, bring photon towards domain top
+        if ((photon.position.z > z_lev_bg[kbg]) and (photon.direction.z < Float(0.)))
+        {
+            Float ds = (photon.position.z - z_lev_bg[kbg]) / photon.direction.z;
+
+            photon.position.z = z_lev_bg[kbg] - s_min;
+            photon.position.y += photon.direction.y * ds;
+            photon.position.x += photon.direction.x * ds;
+
+            // Cyclic boundary condition in x.
+            photon.position.x = fmod(photon.position.x, grid_size.x);
+            if (photon.position.x < Float(0.))
+                photon.position.x += grid_size.x;
+
+            // Cyclic boundary condition in y.
+            photon.position.y = fmod(photon.position.y, grid_size.y);
+            if (photon.position.y < Float(0.))
+                photon.position.y += grid_size.y;
+        }
 
         photon.kind = Photon_kind::Direct;
         weight = 1;
@@ -764,23 +794,30 @@ void ray_tracer_kernel_bw(
             Float dist = 0;
             bool reached_cloud = false;
 
-            //const int pix = n * pixels_per_thread + ipix;
             const Float i = (Float(pix % camera.nx) + Float(0.5))/ Float(camera.nx);
             const Float j = (Float(pix / camera.nx) + Float(0.5))/ Float(camera.ny);
 
-            position = camera.position + s_eps;
 
-            if (camera.fisheye)
+            if (camera.cam_type == 0)
             {
                 const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
                 const Float photon_azimuth = j * Float(2.) * M_PI;
                 const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
 
                 direction = {dot(camera.mx,  dir_tmp), dot(camera.my,  dir_tmp), dot(camera.mz,  dir_tmp) * Float(-1)};
+                position = camera.position + s_eps;
+            }
+            else if (camera.cam_type == 1)
+            {
+                direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
+                position = camera.position + s_eps;
             }
             else
             {
-                direction = normalize(camera.cam_width * (Float(2.)*i-Float(1.0)) + camera.cam_height * (Float(2.)*j-Float(1.0)) + camera.cam_depth);
+                direction = {Float(0.), Float(0.), Float(-1)};
+                position = {i * grid_size.x / camera.nx,
+                            j * grid_size.y / camera.ny,
+                            grid_size.z - 2*s_eps};
             }
 
             // first bring photon to top of dynamical domain

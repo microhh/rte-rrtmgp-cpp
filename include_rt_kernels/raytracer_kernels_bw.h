@@ -27,7 +27,7 @@ constexpr int bw_kernel_grid = 256;
 // sun has a half angle of .266 degrees
 constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
 constexpr Float sun_solid_angle = Float(6.799910294339209e-05); // 2.*M_PI*(1-cos_half_angle);
-constexpr Float sun_solid_angle_reciprocal = Float(14706.07635563193); 
+constexpr Float sun_solid_angle_reciprocal = Float(14706.07635563193);
 
 
 struct Grid_knull
@@ -40,7 +40,7 @@ struct Grid_knull
 struct Camera
 {
     Vector<Float> position;
-    bool fisheye = true;
+    int cam_type; // (0: fisheye, 1: rectangular, 2: top-of-atmosphere radiances)
 
     // rotation matrix for fisheye version - we need to do implement this in a nice way at some point
     Vector<Float> mx;
@@ -66,17 +66,17 @@ struct Camera
 
     void setup_normal_camera(const Camera camera)
     {
-        if (!fisheye)
+        if (camera.cam_type != 0)
         {
             const Vector<Float> dir_tmp = {1, 0, 0};
-            const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)}));
-            const Vector<Float> dir_up_tmp = {0, 0, 1};
-            const Vector<Float> dir_up = normalize(Vector<Float>({dot(camera.mx,dir_up_tmp), dot(camera.my,dir_up_tmp), dot(camera.mz,dir_up_tmp)}));
+            const Vector<Float> dir_up = {0, 0, 1};
 
+            const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)}));
+
+            cam_height = normalize(Vector<Float>({dot(camera.mx, dir_up), dot(camera.my,dir_up), dot(camera.mz,dir_up)}));
             cam_width = Float(-1) * normalize(cross(dir_cam, dir_up));
-            cam_height = normalize(cross(dir_cam, cam_width));
             cam_depth = dir_cam / tan(fov/Float(180)*M_PI/Float(2.));
-        
+
             if (camera.nx > camera.ny)
                 cam_height = cam_height * Float(camera.ny)/Float(camera.nx);
             else if (camera.ny > camera.nx)

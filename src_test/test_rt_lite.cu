@@ -138,7 +138,7 @@ void solve_radiation(int argc, char** argv)
         {"profiling"         , { false, "Perform additional profiling run."         }} };
 
     std::map<std::string, std::pair<int, std::string>> command_line_ints {
-        {"raytracing", {32, "Number of rays initialised at TOD per pixel."}}, 
+        {"raytracing", {32, "Number of rays initialised at TOD per pixel."}},
         {"bw-raytracing", {32, "Number of rays initialised at per camera pixel."}}} ;
 
     if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
@@ -150,7 +150,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_cloud_mie          = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_independent_column = command_line_switches.at("independent-column").first;
     const bool switch_profiling          = command_line_switches.at("profiling"         ).first;
-    
+
     // Print the options to the screen.
     print_command_line_options(command_line_switches, command_line_ints);
 
@@ -169,7 +169,7 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_bw_raytracing)
     {
-        photons_per_pixel_bw = Int(command_line_ints.at("bw_raytracing").first);
+        photons_per_pixel_bw = Int(command_line_ints.at("bw-raytracing").first);
         if (Float(int(std::log2(Float(photons_per_pixel_bw)))) != std::log2(Float(photons_per_pixel_bw)))
         {
             std::string error = "number of bw photons per pixel should be a power of 2 ";
@@ -191,13 +191,13 @@ void solve_radiation(int argc, char** argv)
     const int nz = (n_z_in < n_lay) ? n_z_in+1 : n_z_in;
 
     const int ncol = nx*ny;
-    
+
     // Read the x,y,z dimensions if raytracing is enabled
     const Array<Float,1> grid_x(input_nc.get_variable<Float>("x", {nx}), {nx});
     const Array<Float,1> grid_y(input_nc.get_variable<Float>("y", {ny}), {ny});
     const Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z_in}), {n_z_in});
     Array<Float,1> z_lev;
-    
+
     const Float dx = grid_x({2}) - grid_x({1});
     const Float dy = grid_y({2}) - grid_y({1});
     const Float dz = grid_z({2}) - grid_z({1});
@@ -213,40 +213,39 @@ void solve_radiation(int argc, char** argv)
     const Array<Float,2> tot_ssa(input_nc.get_variable<Float>("tot_ssa", {n_lay, ny, nx}), {ncol, n_lay});
     const Array<Float,2> tot_asy(input_nc.get_variable<Float>("tot_asy", {n_lay, ny, nx}), {ncol, n_lay});
 
-    Array<Float,2> cld_tau({ncol, n_lay});	
-    Array<Float,2> cld_ssa({ncol, n_lay});	
+    Array<Float,2> cld_tau({ncol, n_lay});
+    Array<Float,2> cld_ssa({ncol, n_lay});
     Array<Float,2> cld_asy({ncol, n_lay});
-    
+
     cld_tau = std::move(input_nc.get_variable<Float>("cld_tau", {n_lay, ny, nx}));
     cld_ssa = std::move(input_nc.get_variable<Float>("cld_ssa", {n_lay, ny, nx}));
     cld_asy = std::move(input_nc.get_variable<Float>("cld_asy", {n_lay, ny, nx}));
-    
-    Array<Float,2> aer_tau({ncol, n_lay});	
-    Array<Float,2> aer_ssa({ncol, n_lay});	
+
+    Array<Float,2> aer_tau({ncol, n_lay});
+    Array<Float,2> aer_ssa({ncol, n_lay});
     Array<Float,2> aer_asy({ncol, n_lay});
-    
+
     aer_tau = std::move(input_nc.get_variable<Float>("aer_tau", {n_lay, ny, nx}));
     aer_ssa = std::move(input_nc.get_variable<Float>("aer_ssa", {n_lay, ny, nx}));
     aer_asy = std::move(input_nc.get_variable<Float>("aer_asy", {n_lay, ny, nx}));
-    
+
     // read albedo, solar angles, and top-of-domain fluxes
     Array<Float,2> sfc_albedo({ncol, 1});
     sfc_albedo = std::move(input_nc.get_variable<Float>("albedo", {ny, nx}));
-    
+
     const Float zenith_angle = input_nc.get_variable<Float>("sza");
     const Float azimuth_angle = input_nc.get_variable<Float>("azi");
     const Float tod_dir = input_nc.get_variable<Float>("tod_direct");
 
-    Array<Float,1> mu0({ncol});	
+    Array<Float,1> mu0({ncol});
     mu0.fill(cos(zenith_angle));
 
     Camera camera;
     if (switch_bw_raytracing)
     {
         Netcdf_group cam_in = input_nc.get_group("camera-settings");
-        camera.f_zoom = cam_in.get_variable<Float>("f_zoom");
         camera.fov    = cam_in.get_variable<Float>("fov");
-        camera.fisheye= int(cam_in.get_variable<Float>("fisheye"));
+        camera.cam_type = int(cam_in.get_variable<Float>("cam_type"));
         camera.position = {cam_in.get_variable<Float>("px"),
                            cam_in.get_variable<Float>("py"),
                            cam_in.get_variable<Float>("pz")};
@@ -259,10 +258,9 @@ void solve_radiation(int argc, char** argv)
                                      cam_in.get_variable<Float>("pitch"),
                                      cam_in.get_variable<Float>("roll"));
         camera.setup_normal_camera(camera);
-    
+
         z_lev.set_dims({n_lay+1});
         z_lev = std::move(input_nc.get_variable<Float>("z_lev", {n_lay+1}));
-
     }
 
     // output arrays (setting all dimensions even if we only run FW or BW is note very memory efficiency, so deserves conditional dimension assigment at some point
@@ -274,11 +272,11 @@ void solve_radiation(int argc, char** argv)
     Array_gpu<Float,3> flux_abs_dir({nx, ny, nz});
     Array_gpu<Float,3> flux_abs_dif({nx, ny, nz});
     Array_gpu<Float,2> radiance({camera.nx, camera.ny});
-    
+
     Array_gpu<Float,2> flux_dn_2stream;
     Array_gpu<Float,2> flux_up_2stream;
     Array_gpu<Float,2> flux_dn_dir_2stream;
-    
+
     // empty arrays (mie scattering not (yet) supported in lite version)
     Array<Float,2> mie_cdfs_c;
     Array<Float,3> mie_angs_c;
@@ -287,12 +285,12 @@ void solve_radiation(int argc, char** argv)
     Array<Float,4> mie_phase_bw_c;
     Array<Float,1> mie_phase_angs_bw_c;
     Array<Float,2> rel_c({ncol, n_lay});
-    
+
     if (switch_cloud_mie)
     {
        // lwp.set_dims({n_col, n_lay});
        // lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
-        
+
         const int n_re  = input_nc.get_dimension_size("r_eff");
         const int n_mie = input_nc.get_dimension_size("n_ang");
 
@@ -309,14 +307,14 @@ void solve_radiation(int argc, char** argv)
         mie_angs_bw_c = std::move(input_nc.get_variable<Float>("phase_cdf_angle", {1, 1, n_re, n_mie}));
         mie_phase_bw_c = std::move(input_nc.get_variable<Float>("phase", {1, 1, n_re, n_mie}));
         mie_phase_angs_bw_c = std::move(input_nc.get_variable<Float>("phase_angle", {n_mie}));
-        
+
         rel_c = std::move(input_nc.get_variable<Float>("rel", {n_lay, ny, nx}));
     }
     else
     {
         rel_c.fill(Float(0.));
     }
-    
+
     Array_gpu<Float,2> rel(rel_c);
     Array_gpu<Float,2> mie_cdfs(mie_cdfs_c);
     Array_gpu<Float,3> mie_angs(mie_angs_c);
@@ -324,11 +322,11 @@ void solve_radiation(int argc, char** argv)
     Array_gpu<Float,4> mie_angs_bw(mie_angs_bw_c);
     Array_gpu<Float,4> mie_phase_bw(mie_phase_bw_c);
     Array_gpu<Float,1> mie_phase_angs_bw(mie_phase_angs_bw_c);
-       
+
     Array<Float,1> lum_c({ncol});
-    lum_c.fill(Float(0.));
+    lum_c.fill(Float(1.));
     Array_gpu<Float,1> land_use_map(lum_c);
-    
+
     //// GPU arrays
     Array_gpu<Float,2> tot_tau_g(tot_tau);
     Array_gpu<Float,2> tot_ssa_g(tot_ssa);
@@ -341,7 +339,7 @@ void solve_radiation(int argc, char** argv)
     Array_gpu<Float,2> aer_asy_g(aer_asy);
     Array_gpu<Float,2> sfc_albedo_g(sfc_albedo);
     Array_gpu<Float,1> mu0_g(mu0);
-   
+
     ////// CREATE THE OUTPUT FILE //////
     // Create the general dimensions and arrays.
     Status::print_message("Preparing NetCDF output file.");
@@ -359,14 +357,14 @@ void solve_radiation(int argc, char** argv)
         output_nc.add_dimension("nx", camera.nx);
         output_nc.add_dimension("ny", camera.ny);
     }
-    
+
 
     if (switch_two_stream)
     {
         flux_up_2stream.set_dims({ncol, n_lay+1});
         flux_dn_2stream.set_dims({ncol, n_lay+1});
         flux_dn_dir_2stream.set_dims({ncol, n_lay+1});
-        
+
         Rte_sw_rt rte_sw;
         Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 1, 0, tod_dir * cos(zenith_angle), flux_dn_dir_2stream.ptr());
         Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 1, 0, flux_dn_2stream.ptr());
@@ -392,7 +390,7 @@ void solve_radiation(int argc, char** argv)
         nc_dn_2stream.insert(flux_dn_2stream_c  .v(), {0, 0, 0});
         nc_dn_dir_2stream.insert(flux_dn_dir_2stream_c  .v(), {0, 0, 0});
     }
-    
+
     if (switch_raytracing)
     {
         Raytracer raytracer;
@@ -411,7 +409,7 @@ void solve_radiation(int argc, char** argv)
 
             cudaEventRecord(start, 0);
             // do something.
-            
+
 	        raytracer.trace_rays(
                    0,
                    switch_independent_column,
@@ -430,7 +428,7 @@ void solve_radiation(int argc, char** argv)
                    aer_ssa_g,
                    aer_asy_g,
                    rel,
-                   sfc_albedo_g, 
+                   sfc_albedo_g,
                    zenith_angle,
                    azimuth_angle,
                    tod_dir * std::cos(zenith_angle),
@@ -464,7 +462,7 @@ void solve_radiation(int argc, char** argv)
             run_solver();
             cudaProfilerStop();
         }
-        
+
         // output arrays to cpu
         Array<Float,2> flux_tod_dn_c(flux_tod_dn);
         Array<Float,2> flux_tod_up_c(flux_tod_up);
@@ -511,7 +509,7 @@ void solve_radiation(int argc, char** argv)
             cudaEventCreate(&stop);
 
             cudaEventRecord(start, 0);
-            
+
             raytracer_bw.trace_rays_bb(
                     0,
                     photons_per_pixel_bw, n_lay,
@@ -559,7 +557,7 @@ void solve_radiation(int argc, char** argv)
             run_solver();
             cudaProfilerStop();
         }
-        
+
         // output arrays to cpu
         Array<Float,2> radiance_c(radiance);
         // Store the output.

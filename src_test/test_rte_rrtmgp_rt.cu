@@ -300,8 +300,9 @@ void solve_radiation(int argc, char** argv)
         switch_independent_column = true;
     }
 
-    if (switch_tica && switch_aerosol_optics) {
-        std::string error = "Aerosol optics are not supported in TICA mode"; // NOTE: Aersol optics with TICA has significant errors at high SZA.
+    if (switch_cloud_mie && switch_ice_cloud_optics)
+    {
+        std::string error = "Thou shall not use mie tables as long as ice optics are enabled";
         throw std::runtime_error(error);
     }
 
@@ -349,8 +350,8 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> p_lev(input_nc.get_variable<Float>("p_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
     Array<Float,2> t_lev(input_nc.get_variable<Float>("t_lev", {n_lev, n_col_y, n_col_x}), {n_col, n_lev});
 
-    
-    
+
+
     if (input_nc.variable_exists("col_dry") && switch_tica)
     {
         std::string error = "col_dry is not supported in tica mode";
@@ -454,7 +455,7 @@ void solve_radiation(int argc, char** argv)
     mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
     azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
 
-    
+
     if (switch_tica)
     {
         tica_sza = acos(mu0.v()[0]);
@@ -463,15 +464,15 @@ void solve_radiation(int argc, char** argv)
         {
             mu0({icol}) = 1.0;
             azi({icol}) = 0.0;
-        }    
+        }
 
         std::vector<std::string> gas_names = {
-            "h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "n2", "ccl4", "cfc11", 
-            "cfc12", "cfc22", "hfc143a", "hfc125", "hfc23", "hfc32", "hfc134a", 
+            "h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "n2", "ccl4", "cfc11",
+            "cfc12", "cfc22", "hfc143a", "hfc125", "hfc23", "hfc32", "hfc134a",
             "cf4", "no2"
         };
         std::vector<std::string> aerosol_names = {
-            "aermr01", "aermr02", "aermr03", "aermr04", "aermr05", "aermr06", "aermr07", 
+            "aermr01", "aermr02", "aermr03", "aermr04", "aermr05", "aermr06", "aermr07",
             "aermr08", "aermr09", "aermr10","aermr11"
         };
 
@@ -482,23 +483,24 @@ void solve_radiation(int argc, char** argv)
             const Array<Float,2>& gas = aerosol_concs.get_vmr(aerosol_name);
             if (gas.size() > 1) {
                 if (gas.get_dims()[0] == 1){
+                    printf("----");
                     aerosol_concs.set_vmr(aerosol_name, aerosol_concs.get_vmr(aerosol_name).subset({ {{1,n_col}, {1, n_lay}}} ));
                 }
             }
         }
-        
+
         Array<Float,1> xh;
         Array<Float,1> yh;
         Array<Float,1> zh;
         Array<Float,1> z;
 
         xh.set_dims({n_col_x+1});
-        xh = std::move(input_nc.get_variable<Float>("xh", {n_col_x+1})); 
+        xh = std::move(input_nc.get_variable<Float>("xh", {n_col_x+1}));
         yh.set_dims({n_col_y+1});
-        yh = std::move(input_nc.get_variable<Float>("yh", {n_col_y+1})); 
+        yh = std::move(input_nc.get_variable<Float>("yh", {n_col_y+1}));
 
         zh.set_dims({n_zh_in});
-        zh = std::move(input_nc.get_variable<Float>("zh", {n_zh_in})); 
+        zh = std::move(input_nc.get_variable<Float>("zh", {n_zh_in}));
         z.set_dims({n_z_in});
         z = std::move(input_nc.get_variable<Float>("z", {n_z_in}));
 
@@ -509,7 +511,7 @@ void solve_radiation(int argc, char** argv)
         Gas_concs gas_concs_out = gas_concs;
         Aerosol_concs aerosol_concs_out = aerosol_concs;
         Array<Float,2> rh_out = rh;
-    
+
         Array<Float,2> lwp_out;
         lwp_out.set_dims({n_col, n_z_in});
         Array<Float,2> rel_out;
@@ -518,16 +520,16 @@ void solve_radiation(int argc, char** argv)
         iwp_out.set_dims({n_col, n_z_in});
         Array<Float,2> dei_out;
         dei_out.set_dims({n_col, n_z_in});
-     
+
         tica_tilt(
             tica_sza, tica_azi,
             n_col_x, n_col_y, n_col,
             n_lay, n_lev, n_z_in, n_zh_in ,
             xh, yh, zh, z,
-            p_lay, t_lay, p_lev, t_lev, 
+            p_lay, t_lay, p_lev, t_lev,
             lwp, iwp, rel, dei, rh,
             gas_concs, aerosol_concs,
-            p_lay_out, t_lay_out, p_lev_out, t_lev_out, 
+            p_lay_out, t_lay_out, p_lev_out, t_lev_out,
             lwp_out, iwp_out, rel_out, dei_out, rh_out,
             gas_concs_out, aerosol_concs_out,
             gas_names, aerosol_names,
@@ -544,12 +546,18 @@ void solve_radiation(int argc, char** argv)
         iwp = iwp_out;
         dei = dei_out;
 
+        if (switch_aerosol_optics)
+        {
+            rh_out.expand_dims({n_col, n_lay});
+            rh  = rh_out;
+            aerosol_concs = aerosol_concs_out;
+        }
+
         p_lay = p_lay_out;
         p_lev = p_lev_out;
         t_lay = t_lay_out;
         t_lev = t_lev_out;
         gas_concs = gas_concs_out;
-        aerosol_concs = aerosol_concs_out;
 
     }
 
@@ -962,7 +970,7 @@ void solve_radiation(int argc, char** argv)
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu,
                     rh,
-                    aerosol_concs,
+                    aerosol_concs_gpu,
                     sw_tot_tau, sw_tot_ssa,
                     sw_cld_tau, sw_cld_ssa, sw_cld_asy,
                     sw_aer_tau, sw_aer_ssa, sw_aer_asy,
