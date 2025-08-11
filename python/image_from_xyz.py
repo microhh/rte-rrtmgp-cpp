@@ -72,8 +72,8 @@ else:
 
     # reshape RGB array
     RGB = RGB.reshape((3, ny, nx))
-    RGB = RGB.swapaxes(0,2).swapaxes(0,1)[::-1,:]
-    
+    RGB = RGB.swapaxes(0,2).swapaxes(0,1)[:,:]
+
     # plot
     fig,ax = pl.subplots(figsize=(nx/args.dpi, ny/args.dpi), frameon=False)
     ax.grid(False)
