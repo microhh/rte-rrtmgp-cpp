@@ -104,19 +104,6 @@ void read_and_set_aer(
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbnds)
 {
     /* Heuristic way to set up memory pool queues */
@@ -239,7 +226,7 @@ void solve_radiation(int argc, char** argv)
         {"longwave"         , { false, "Enable computation of longwave radiation."   }},
         {"fluxes"           , { true,  "Enable computation of fluxes."               }},
         {"raytracing"       , { true,  "Use raytracing for flux computation."        }},
-        {"cloud-optics"     , { false, "Enable cloud optics."                        }},
+        {"cloud-optics"     , { false, "Enable cloud optics (both liquid and ice)."  }},
         {"liq-cloud-optics" , { false, "liquid only cloud optics."                   }},
         {"ice-cloud-optics" , { false, "ice only cloud optics."                      }},
         {"cloud-mie"        , { false, "mie cloud droplet scattering."               }},
@@ -263,8 +250,8 @@ void solve_radiation(int argc, char** argv)
     const bool switch_longwave          = command_line_options.at("longwave"         ).first;
     const bool switch_fluxes            = command_line_options.at("fluxes"           ).first;
     bool switch_cloud_optics            = command_line_options.at("cloud-optics"     ).first;
-    bool switch_liq_cloud_optics        = command_line_options.at("liq-cloud-optics").first;
-    bool switch_ice_cloud_optics        = command_line_options.at("ice-cloud-optics").first;
+    bool switch_liq_cloud_optics        = command_line_options.at("liq-cloud-optics" ).first;
+    bool switch_ice_cloud_optics        = command_line_options.at("ice-cloud-optics" ).first;
     const bool switch_cloud_mie         = command_line_options.at("cloud-mie"        ).first;
     const bool switch_aerosol_optics    = command_line_options.at("aerosol-optics"   ).first;
     const bool switch_output_optical    = command_line_options.at("output-optical"   ).first;
@@ -292,6 +279,12 @@ void solve_radiation(int argc, char** argv)
     if (switch_liq_cloud_optics || switch_ice_cloud_optics)
     {
         switch_cloud_optics = true;
+    }
+
+    if (switch_cloud_mie && switch_ice_cloud_optics)
+    {
+        std::string error = "Thou shall not use mie tables as long as ice optics are enabled";
+        throw std::runtime_error(error);
     }
 
     // Print the options to the screen.
