@@ -102,7 +102,7 @@ namespace Raytracer_functions
             }
         }
 
-        return left;
+        return left - 1;
     }
 
     __device__
@@ -120,7 +120,7 @@ namespace Raytracer_functions
 
         const Float ang_lwr = (abs(random_number - mie_cdf[i+1])*mie_lut[(i)+midx_lwr] + abs(mie_cdf[i]-random_number)*mie_lut[i+midx_lwr+1]) / dr;
         const Float ang_upr = (abs(random_number - mie_cdf[i+1])*mie_lut[(i)+midx_upr] + abs(mie_cdf[i]-random_number)*mie_lut[i+midx_upr+1]) / dr;
-        const ang = ang_lwr * (1-r_rest) + ang_upr * r_rest;
+        const Float ang = ang_lwr * (1-r_rest) + ang_upr * r_rest;
         return ang;
     }
 
