@@ -401,7 +401,7 @@ void solve_radiation(int argc, char** argv)
             rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
         }
 
-        if(switch_ice_cloud_optics)
+        if (switch_ice_cloud_optics)
         {
             iwp.set_dims({n_col, n_lay});
             iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
