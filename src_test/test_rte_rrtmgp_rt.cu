@@ -482,7 +482,6 @@ void solve_radiation(int argc, char** argv)
             const Array<Float,2>& gas = aerosol_concs.get_vmr(aerosol_name);
             if (gas.size() > 1) {
                 if (gas.get_dims()[0] == 1){
-                    printf("----");
                     aerosol_concs.set_vmr(aerosol_name, aerosol_concs.get_vmr(aerosol_name).subset({ {{1,n_col}, {1, n_lay}}} ));
                 }
             }
