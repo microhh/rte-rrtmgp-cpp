@@ -10,7 +10,7 @@ The original code is found at https://github.com/earth-system-radiation/rte-rrtm
 Contacts: Robert Pincus and Eli Mlawer
 email: rrtmgp@aer.com
 
-This C++ implementation can be downloaded from https://github.com/earth-system-radiation/rte-rrtmgp-cpp
+This C++ implementation can be downloaded from https://github.com/microhh/rte-rrtmgp-cpp
 
 Contacts: Chiel van Heerwaarden and Menno Veerman
 
@@ -27,7 +27,7 @@ see https://www.gnu.org/licenses/gpl-3.0.en.html
 
 In order to check out the code including the `rte-rrtmgp` submodule, use:
 
-    git clone --recurse-submodules https://github.com/earth-system-radiation/rte-rrtmgp-cpp
+    git clone --recurse-submodules https://github.com/microhh/rte-rrtmgp-cpp
 
 In case you had already checked out the repository, use:
 
