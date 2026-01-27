@@ -730,14 +730,12 @@ void solve_radiation(int argc, char** argv)
         run_solver();
 
         // Profiling step;
-        cudaProfilerStart();
-        run_solver();
-        cudaProfilerStop();
-
-        constexpr int n_measures=10;
-        for (int n=0; n<n_measures; ++n)
+        if (switch_profiling)
+        {
+            cudaProfilerStart();
             run_solver();
-
+            cudaProfilerStop();
+        }
 
         //// Store the output.
         Status::print_message("Storing the longwave output.");

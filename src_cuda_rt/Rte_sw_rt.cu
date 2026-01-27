@@ -59,7 +59,7 @@ namespace
 
 //namespace rrtmgp_kernel_launcher
 //{
-//    
+//
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt,
 //            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
@@ -69,7 +69,7 @@ namespace
 //                &top_at_1, gpt_flux_dn.ptr());
 //    }
 //
-//    
+//
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt, Bool top_at_1,
 //            const Array<Float,2>& inc_flux, Array<Float,3>& gpt_flux_dn)
@@ -79,7 +79,7 @@ namespace
 //                const_cast<Float*>(inc_flux.ptr()), gpt_flux_dn.ptr());
 //    }
 //
-//    
+//
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt, Bool top_at_1,
 //            const Array<Float,2>& inc_flux,
@@ -94,7 +94,7 @@ namespace
 //                gpt_flux.ptr());
 //    }
 //
-//    
+//
 //    void sw_solver_2stream(
 //            int ncol, int nlay, int ngpt, Bool top_at_1,
 //            const Array<Float,3>& tau,

@@ -219,7 +219,7 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
         Array<Float,4> krayl;
 
         int idx_h2o;
-        
+
         Array_gpu<Float,1> solar_source_g;
         Array_gpu<Float,2> totplnk_gpu;
         Array_gpu<Float,4> planck_frac_gpu;

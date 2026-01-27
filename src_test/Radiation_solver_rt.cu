@@ -52,7 +52,7 @@ namespace
                 const int idx = icol + ilay*ncol;
                 tau[idx] = tau[idx] * scale_factor;
                 }
-        }    
+        }
 
         void scale_tau(Float* tau, const int ncol, const int nlay, Float scale_factor) {
                 const int block_col = 64;

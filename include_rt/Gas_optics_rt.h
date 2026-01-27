@@ -80,7 +80,7 @@ class Gas_optics_rt : public Optical_props_rt
                 const Array_gpu<Float,2>& col_dry) = 0;
 
        virtual Float get_tsi() const = 0;
-       
+
        virtual Float band_source(const int gpt_start, const int gpt_end) const = 0;
 };
 #endif

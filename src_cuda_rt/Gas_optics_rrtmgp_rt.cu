@@ -809,7 +809,7 @@ void Gas_optics_rrtmgp_rt::init_abs_coeffs(
     this->planck_frac_gpu = this->planck_frac;
 }
 
-    
+
 void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
     const int igpt,
     std::vector<int>& gases)
@@ -1144,7 +1144,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
         fill_gases_kernel<<<grid_gpu, block_gpu>>>(
             col_s, ncol_sub, ncol, nlay, vmr_2d.dim(1), vmr_2d.dim(2), ngas, igas, vmr_2d.ptr(), col_gas.ptr(), col_dry.ptr());
     }
-    
+
     Gas_optics_rrtmgp_kernels_cuda_rt::interpolation(
             col_s, ncol_sub, ncol, nlay, igpt,
             ngas, nflav, neta, npres, ntemp,
@@ -1262,20 +1262,6 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
                 optical_props->get_tau().ptr());
     }
 }
-
-// void Gas_optics_rrtmgp_rt::combine_abs_and_rayleigh(
-//         const Array_gpu<Float,2>& tau,
-//         const Array_gpu<Float,2>& tau_rayleigh,
-//         std::unique_ptr<Optical_props_arry_rt>& optical_props)
-// {
-//     int ncol = tau.dim(1);
-//     int nlay = tau.dim(2);
-//
-//     Gas_optics_rrtmgp_kernels_cuda_rt::combine_abs_and_rayleigh(
-//             ncol, nlay,
-//             tau, tau_rayleigh,
-//             optical_props->get_tau(), optical_props->get_ssa(), optical_props->get_g());
-// }
 
 void Gas_optics_rrtmgp_rt::source(
         const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,

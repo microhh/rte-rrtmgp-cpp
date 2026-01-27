@@ -33,10 +33,10 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
     void reorder123x321(const int ni, const int nj, const int nk,
             const Float* arr_in, Float* arr_out);
 
-    
+
     void reorder12x21(const int ni, const int nj, const Float* arr_in, Float* arr_out);
 
-    
+
     void zero_array(const int ni, const int nj, const int nk, const int nn, Float* arr);
     void zero_array(const int ni, const int nj, const int nk, Float* arr);
     void zero_array(const int ni, const int nj, Float* arr);

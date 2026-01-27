@@ -57,7 +57,7 @@ namespace
     }
 }
 
-//    
+//
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt,
 //            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
@@ -67,7 +67,7 @@ namespace
 //                &top_at_1, gpt_flux_dn.ptr());
 //    }
 //
-//    
+//
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt,
 //            Bool top_at_1, const Array<Float,2>& inc_flux,

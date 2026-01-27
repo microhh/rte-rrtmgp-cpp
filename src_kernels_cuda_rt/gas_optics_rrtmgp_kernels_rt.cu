@@ -288,8 +288,8 @@ void planck_source_kernel(
 __global__
 void interpolation_kernel(
         const int igpt,
-        const int col_s, const int ncol_sub, const int ncol, const int nlay, const int ngas, 
-        const int nflav, const int neta, const int npres, const int ntemp, 
+        const int col_s, const int ncol_sub, const int ncol, const int nlay, const int ngas,
+        const int nflav, const int neta, const int npres, const int ntemp,
         const Float tmin,
         const int* __restrict__ gpoint_flavor,
         const int* __restrict__ flavor,
@@ -325,7 +325,7 @@ void interpolation_kernel(
 
         jpress[idx] = min(npres-1, max(1, int(locpress)));
         tropo[idx] = log(play[idx_off]) > press_ref_trop_log;
-        
+
         const int itropo = !tropo[idx];
         const int iflav = gpoint_flavor[itropo + 2*igpt] - 1;
 
@@ -337,7 +337,7 @@ void interpolation_kernel(
 
         const Float gas1 = col_gas[idx + gas_idx1*nlay*ncol_sub];
         const Float gas2 = col_gas[idx + gas_idx2*nlay*ncol_sub];
-        
+
         for (int itemp=0; itemp<2; ++itemp)
         {
             const int vmr_base_idx = itropo + (jtemp[idx]+itemp-1) * (ngas+1) * 2;
@@ -447,7 +447,7 @@ void gas_optical_depths_minor_kernel(
         const int ncollay = ncol_sub * nlay;
         const int idx_collay = icol + ilay*ncol_sub;
         const int idx_off = icol + col_s + ilay*ncol;
-        
+
         const int minor_start = first_last_minor[2*igpt];
         const int minor_end   = first_last_minor[2*igpt+1];
 

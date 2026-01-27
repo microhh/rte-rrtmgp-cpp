@@ -475,7 +475,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
         dim3 grid_gpu;
         dim3 block_gpu;
-        
+
         if (tunings.count("Planck_source_kernel") == 0)
         {
             std::tie(grid_gpu, block_gpu) = tune_kernel(
@@ -495,7 +495,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
                     delta_Tsurf, sfc_src, lay_src,
                     lev_src,
                     sfc_src_jac);
-            
+
             tunings["Planck_source_kernel"].first = grid_gpu;
             tunings["Planck_source_kernel"].second = block_gpu;
         }

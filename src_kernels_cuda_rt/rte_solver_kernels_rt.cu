@@ -308,34 +308,34 @@ void apply_BC_kernel_lw(const int isfc, int ncol, const int nlay, const Bool top
 }
 
 __global__
-void apply_BC_kernel(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float inc_flux, Float* __restrict__ flux_dn)
+void apply_BC_kernel(const int ncol, const int nlay, const Bool top_at_1, const Float inc_flux, Float* __restrict__ flux_dn)
 {
     const int icol = blockIdx.x*blockDim.x + threadIdx.x;
     if ( (icol < ncol) )
     {
-        const int idx_out = icol + ((top_at_1 ? 0 : (nlay * ncol))); 
+        const int idx_out = icol + ((top_at_1 ? 0 : (nlay * ncol)));
         const int idx_in = icol;
         flux_dn[idx_out] = inc_flux;
     }
 }
 
 __global__
-void apply_BC_kernel(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float* __restrict__ inc_flux, Float* __restrict__ flux_dn)
+void apply_BC_kernel(const int ncol, const int nlay, const Bool top_at_1, const Float* __restrict__ inc_flux, Float* __restrict__ flux_dn)
 {
     const int icol = blockIdx.x*blockDim.x + threadIdx.x;
     if ( (icol < ncol) )
     {
-        const int idx_out = icol + ((top_at_1 ? 0 : (nlay * ncol))); 
+        const int idx_out = icol + ((top_at_1 ? 0 : (nlay * ncol)));
         const int idx_in = icol;
         flux_dn[idx_out] = inc_flux[idx_in];
     }
 }
 
 __global__
-void apply_BC_kernel(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float* __restrict__ inc_flux, const Float* __restrict__ factor, Float* __restrict__ flux_dn)
+void apply_BC_kernel(const int ncol, const int nlay, const Bool top_at_1, const Float* __restrict__ inc_flux, const Float* __restrict__ factor, Float* __restrict__ flux_dn)
 {
     const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-    if ( (icol < ncol) ) 
+    if ( (icol < ncol) )
     {
         const int idx_out = icol + ((top_at_1 ? 0 : (nlay * ncol)));
         flux_dn[idx_out] = inc_flux[icol] * factor[icol];
@@ -530,10 +530,10 @@ void sw_2stream_function(
         *t_noscat = exp(-tau[idx] * mu0_inv);
 
         const Float k_mu = k * mu0[icol];
-        
+
         const Float k_gamma3 = k * gamma3;
         const Float k_gamma4 = k * gamma4;
-        
+
         const Float fact = (abs(Float(1.) - k_mu*k_mu) > tmin<Float>()) ? Float(1.) - k_mu*k_mu : tmin<Float>();
         const Float rt_term2 = ssa[idx] * rt_term / fact;
 
@@ -562,7 +562,7 @@ void sw_source_2stream_kernel(
         Float* __restrict__ source_sfc, Float* __restrict__ flux_dir)
 {
     const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-    
+
     if ( (icol < ncol) )
     {
         if (top_at_1)
