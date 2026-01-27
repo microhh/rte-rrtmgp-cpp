@@ -48,21 +48,18 @@ class Source_func_lw_rt : public Optical_props_rt
         Array_gpu<Float,1>& get_sfc_source()     { return sfc_source;     }
         Array_gpu<Float,1>& get_sfc_source_jac() { return sfc_source_jac; }
         Array_gpu<Float,2>& get_lay_source()     { return lay_source;     }
-        Array_gpu<Float,2>& get_lev_source_inc() { return lev_source_inc; }
-        Array_gpu<Float,2>& get_lev_source_dec() { return lev_source_dec; }
+        Array_gpu<Float,2>& get_lev_source()     { return lev_source; }
 
         const Array_gpu<Float,1>& get_sfc_source()     const { return sfc_source;     }
         const Array_gpu<Float,1>& get_sfc_source_jac() const { return sfc_source_jac; }
         const Array_gpu<Float,2>& get_lay_source()     const { return lay_source;     }
-        const Array_gpu<Float,2>& get_lev_source_inc() const { return lev_source_inc; }
-        const Array_gpu<Float,2>& get_lev_source_dec() const { return lev_source_dec; }
+        const Array_gpu<Float,2>& get_lev_source()     const { return lev_source; }
 
     private:
         Array_gpu<Float,1> sfc_source;
         Array_gpu<Float,1> sfc_source_jac;
         Array_gpu<Float,2> lay_source;
-        Array_gpu<Float,2> lev_source_inc;
-        Array_gpu<Float,2> lev_source_dec;
+        Array_gpu<Float,2> lev_source;
 };
 
 #endif

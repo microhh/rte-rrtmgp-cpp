@@ -1026,16 +1026,16 @@ void Gas_optics_rrtmgp_rt::gas_optics(
 
     if (jtemp.size()==0)
     {
-        this->jtemp.set_dims({play.dim(1), play.dim(2)});
-        this->jpress.set_dims({play.dim(1), play.dim(2)});
-        this->tropo.set_dims({play.dim(1), play.dim(2)});
-        this->fmajor.set_dims({2, 2, 2, play.dim(1), play.dim(2)});
-        this->jeta.set_dims({2, play.dim(1), play.dim(2)});
+        this->jtemp.set_dims({ncol_sub, nlay});
+        this->jpress.set_dims({ncol_sub, nlay});
+        this->tropo.set_dims({ncol_sub, nlay});
+        this->fmajor.set_dims({2, 2, 2, ncol_sub, nlay});
+        this->jeta.set_dims({2, ncol_sub, nlay});
     }
 
     // Gas optics.
     compute_gas_taus(
-            1, ncol_sub, ncol, nlay, ngpt, nband, igpt,
+            col_s, ncol_sub, ncol, nlay, ngpt, nband, igpt,
             play, plev, tlay, gas_desc,
             optical_props,
             this->jtemp, this->jpress, this->jeta, this->tropo, this->fmajor,
@@ -1043,7 +1043,7 @@ void Gas_optics_rrtmgp_rt::gas_optics(
 
     // External sources.
     source(
-            ncol, nlay, nband, ngpt, igpt,
+            col_s, ncol_sub, ncol, nlay, nband, ngpt, igpt,
             play, plev, tlay, tsfc,
             this->jtemp, this->jpress, this->jeta, this->tropo, this->fmajor,
             sources, tlev);
@@ -1278,7 +1278,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
 // }
 
 void Gas_optics_rrtmgp_rt::source(
-        const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
+        const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
         const Array_gpu<Float,2>& play, const Array_gpu<Float,2>& plev,
         const Array_gpu<Float,2>& tlay, const Array_gpu<Float,1>& tsfc,
         const Array_gpu<int,2>& jtemp, const Array_gpu<int,2>& jpress,
@@ -1297,15 +1297,15 @@ void Gas_optics_rrtmgp_rt::source(
 
     int sfc_lay = play({1, 1}) > play({1, nlay}) ? 1 : nlay;
 
-    Gas_optics_rrtmgp_kernels_cuda_rt::Planck_source(
-            ncol, nlay, nbnd, ngpt, igpt,
+    Gas_optics_rrtmgp_kernels_cuda_rt::compute_planck_source(
+            col_s, ncol_sub, ncol, nlay, nbnd, ngpt, igpt,
             nflav, neta, npres, ntemp, nPlanckTemp,
             tlay.ptr(), tlev.ptr(), tsfc.ptr(), sfc_lay,
             fmajor.ptr(), jeta.ptr(), tropo.ptr(), jtemp.ptr(), jpress.ptr(),
             gpoint_bands.ptr(), band_lims_gpoint.ptr(), this->planck_frac_gpu.ptr(), this->temp_ref_min,
             this->totplnk_delta, this->totplnk_gpu.ptr(),
-            sources.get_sfc_source().ptr(), sources.get_lay_source().ptr(), sources.get_lev_source_inc().ptr(),
-            sources.get_lev_source_dec().ptr(), sources.get_sfc_source_jac().ptr());
+            sources.get_sfc_source().ptr(), sources.get_lay_source().ptr(),
+            sources.get_lev_source().ptr(), sources.get_sfc_source_jac().ptr());
 }
 
 

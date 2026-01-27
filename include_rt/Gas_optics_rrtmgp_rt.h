@@ -313,7 +313,7 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 std::unique_ptr<Optical_props_arry_rt>& optical_props);
 
         void source(
-                const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
+                const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, const int ngpt, const int igpt,
                 const Array_gpu<Float,2>& play, const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay, const Array_gpu<Float,1>& tsfc,
                 const Array_gpu<int,2>& jtemp, const Array_gpu<int,2>& jpress,

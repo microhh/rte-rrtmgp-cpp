@@ -276,8 +276,9 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_longwave)
     {
-        std::string error = "No longwave radiation implemented in the ray tracer";
-        throw std::runtime_error(error);
+        Status::print_message("Note: no longwave radiation implemented in the ray tracer, yet");
+        // std::string error = "No longwave radiation implemented in the ray tracer";
+        // throw std::runtime_error(error);
     }
 
     if (!switch_twostream && !switch_raytracing) {
@@ -622,18 +623,18 @@ void solve_radiation(int argc, char** argv)
         Array<Float,1> t_sfc(input_nc.get_variable<Float>("t_sfc", {n_col_y, n_col_x}), {n_col});
 
         // Create output arrays.
-        Array_gpu<Float,2> lw_tau;
+        Array_gpu<Float,2> lw_tau_tot;
+        Array_gpu<Float,2> lw_tau_cld;
         Array_gpu<Float,2> lay_source;
-        Array_gpu<Float,2> lev_source_inc;
-        Array_gpu<Float,2> lev_source_dec;
+        Array_gpu<Float,2> lev_source;
         Array_gpu<Float,1> sfc_source;
 
         if (switch_single_gpt)
         {
-            lw_tau        .set_dims({n_col, n_lay});
+            lw_tau_tot    .set_dims({n_col, n_lay});
+            lw_tau_cld    .set_dims({n_col, n_lay});
             lay_source    .set_dims({n_col, n_lay});
-            lev_source_inc.set_dims({n_col, n_lay});
-            lev_source_dec.set_dims({n_col, n_lay});
+            lev_source    .set_dims({n_col, n_lev});
             sfc_source    .set_dims({n_col});
         }
 
@@ -677,6 +678,10 @@ void solve_radiation(int argc, char** argv)
             Array_gpu<Float,2> iwp_gpu(iwp);
             Array_gpu<Float,2> rel_gpu(rel);
             Array_gpu<Float,2> dei_gpu(dei);
+            Array_gpu<Float,2> rh_gpu(rh);
+
+            // note: aerosol optics not yet implemented in LW
+            Aerosol_concs_gpu aerosol_concs_gpu(aerosol_concs);
 
 
             cudaDeviceSynchronize();
@@ -689,17 +694,24 @@ void solve_radiation(int argc, char** argv)
 
             rad_lw.solve_gpu(
                     switch_fluxes,
+                    switch_raytracing,
                     switch_cloud_optics,
+                    switch_aerosol_optics,
                     switch_single_gpt,
                     single_gpt,
+                    photons_per_pixel,
+                    grid_cells,
+                    grid_d,
+                    kn_grid,
                     gas_concs_gpu,
+                    aerosol_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
                     t_lay_gpu, t_lev_gpu,
                     col_dry_gpu,
                     t_sfc_gpu, emis_sfc_gpu,
                     lwp_gpu, iwp_gpu,
-                    rel_gpu, dei_gpu,
-                    lw_tau, lay_source, lev_source_inc, lev_source_dec, sfc_source,
+                    rel_gpu, dei_gpu, rh_gpu,
+                    lw_tau_tot, lw_tau_cld, lay_source, lev_source, sfc_source,
                     lw_flux_up, lw_flux_dn, lw_flux_net,
                     lw_gpt_flux_up, lw_gpt_flux_dn, lw_gpt_flux_net);
 
@@ -729,11 +741,11 @@ void solve_radiation(int argc, char** argv)
 
         //// Store the output.
         Status::print_message("Storing the longwave output.");
-        Array<Float,2> lw_tau_cpu(lw_tau);
+        Array<Float,2> lw_tau_tot_cpu(lw_tau_tot);
+        Array<Float,2> lw_tau_cld_cpu(lw_tau_cld);
         Array<Float,2> lay_source_cpu(lay_source);
         Array<Float,1> sfc_source_cpu(sfc_source);
-        Array<Float,2> lev_source_inc_cpu(lev_source_inc);
-        Array<Float,2> lev_source_dec_cpu(lev_source_dec);
+        Array<Float,2> lev_source_cpu(lev_source);
         Array<Float,2> lw_flux_up_cpu(lw_flux_up);
         Array<Float,2> lw_flux_dn_cpu(lw_flux_dn);
         Array<Float,2> lw_flux_net_cpu(lw_flux_net);
@@ -752,18 +764,19 @@ void solve_radiation(int argc, char** argv)
             auto nc_lw_band_lims_gpt = output_nc.add_variable<int>("lw_band_lims_gpt", {"band_lw", "pair"});
             nc_lw_band_lims_gpt.insert(rad_lw.get_band_lims_gpoint_gpu().v(), {0, 0});
 
-            auto nc_lw_tau = output_nc.add_variable<Float>("lw_tau", {"lay", "y", "x"});
-            nc_lw_tau.insert(lw_tau_cpu.v(), {0, 0, 0});
+            auto nc_lw_tau_tot = output_nc.add_variable<Float>("lw_tau_tot", {"lay", "y", "x"});
+            nc_lw_tau_tot.insert(lw_tau_tot_cpu.v(), {0, 0, 0});
+
+            auto nc_lw_tau_cld = output_nc.add_variable<Float>("lw_tau_cld", {"lay", "y", "x"});
+            nc_lw_tau_cld.insert(lw_tau_cld_cpu.v(), {0, 0, 0});
 
             auto nc_lay_source     = output_nc.add_variable<Float>("lay_source"    , {"lay", "y", "x"});
-            auto nc_lev_source_inc = output_nc.add_variable<Float>("lev_source_inc", {"lay", "y", "x"});
-            auto nc_lev_source_dec = output_nc.add_variable<Float>("lev_source_dec", {"lay", "y", "x"});
+            auto nc_lev_source = output_nc.add_variable<Float>("lev_source", {"lev", "y", "x"});
 
             auto nc_sfc_source = output_nc.add_variable<Float>("sfc_source", {"y", "x"});
 
             nc_lay_source.insert    (lay_source_cpu.v()    , {0, 0, 0});
-            nc_lev_source_inc.insert(lev_source_inc_cpu.v(), {0, 0, 0});
-            nc_lev_source_dec.insert(lev_source_dec_cpu.v(), {0, 0, 0});
+            nc_lev_source.insert(lev_source_cpu.v(), {0, 0, 0});
 
             nc_sfc_source.insert(sfc_source_cpu.v(), {0, 0});
         }

@@ -117,8 +117,8 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             Float* tau);
 
 
-    void Planck_source(
-            const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
+    void compute_planck_source(
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
             const int nflav, const int neta, const int npres, const int ntemp,
             const int nPlanckTemp,
             const Float* tlay,
@@ -137,8 +137,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* totplnk,
             Float* sfc_src,
             Float* lay_src,
-            Float* lev_src_inc,
-            Float* lev_src_dec,
+            Float* lev_src,
             Float* sfc_src_jac);
 }
 #endif

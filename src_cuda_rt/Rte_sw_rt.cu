@@ -130,22 +130,21 @@ void Rte_sw_rt::rte_sw(
 {
     const int ncol = optical_props->get_ncol();
     const int nlay = optical_props->get_nlay();
-    const int ngpt = optical_props->get_ngpt();
 
  //   expand_and_transpose(optical_props, sfc_alb_dir, sfc_alb_dir_gpt);
  //   expand_and_transpose(optical_props, sfc_alb_dif, sfc_alb_dif_gpt);
 
     // Upper boundary condition. At this stage, flux_dn contains the diffuse radiation only.
-    Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, ngpt, top_at_1, inc_flux_dir.ptr(), mu0.ptr(), gpt_flux_dir.ptr());
+    Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, top_at_1, inc_flux_dir.ptr(), mu0.ptr(), gpt_flux_dir.ptr());
     if (inc_flux_dif.size() == 0)
-        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, ngpt, top_at_1, gpt_flux_dn.ptr());
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, top_at_1, gpt_flux_dn.ptr());
     else
-        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, ngpt, top_at_1, inc_flux_dif.ptr(), gpt_flux_dn.ptr());
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, top_at_1, inc_flux_dif.ptr(), gpt_flux_dn.ptr());
 
     // Run the radiative transfer solver
     // CvH: only two-stream solutions, I skipped the sw_solver_noscat.
     Rte_solver_kernels_cuda_rt::sw_solver_2stream(
-            ncol, nlay, ngpt, top_at_1,
+            ncol, nlay, top_at_1,
             optical_props->get_tau().ptr(),
             optical_props->get_ssa().ptr(),
             optical_props->get_g  ().ptr(),

@@ -244,7 +244,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
     void compute_tau_rayleigh(
-            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt, 
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt,
             const int igpt, const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int* gpoint_bands,
             const int* band_lims_gpt,
@@ -300,7 +300,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
     void compute_tau_absorption(
-            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, const int ngpt, 
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, const int ngpt,
             const int igpt, const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int nminorlower, const int nminorklower,
             const int nminorupper, const int nminorkupper,
@@ -503,9 +503,9 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
 
-    void Planck_source(
-            const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
-            const int nflav, const int neta, const int npres, const int ntemp,
+    void compute_planck_source(
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt,
+            const int igpt, const int nflav, const int neta, const int npres, const int ntemp,
             const int nPlanckTemp,
             const Float* tlay,
             const Float* tlev,
@@ -523,32 +523,30 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* totplnk,
             Float* sfc_src,
             Float* lay_src,
-            Float* lev_src_inc,
-            Float* lev_src_dec,
+            Float* lev_src,
             Float* sfc_src_jac)
     {
         Tuner_map& tunings = Tuner::get_map();
 
         const Float delta_Tsurf = Float(1.);
 
-        dim3 grid(ncol, nlay, 1), block;
+        dim3 grid(ncol_sub, nlay, 1), block;
         if (tunings.count("Planck_source_kernel_rt") == 0)
         {
             std::tie(grid, block) = tune_kernel(
                     "Planck_source_kernel_rt",
-                    dim3(ncol, nlay, 1),
+                    dim3(ncol_sub, nlay, 1),
                     {16, 32, 48, 64, 96, 128, 256, 512}, {1, 2, 4, 8}, {1},
-                    Planck_source_kernel,
-                    ncol, nlay, nbnd, ngpt,
+                    planck_source_kernel,
+                    col_s, ncol_sub, ncol, nlay, nbnd, ngpt,
                     nflav, neta, npres, ntemp, nPlanckTemp, igpt-1,
-                    tlay, tlev, tsfc, sfc_lay,
+                    tlay, tlev, tsfc, sfc_lay-1,
                     fmajor, jeta, tropo, jtemp,
                     jpress, gpoint_bands, band_lims_gpt,
                     pfracin, temp_ref_min, totplnk_delta,
                     totplnk,
                     delta_Tsurf, sfc_src, lay_src,
-                    lev_src_inc, lev_src_dec,
-                    sfc_src_jac);
+                    lev_src, sfc_src_jac);
 
             tunings["Planck_source_kernel_rt"].first = grid;
             tunings["Planck_source_kernel_rt"].second = block;
@@ -557,21 +555,21 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
         {
             block = tunings["Planck_source_kernel_rt"].second;
         }
-        
-        grid = calc_grid_size(block, dim3(ncol, nlay, 1));
 
-        Planck_source_kernel<<<grid, block>>>(
-                ncol, nlay, nbnd, ngpt,
+        grid = calc_grid_size(block, dim3(ncol_sub, nlay, 1));
+
+        planck_source_kernel<<<grid, block>>>(
+                col_s, ncol_sub, ncol, nlay, nbnd, ngpt,
                 nflav, neta, npres, ntemp, nPlanckTemp, igpt-1,
-                tlay, tlev, tsfc, sfc_lay,
+                tlay, tlev, tsfc, sfc_lay-1,
                 fmajor, jeta, tropo, jtemp,
                 jpress, gpoint_bands, band_lims_gpt,
                 pfracin, temp_ref_min, totplnk_delta,
                 totplnk,
                 delta_Tsurf,
                 sfc_src, lay_src,
-                lev_src_inc, lev_src_dec,
-                sfc_src_jac);
+                lev_src, sfc_src_jac);
+
     }
 }
 

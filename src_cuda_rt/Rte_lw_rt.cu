@@ -90,29 +90,32 @@ void Rte_lw_rt::rte_lw(
         const int n_gauss_angles)
 {
     const int max_gauss_pts = 4;
-    const Array<Float,2> gauss_Ds(
-            {      1.66,         0.,         0.,         0.,
-             1.18350343, 2.81649655,         0.,         0.,
-             1.09719858, 1.69338507, 4.70941630,         0.,
-             1.06056257, 1.38282560, 2.40148179, 7.15513024},
-            { max_gauss_pts, max_gauss_pts });
+    // Weights and angle secants for "Gauss-Jacobi-5" quadrature.
+    // Values from Table 1, R. J. Hogan 2023, doi:10.1002/qj.4598
+    const Array_gpu<Float,2> gauss_Ds(
+            Array<Float,2>(
+            { 1./0.6096748751, 0.            , 0.             , 0.,
+              1./0.2509907356, 1/0.7908473988, 0.             , 0.,
+              1./0.1024922169, 1/0.4417960320, 1./0.8633751621, 0.,
+              1./0.0454586727, 1/0.2322334416, 1./0.5740198775, 1./0.903077597 },
+            { max_gauss_pts, max_gauss_pts }));
 
-    const Array<Float,2> gauss_wts(
-            {         0.5,           0.,           0.,           0.,
-             0.3180413817, 0.1819586183,           0.,           0.,
-             0.2009319137, 0.2292411064, 0.0698269799,           0.,
-             0.1355069134, 0.2034645680, 0.1298475476, 0.0311809710},
-            { max_gauss_pts, max_gauss_pts });
+    const Array_gpu<Float,2> gauss_wts(
+            Array<Float,2>(
+            { 1.,           0.,           0.,           0.,
+              0.2300253764, 0.7699746236, 0.,           0.,
+              0.0437820218, 0.3875796738, 0.5686383044, 0.,
+              0.0092068785, 0.1285704278, 0.4323381850, 0.4298845087 },
+            { max_gauss_pts, max_gauss_pts }));
 
     const int ncol = optical_props->get_ncol();
     const int nlay = optical_props->get_nlay();
-    const int ngpt = optical_props->get_ngpt();
 
     // Upper boundary condition.
     if (inc_flux.size() == 0)
-        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, ngpt, top_at_1, gpt_flux_dn.ptr());
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, top_at_1, gpt_flux_dn.ptr());
     else
-        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, ngpt, top_at_1, inc_flux.ptr(), gpt_flux_dn.ptr());
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, nlay, top_at_1, inc_flux.ptr(), gpt_flux_dn.ptr());
 
     // Run the radiative transfer solver.
     const int n_quad_angs = n_gauss_angles;
@@ -127,11 +130,11 @@ void Rte_lw_rt::rte_lw(
     Array_gpu<Float,2> gpt_flux_up_jac(gpt_flux_up.get_dims());
 
     Rte_solver_kernels_cuda_rt::lw_solver_noscat_gaussquad(
-            ncol, nlay, ngpt, top_at_1, n_quad_angs,
+            ncol, nlay, top_at_1, n_quad_angs,
             gauss_Ds_subset.ptr(), gauss_wts_subset.ptr(),
             optical_props->get_tau().ptr(),
             sources.get_lay_source().ptr(),
-            sources.get_lev_source_inc().ptr(), sources.get_lev_source_dec().ptr(),
+            sources.get_lev_source().ptr(),
             sfc_emis.ptr(), sources.get_sfc_source().ptr(),
             gpt_flux_up.ptr(), gpt_flux_dn.ptr(),
             sfc_src_jac.ptr(), gpt_flux_up_jac.ptr());
