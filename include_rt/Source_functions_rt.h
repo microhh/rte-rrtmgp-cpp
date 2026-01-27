@@ -24,7 +24,7 @@
 
 #ifndef SOURCE_FUNCTIONS_RT_H
 #define SOURCE_FUNCTIONS_RT_H
-#include "Optical_props_rt.h" 
+#include "Optical_props_rt.h"
 
 template<typename, int> class Array_gpu;
 

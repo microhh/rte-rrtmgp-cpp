@@ -84,7 +84,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
     void compute_tau_absorption(
-            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, 
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband,
             const int ngpt, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int nminorlower, const int nminorklower,

@@ -145,12 +145,12 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
+                const Array_gpu<Float,2>& tlev,
                 const Array_gpu<Float,1>& tsfc,
                 const Gas_concs_gpu& gas_desc,
                 std::unique_ptr<Optical_props_arry_rt>& optical_props,
                 Source_func_lw_rt& sources,
-                const Array_gpu<Float,2>& col_dry,
-                const Array_gpu<Float,2>& tlev);
+                const Array_gpu<Float,2>& col_dry);
 
         // shortwave variant
         void gas_optics(
@@ -294,7 +294,7 @@ class Gas_optics_rrtmgp_rt : public Gas_optics_rt
                 const Float md_index, const Float sb_index);
 
         void compute_gas_taus(
-                const int col_s, const int ncol_block, const int ncol, const int nlay, 
+                const int col_s, const int ncol_block, const int ncol, const int nlay,
                 const int ngpt, const int nband, const int igpt,
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,

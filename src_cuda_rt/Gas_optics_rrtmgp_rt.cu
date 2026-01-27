@@ -867,7 +867,7 @@ void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
 
 __global__
 void fill_gases_kernel(
-        const int col_s, const int ncol_sub, const int ncol, const int nlay, 
+        const int col_s, const int ncol_sub, const int ncol, const int nlay,
         const int dim1, const int dim2, const int ngas, const int igas,
         const Float* __restrict__ vmr_in,
         Float* __restrict__ col_gas, const Float* __restrict__ col_dry)
@@ -1013,12 +1013,12 @@ void Gas_optics_rrtmgp_rt::gas_optics(
         const Array_gpu<Float,2>& play,
         const Array_gpu<Float,2>& plev,
         const Array_gpu<Float,2>& tlay,
+        const Array_gpu<Float,2>& tlev,
         const Array_gpu<Float,1>& tsfc,
         const Gas_concs_gpu& gas_desc,
         std::unique_ptr<Optical_props_arry_rt>& optical_props,
         Source_func_lw_rt& sources,
-        const Array_gpu<Float,2>& col_dry,
-        const Array_gpu<Float,2>& tlev)
+        const Array_gpu<Float,2>& col_dry)
 {
     const int nlay = play.dim(2);
     const int ngpt = this->get_ngpt();
@@ -1053,7 +1053,7 @@ void Gas_optics_rrtmgp_rt::gas_optics(
 // Gas optics solver shortwave variant.
 
 void Gas_optics_rrtmgp_rt::gas_optics(
-        const int igpt, 
+        const int igpt,
         const int col_s, const int ncol_sub, const int ncol,
         const Array_gpu<Float,2>& play,
         const Array_gpu<Float,2>& plev,

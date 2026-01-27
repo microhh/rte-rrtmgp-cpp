@@ -61,12 +61,12 @@ class Gas_optics_rt : public Optical_props_rt
                 const Array_gpu<Float,2>& play,
                 const Array_gpu<Float,2>& plev,
                 const Array_gpu<Float,2>& tlay,
+                const Array_gpu<Float,2>& tlev,
                 const Array_gpu<Float,1>& tsfc,
                 const Gas_concs_gpu& gas_desc,
                 std::unique_ptr<Optical_props_arry_rt>& optical_props,
                 Source_func_lw_rt& sources,
-                const Array_gpu<Float,2>& col_dry,
-                const Array_gpu<Float,2>& tlev) = 0;
+                const Array_gpu<Float,2>& col_dry) = 0;
 
         // Shortwave variant.
         virtual void gas_optics(
