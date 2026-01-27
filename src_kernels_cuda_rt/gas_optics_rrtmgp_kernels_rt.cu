@@ -356,6 +356,7 @@ void gas_optical_depths_major_kernel(
     if ( (icol < ncol_sub) && (ilay < nlay) )
     {
         const int idx_collay = icol + ilay*ncol_sub;
+        const int idx_off = icol + col_s + ilay*ncol;
         const int itropo = !tropo[idx_collay];
 
         const int ljtemp = jtemp[idx_collay];
@@ -372,7 +373,7 @@ void gas_optical_depths_major_kernel(
         #pragma unroll 1
         for (int i=0; i<2; ++i)
         {
-            tau[idx_collay] += col_mix[idx_fcl1+i] *
+            tau[idx_off] += col_mix[idx_fcl1+i] *
                 (ifmajor[i*4+0] * kmajor[(ljtemp-1+i) + (jeta[idx_fcl1+i]-1)*ntemp + (jpressi-1)*ntemp*neta + igpt*ntemp*neta*npress] +
                  ifmajor[i*4+1] * kmajor[(ljtemp-1+i) +  jeta[idx_fcl1+i]   *ntemp + (jpressi-1)*ntemp*neta + igpt*ntemp*neta*npress] +
                  ifmajor[i*4+2] * kmajor[(ljtemp-1+i) + (jeta[idx_fcl1+i]-1)*ntemp + jpressi    *ntemp*neta + igpt*ntemp*neta*npress] +
@@ -460,7 +461,7 @@ void gas_optical_depths_minor_kernel(
                                    kfminor[2] * kin[kjtemp     + (j1-1)*ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta] +
                                    kfminor[3] * kin[kjtemp     +  j1   *ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta];
 
-                tau[idx_collay] += ltau_minor * scaling;
+                tau[idx_off] += ltau_minor * scaling;
             }
         }
     }
@@ -512,7 +513,7 @@ void compute_tau_rayleigh_kernel(
 __global__
 void combine_abs_and_rayleigh_kernel(
         const int col_s, const int ncol_sub, const int ncol, const int nlay, const Float tmin,
-        const Float* __restrict__ tau_abs, const Float* __restrict__ tau_rayleigh,
+        const Float* __restrict__ tau_rayleigh,
         Float* __restrict__ tau, Float* __restrict__ ssa, Float* __restrict__ g)
 {
     // Fetch the three coordinates.
@@ -521,17 +522,17 @@ void combine_abs_and_rayleigh_kernel(
 
     if ( (icol < ncol_sub) && (ilay < nlay) )
     {
-        const int idx = icol + ilay*ncol_sub;
-        const int idx_out = icol + col_s + ilay*ncol;
+        const int idx_sub = icol + ilay*ncol_sub;
+        const int idx_full = icol + col_s + ilay*ncol;
 
-        const Float tau_tot = tau_abs[idx] + tau_rayleigh[idx];
+        const Float tau_tot = tau[idx_full] + tau_rayleigh[idx_sub];
 
-        tau[idx_out] = tau_tot;
-        g  [idx_out] = Float(0.);
+        tau[idx_full] = tau_tot;
+        g  [idx_full] = Float(0.);
 
         if (tau_tot>(Float(2.)*tmin))
-            ssa[idx_out] = tau_rayleigh[idx]/tau_tot;
+            ssa[idx_full] = tau_rayleigh[idx_sub]/tau_tot;
         else
-            ssa[idx_out] = Float(0.);
+            ssa[idx_full] = Float(0.);
     }
 }

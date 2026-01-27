@@ -1181,9 +1181,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
 
     if (has_rayleigh)
     {
-        Array_gpu<Float,2> tau({ncol_sub, nlay});
         Array_gpu<Float,2> tau_rayleigh({ncol_sub, nlay});
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(nlay, ncol_sub, tau.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(ncol_sub, nlay, tau_rayleigh.ptr());
 
         Gas_optics_rrtmgp_kernels_cuda_rt::compute_tau_absorption(
@@ -1214,7 +1212,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
                 col_mix.ptr(), fmajor.ptr(), fminor.ptr(),
                 play.ptr(), tlay.ptr(), col_gas.ptr(),
                 jeta.ptr(), jtemp.ptr(), jpress.ptr(),
-                tau.ptr());
+                optical_props->get_tau().ptr());
 
         Gas_optics_rrtmgp_kernels_cuda_rt::compute_tau_rayleigh(
                 col_s, ncol_sub, ncol, nlay, nband, ngpt, igpt,
@@ -1228,13 +1226,11 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
 
         Gas_optics_rrtmgp_kernels_cuda_rt::combine_abs_and_rayleigh(
                 col_s, ncol_sub, ncol, nlay,
-                tau.ptr(), tau_rayleigh.ptr(),
+                tau_rayleigh.ptr(),
                 optical_props->get_tau().ptr(), optical_props->get_ssa().ptr(), optical_props->get_g().ptr());
     }
     else
     {
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(ncol, nlay, optical_props->get_tau().ptr());
-
         Gas_optics_rrtmgp_kernels_cuda_rt::compute_tau_absorption(
                 col_s, ncol_sub, ncol, nlay, nband, ngpt, igpt,
                 ngas, nflav, neta, npres, ntemp,
