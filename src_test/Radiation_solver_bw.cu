@@ -928,6 +928,8 @@ void Radiation_solver_shortwave::solve_gpu(
 
             if (tune_step) return;
 
+            constexpr bool do_scattering = true;
+
             toa_src.fill(toa_src_temp({1}) * tsi_scaling({1}));
             if (switch_cloud_optics)
             {
@@ -939,6 +941,7 @@ void Radiation_solver_shortwave::solve_gpu(
                             iwp,
                             rel,
                             dei,
+                            do_scattering,
                             *cloud_optical_props);
 
                     if (switch_delta_cloud)
@@ -966,6 +969,7 @@ void Radiation_solver_shortwave::solve_gpu(
                             band,
                             aerosol_concs_subset,
                             rh, p_lev,
+                            do_scattering,
                             *aerosol_optical_props);
 
                     if (switch_delta_aerosol)
@@ -1081,12 +1085,14 @@ void Radiation_solver_shortwave::solve_gpu(
 
     if (switch_cloud_cam)
     {
+        constexpr bool do_scattering = true;
         cloud_optics_gpu->cloud_optics(
                 11, // 441-615 nm band
                 lwp,
                 iwp,
                 rel,
                 dei,
+                do_scattering,
                 *cloud_optical_props);
 
         raytracer.accumulate_clouds(
@@ -1226,6 +1232,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                 gas_optics_subset(col_s, n_col_residual);
             }
 
+            constexpr bool do_scattering = true;
             toa_src.fill(toa_src_temp({1}) * tsi_scaling({1}));
 
             if (switch_cloud_optics)
@@ -1238,6 +1245,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                             iwp,
                             rel,
                             dei,
+                            do_scattering,
                             *cloud_optical_props);
 
                     if (switch_delta_cloud)
@@ -1264,6 +1272,7 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                             band,
                             aerosol_concs_subset,
                             rh, p_lev,
+                            do_scattering,
                             *aerosol_optical_props);
 
                     if (switch_delta_aerosol)
@@ -1344,12 +1353,14 @@ void Radiation_solver_shortwave::solve_gpu_bb(
 
     if (switch_cloud_cam)
     {
+        constexpr bool do_scattering = true;
         cloud_optics_gpu->cloud_optics(
                 11, // 441-615 nm band
                 lwp,
                 iwp,
                 rel,
                 dei,
+                do_scattering,
                 *cloud_optical_props);
 
         raytracer.accumulate_clouds(

@@ -53,6 +53,7 @@ class Cloud_optics_rt : public Optical_props_rt
                 const int ibnd,
                 const Array_gpu<Float,2>& clwp, const Array_gpu<Float,2>& ciwp,
                 const Array_gpu<Float,2>& reliq, const Array_gpu<Float,2>& deice,
+                const bool do_scattering,
                 Optical_props_2str_rt& optical_props);
 
     private:

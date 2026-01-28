@@ -40,7 +40,8 @@ class Radiation_solver_longwave
         Radiation_solver_longwave(
                 const Gas_concs_gpu& gas_concs,
                 const std::string& file_name_gas,
-                const std::string& file_name_cloud);
+                const std::string& file_name_cloud,
+                const std::string& file_name_aerosol);
 
         #ifdef __CUDACC__
         void solve_gpu(
@@ -49,6 +50,7 @@ class Radiation_solver_longwave
                 const bool switch_cloud_optics,
                 const bool switch_aerosol_optics,
                 const bool switch_single_gpt,
+                const bool do_scattering,
                 const int single_gpt,
                 const Int ray_count,
                 const Vector<int> grid_cells,
@@ -63,8 +65,10 @@ class Radiation_solver_longwave
                 const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
                 const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
                 const Array_gpu<Float,2>& rh,
-                Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& cld_tau_out, Array_gpu<Float,2>& lay_source,
-                Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
+                Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out,
+                Array_gpu<Float,2>& cld_tau_out,Array_gpu<Float,2>& cld_ssa_out, Array_gpu<Float,2>& cld_asy_out,
+                Array_gpu<Float,2>& aer_tau_out,Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
+                Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
                 Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
                 Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net);
 
@@ -89,9 +93,9 @@ class Radiation_solver_longwave
 
         std::unique_ptr<Source_func_lw_rt> sources;
 
-        std::unique_ptr<Optical_props_1scl_rt> cloud_optical_props;
+        std::unique_ptr<Optical_props_2str_rt> cloud_optical_props;
 
-        std::unique_ptr<Optical_props_1scl_rt> aerosol_optical_props;
+        std::unique_ptr<Optical_props_2str_rt> aerosol_optical_props;
         #endif
 };
 

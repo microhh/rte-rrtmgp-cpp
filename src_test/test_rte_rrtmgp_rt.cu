@@ -234,6 +234,7 @@ void solve_radiation(int argc, char** argv)
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
         {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
+        {"lw-scattering"     , { false, "Enabling scattering in longwave "  }},
         {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
         {"aerosol-optics"    , { false, "Enable aerosol optics."                    }},
         {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
@@ -258,6 +259,7 @@ void solve_radiation(int argc, char** argv)
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
+    const bool switch_lw_scattering     = command_line_switches.at("lw-scattering"     ).first;
     const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
     const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
@@ -613,7 +615,7 @@ void solve_radiation(int argc, char** argv)
 
         Gas_concs_gpu gas_concs_gpu(gas_concs);
 
-        Radiation_solver_longwave rad_lw(gas_concs_gpu, "coefficients_lw.nc", "cloud_coefficients_lw.nc");
+        Radiation_solver_longwave rad_lw(gas_concs_gpu, "coefficients_lw.nc", "cloud_coefficients_lw.nc", "aerosol_optics_lw.nc");
 
         // Read the boundary conditions.
         const int n_bnd_lw = rad_lw.get_n_bnd_gpu();
@@ -624,7 +626,13 @@ void solve_radiation(int argc, char** argv)
 
         // Create output arrays.
         Array_gpu<Float,2> lw_tau_tot;
+        Array_gpu<Float,2> lw_ssa_tot;
         Array_gpu<Float,2> lw_tau_cld;
+        Array_gpu<Float,2> lw_ssa_cld;
+        Array_gpu<Float,2> lw_asy_cld;
+        Array_gpu<Float,2> lw_tau_aer;
+        Array_gpu<Float,2> lw_ssa_aer;
+        Array_gpu<Float,2> lw_asy_aer;
         Array_gpu<Float,2> lay_source;
         Array_gpu<Float,2> lev_source;
         Array_gpu<Float,1> sfc_source;
@@ -633,6 +641,15 @@ void solve_radiation(int argc, char** argv)
         {
             lw_tau_tot    .set_dims({n_col, n_lay});
             lw_tau_cld    .set_dims({n_col, n_lay});
+            lw_tau_aer    .set_dims({n_col, n_lay});
+            if (switch_lw_scattering)
+            {
+                lw_ssa_tot    .set_dims({n_col, n_lay});
+                lw_ssa_cld    .set_dims({n_col, n_lay});
+                lw_asy_cld    .set_dims({n_col, n_lay});
+                lw_ssa_aer    .set_dims({n_col, n_lay});
+                lw_asy_aer    .set_dims({n_col, n_lay});
+            }
             lay_source    .set_dims({n_col, n_lay});
             lev_source    .set_dims({n_col, n_lev});
             sfc_source    .set_dims({n_col});
@@ -698,6 +715,7 @@ void solve_radiation(int argc, char** argv)
                     switch_cloud_optics,
                     switch_aerosol_optics,
                     switch_single_gpt,
+                    switch_lw_scattering,
                     single_gpt,
                     photons_per_pixel,
                     grid_cells,
@@ -711,7 +729,10 @@ void solve_radiation(int argc, char** argv)
                     t_sfc_gpu, emis_sfc_gpu,
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu, rh_gpu,
-                    lw_tau_tot, lw_tau_cld, lay_source, lev_source, sfc_source,
+                    lw_tau_tot, lw_ssa_tot,
+                    lw_tau_cld, lw_ssa_cld, lw_asy_cld,
+                    lw_tau_aer, lw_ssa_aer, lw_asy_aer,
+                    lay_source, lev_source, sfc_source,
                     lw_flux_up, lw_flux_dn, lw_flux_net,
                     lw_gpt_flux_up, lw_gpt_flux_dn, lw_gpt_flux_net);
 
@@ -741,6 +762,20 @@ void solve_radiation(int argc, char** argv)
         Status::print_message("Storing the longwave output.");
         Array<Float,2> lw_tau_tot_cpu(lw_tau_tot);
         Array<Float,2> lw_tau_cld_cpu(lw_tau_cld);
+        Array<Float,2> lw_tau_aer_cpu(lw_tau_aer);
+        Array<Float,2> lw_ssa_tot_cpu;
+        Array<Float,2> lw_ssa_cld_cpu;
+        Array<Float,2> lw_asy_cld_cpu;
+        Array<Float,2> lw_ssa_aer_cpu;
+        Array<Float,2> lw_asy_aer_cpu;
+        if (switch_lw_scattering)
+        {
+            lw_ssa_tot_cpu = lw_ssa_tot;
+            lw_ssa_cld_cpu = lw_ssa_cld;
+            lw_asy_cld_cpu = lw_asy_cld;
+            lw_ssa_aer_cpu = lw_ssa_aer;
+            lw_asy_aer_cpu = lw_asy_aer;
+        }
         Array<Float,2> lay_source_cpu(lay_source);
         Array<Float,1> sfc_source_cpu(sfc_source);
         Array<Float,2> lev_source_cpu(lev_source);
@@ -768,6 +803,27 @@ void solve_radiation(int argc, char** argv)
             auto nc_lw_tau_cld = output_nc.add_variable<Float>("lw_tau_cld", {"lay", "y", "x"});
             nc_lw_tau_cld.insert(lw_tau_cld_cpu.v(), {0, 0, 0});
 
+            auto nc_lw_tau_aer = output_nc.add_variable<Float>("lw_tau_aer", {"lay", "y", "x"});
+            nc_lw_tau_aer.insert(lw_tau_aer_cpu.v(), {0, 0, 0});
+
+            if (switch_lw_scattering)
+            {
+                auto nc_lw_ssa_tot = output_nc.add_variable<Float>("lw_ssa_tot", {"lay", "y", "x"});
+                nc_lw_ssa_tot.insert(lw_ssa_tot_cpu.v(), {0, 0, 0});
+
+                auto nc_lw_ssa_cld = output_nc.add_variable<Float>("lw_ssa_cld", {"lay", "y", "x"});
+                nc_lw_ssa_cld.insert(lw_ssa_cld_cpu.v(), {0, 0, 0});
+
+                auto nc_lw_asy_cld = output_nc.add_variable<Float>("lw_asy_cld", {"lay", "y", "x"});
+                nc_lw_asy_cld.insert(lw_asy_cld_cpu.v(), {0, 0, 0});
+
+                auto nc_lw_ssa_aer = output_nc.add_variable<Float>("lw_ssa_aer", {"lay", "y", "x"});
+                nc_lw_ssa_aer.insert(lw_ssa_aer_cpu.v(), {0, 0, 0});
+
+                auto nc_lw_asy_aer = output_nc.add_variable<Float>("lw_asy_aer", {"lay", "y", "x"});
+                nc_lw_asy_aer.insert(lw_asy_aer_cpu.v(), {0, 0, 0});
+
+            }
             auto nc_lay_source     = output_nc.add_variable<Float>("lay_source"    , {"lay", "y", "x"});
             auto nc_lev_source = output_nc.add_variable<Float>("lev_source", {"lev", "y", "x"});
 
@@ -811,7 +867,7 @@ void solve_radiation(int argc, char** argv)
 
 
         Gas_concs_gpu gas_concs_gpu(gas_concs);
-        Radiation_solver_shortwave rad_sw(gas_concs_gpu, "coefficients_sw.nc", "cloud_coefficients_sw.nc", "aerosol_optics.nc");
+        Radiation_solver_shortwave rad_sw(gas_concs_gpu, "coefficients_sw.nc", "cloud_coefficients_sw.nc", "aerosol_optics_sw.nc");
 
         // Read the boundary conditions.
         const int n_bnd_sw = rad_sw.get_n_bnd_gpu();

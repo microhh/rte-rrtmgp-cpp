@@ -363,7 +363,7 @@ namespace
         Netcdf_file coef_nc(coef_file, Netcdf_mode::Read);
 
         // Read look-up table coefficient dimensions
-        int n_band     = coef_nc.get_dimension_size("band_sw");
+        int n_band     = coef_nc.get_dimension_size("band");
         int n_hum      = coef_nc.get_dimension_size("relative_humidity");
         int n_philic = coef_nc.get_dimension_size("hydrophilic");
         int n_phobic = coef_nc.get_dimension_size("hydrophobic");
@@ -371,18 +371,18 @@ namespace
         Array<Float,2> band_lims_wvn({2, n_band});
 
         Array<Float,2> mext_phobic(
-                coef_nc.get_variable<Float>("mass_ext_sw_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
+                coef_nc.get_variable<Float>("mass_ext_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
         Array<Float,2> ssa_phobic(
-                coef_nc.get_variable<Float>("ssa_sw_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
+                coef_nc.get_variable<Float>("ssa_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
         Array<Float,2> g_phobic(
-                coef_nc.get_variable<Float>("asymmetry_sw_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
+                coef_nc.get_variable<Float>("asymmetry_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
 
         Array<Float,3> mext_philic(
-                coef_nc.get_variable<Float>("mass_ext_sw_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
+                coef_nc.get_variable<Float>("mass_ext_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
         Array<Float,3> ssa_philic(
-                coef_nc.get_variable<Float>("ssa_sw_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
+                coef_nc.get_variable<Float>("ssa_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
         Array<Float,3> g_philic(
-                coef_nc.get_variable<Float>("asymmetry_sw_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
+                coef_nc.get_variable<Float>("asymmetry_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
 
         Array<Float,1> rh_upper(
                 coef_nc.get_variable<Float>("relative_humidity2", {n_hum}), {n_hum});
@@ -397,7 +397,8 @@ namespace
 Radiation_solver_longwave::Radiation_solver_longwave(
         const Gas_concs_gpu& gas_concs,
         const std::string& file_name_gas,
-        const std::string& file_name_cloud)
+        const std::string& file_name_cloud,
+        const std::string& file_name_aerosol)
 {
     // Construct the gas optics classes for the solver.
     this->kdist_gpu = std::make_unique<Gas_optics_rrtmgp_rt>(
@@ -406,8 +407,8 @@ Radiation_solver_longwave::Radiation_solver_longwave(
     this->cloud_optics_gpu = std::make_unique<Cloud_optics_rt>(
             load_and_init_cloud_optics(file_name_cloud));
 
-    //this->aerosol_optics_gpu = std::make_unique<Cloud_optics_rt>(
-    //        load_and_init_cloud_optics(file_name_cloud));
+    this->aerosol_optics_gpu = std::make_unique<Aerosol_optics_rt>(
+            load_and_init_aerosol_optics(file_name_aerosol));
 }
 
 
@@ -417,6 +418,7 @@ void Radiation_solver_longwave::solve_gpu(
         const bool switch_cloud_optics,
         const bool switch_aerosol_optics,
         const bool switch_single_gpt,
+        const bool switch_lw_scattering,
         const int single_gpt,
         const Int ray_count,
         const Vector<int> grid_cells,
@@ -431,8 +433,10 @@ void Radiation_solver_longwave::solve_gpu(
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         const Array_gpu<Float,2>& rh,
-        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& cld_tau_out, Array_gpu<Float,2>& lay_source,
-        Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
+        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out,
+        Array_gpu<Float,2>& cld_tau_out, Array_gpu<Float,2>& cld_ssa_out, Array_gpu<Float,2>& cld_asy_out,
+        Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
+        Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
         Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
         Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net)
 {
@@ -447,9 +451,9 @@ void Radiation_solver_longwave::solve_gpu(
 
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
-    optical_props = std::make_unique<Optical_props_1scl_rt>(n_col, n_lay, *kdist_gpu);
-    cloud_optical_props = std::make_unique<Optical_props_1scl_rt>(n_col, n_lay, *cloud_optics_gpu);
-    //aerosol_optical_props = std::make_unique<Optical_props_1scl_rt>(n_col, n_lay, *aerosol_optics_gpu);
+    optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
+    cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
+    aerosol_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *aerosol_optics_gpu);
     sources = std::make_unique<Source_func_lw_rt>(n_col, n_lay, *kdist_gpu);
 
     if (col_dry.size() == 0)
@@ -537,24 +541,25 @@ void Radiation_solver_longwave::solve_gpu(
                         iwp,
                         rel,
                         dei,
+                        switch_lw_scattering,
                         *cloud_optical_props);
                 // cloud->delta_scale();
 
             }
             // Add the cloud optical props to the gas optical properties.
             add_to(
-                    dynamic_cast<Optical_props_1scl_rt&>(*optical_props),
-                    dynamic_cast<Optical_props_1scl_rt&>(*cloud_optical_props));
+                    dynamic_cast<Optical_props_2str_rt&>(*optical_props),
+                    dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props));
         }
         else
         {
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_tau().ptr());
-            //Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_ssa().ptr());
-            //Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_g().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_ssa().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_g().ptr());
         }
 
         // NO AEROSOL IMPLEMENTATION FOR LONGWAVE RADIATION (YET)!
-        /*if (switch_aerosol_optics)
+        if (switch_aerosol_optics)
         {
             if (band > previous_band)
             {
@@ -562,23 +567,22 @@ void Radiation_solver_longwave::solve_gpu(
                         band,
                         aerosol_concs,
                         rh, p_lev,
+                        switch_lw_scattering,
                         *aerosol_optical_props);
                 // aerosol->delta_scale();
 
             }
             // Add the cloud optical props to the gas optical properties.
             add_to(
-                    dynamic_cast<Optical_props_1scl_rt&>(*optical_props),
-                    dynamic_cast<Optical_props_1scl_rt&>(*aerosol_optical_props));
+                    dynamic_cast<Optical_props_2str_rt&>(*optical_props),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props));
         }
         else
         {
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_aerosol_props->get_tau().ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_aerosol_props->get_ssa().ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_aerosol_props->get_g().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_tau().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_ssa().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_g().ptr());
         }
-        */
-
 
         // Store the optical properties, if desired.
         if (switch_single_gpt && igpt == single_gpt)
@@ -589,12 +593,16 @@ void Radiation_solver_longwave::solve_gpu(
 
             tot_tau_out = optical_props->get_tau();
             cld_tau_out = cloud_optical_props->get_tau();
-            //tot_ssa_out = optical_props->get_ssa();
-            //cld_ssa_out = cloud_optical_props->get_ssa();
-            //cld_asy_out = cloud_optical_props->get_g();
-            //aer_tau_out = aerosol_optical_props->get_tau();
-            //aer_ssa_out = aerosol_optical_props->get_ssa();
-            //aer_asy_out = aerosol_optical_props->get_g();
+
+            if (switch_lw_scattering)
+            {
+                tot_ssa_out = optical_props->get_ssa();
+                cld_ssa_out = cloud_optical_props->get_ssa();
+                cld_asy_out = cloud_optical_props->get_g();
+                aer_tau_out = aerosol_optical_props->get_tau();
+                aer_ssa_out = aerosol_optical_props->get_ssa();
+                aer_asy_out = aerosol_optical_props->get_g();
+            }
         }
 
 
@@ -718,6 +726,7 @@ void Radiation_solver_shortwave::solve_gpu(
 
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
+
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
     aerosol_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *aerosol_optics_gpu);
@@ -818,6 +827,7 @@ void Radiation_solver_shortwave::solve_gpu(
                 scale_tau(dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau().ptr(), n_col, n_lay, attenuate_scale_factor);
         }
 
+        constexpr bool do_scattering = true;
         if (switch_aerosol_optics)
         {
             if (band > previous_band)
@@ -827,6 +837,7 @@ void Radiation_solver_shortwave::solve_gpu(
                         band,
                         aerosol_concs,
                         rh, p_lev,
+                        do_scattering,
                         *aerosol_optical_props);
                 if (switch_delta_aerosol)
                     aerosol_optical_props->delta_scale();
@@ -858,6 +869,7 @@ void Radiation_solver_shortwave::solve_gpu(
                         iwp,
                         rel,
                         dei,
+                        do_scattering,
                         *cloud_optical_props);
 
                 if (switch_delta_cloud)

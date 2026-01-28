@@ -30,6 +30,7 @@ class Aerosol_optics_rt : public Optical_props_rt
                 const int ibnd,
                 Aerosol_concs_gpu& aerosol_concs,
                 const Array_gpu<Float,2>& rh, const Array_gpu<Float,2>& plev,
+                const bool do_scattering,
                 Optical_props_2str_rt& optical_props);
 
     private:

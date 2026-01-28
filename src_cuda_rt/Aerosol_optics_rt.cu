@@ -173,6 +173,20 @@ namespace
         }
     }
 
+    __global__
+    void combine_and_store_kernel(const int ncol, const int nlay, const Float tmin,
+                  Float* __restrict__ tau, const Float* __restrict__ ltau, const Float* __restrict__ ltaussa)
+    {
+        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+        const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
+
+        if ( (icol < ncol) && (ilay < nlay) )
+        {
+            const int idx = icol + ilay*ncol;
+            tau[idx] = ltau[idx] - ltaussa[idx];
+        }
+    }
+
     void fill_aerosols_3d(const int ncol, const int nlay, Aerosol_concs_gpu& aerosol_concs)
     {
         for (int i=1; i<=11; ++i)
@@ -221,6 +235,7 @@ void Aerosol_optics_rt::aerosol_optics(
         const int ibnd,
         Aerosol_concs_gpu& aerosol_concs,
         const Array_gpu<Float,2>& rh, const Array_gpu<Float,2>& plev,
+        const bool do_scattering,
         Optical_props_2str_rt& optical_props)
 {
     const int ncol = rh.dim(1);
@@ -265,11 +280,20 @@ void Aerosol_optics_rt::aerosol_optics(
             this->mext_philic_gpu.ptr(), this->ssa_philic_gpu.ptr(), this->g_philic_gpu.ptr(),
             ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
 
-    combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, eps,
-            optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
-            ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
+    if (do_scattering)
+    {
+        combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
+                ncol, nlay, eps,
+                optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
+                ltau.ptr(), ltaussa.ptr(), ltaussag.ptr());
+    }
+    else
+    {
+        combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
+                ncol, nlay, eps,
+                optical_props.get_tau().ptr(), ltau.ptr(), ltaussa.ptr());
 
+    }
 
 
 }
