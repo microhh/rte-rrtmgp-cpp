@@ -60,7 +60,7 @@ namespace
 //
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt,
-//            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
+//            bool top_at_1, Array<Float,3>& gpt_flux_dn)
 //    {
 //        rrtmgp_kernels::apply_BC_0(
 //                &ncol, &nlay, &ngpt,
@@ -70,7 +70,7 @@ namespace
 //
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt,
-//            Bool top_at_1, const Array<Float,2>& inc_flux,
+//            bool top_at_1, const Array<Float,2>& inc_flux,
 //            Array<Float,3>& gpt_flux_dn)
 //    {
 //        rrtmgp_kernels::apply_BC_gpt(
@@ -81,7 +81,7 @@ namespace
 
 void Rte_lw_rt::rte_lw(
         const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-        const Bool top_at_1,
+        const bool top_at_1,
         const bool do_scattering,
         const Source_func_lw_rt& sources,
         const Array_gpu<Float,2>& sfc_emis,

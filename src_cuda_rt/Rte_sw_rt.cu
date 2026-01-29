@@ -62,7 +62,7 @@ namespace
 //
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt,
-//            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
+//            bool top_at_1, Array<Float,3>& gpt_flux_dn)
 //    {
 //        rrtmgp_kernels::apply_BC_0(
 //                &ncol, &nlay, &ngpt,
@@ -71,7 +71,7 @@ namespace
 //
 //
 //    void apply_BC(
-//            int ncol, int nlay, int ngpt, Bool top_at_1,
+//            int ncol, int nlay, int ngpt, bool top_at_1,
 //            const Array<Float,2>& inc_flux, Array<Float,3>& gpt_flux_dn)
 //    {
 //        rrtmgp_kernels::apply_BC_gpt(
@@ -81,7 +81,7 @@ namespace
 //
 //
 //    void apply_BC(
-//            int ncol, int nlay, int ngpt, Bool top_at_1,
+//            int ncol, int nlay, int ngpt, bool top_at_1,
 //            const Array<Float,2>& inc_flux,
 //            const Array<Float,1>& factor,
 //            Array<Float,3>& gpt_flux)
@@ -96,7 +96,7 @@ namespace
 //
 //
 //    void sw_solver_2stream(
-//            int ncol, int nlay, int ngpt, Bool top_at_1,
+//            int ncol, int nlay, int ngpt, bool top_at_1,
 //            const Array<Float,3>& tau,
 //            const Array<Float,3>& ssa,
 //            const Array<Float,3>& g,
@@ -118,7 +118,7 @@ namespace
 
 void Rte_sw_rt::rte_sw(
         const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-        const Bool top_at_1,
+        const bool top_at_1,
         const Array_gpu<Float,1>& mu0,
         const Array_gpu<Float,1>& inc_flux_dir,
         const Array_gpu<Float,2>& sfc_alb_dir,

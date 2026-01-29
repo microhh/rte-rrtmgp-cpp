@@ -59,7 +59,7 @@ namespace
 //    template<typename Float>
 //    void apply_BC(
 //            int ncol, int nlay, int ngpt,
-//            Bool top_at_1, Array<Float,3>& gpt_flux_dn)
+//            bool top_at_1, Array<Float,3>& gpt_flux_dn)
 //    {
 //        rrtmgp_kernels::apply_BC_0(
 //                &ncol, &nlay, &ngpt,
@@ -68,7 +68,7 @@ namespace
 //
 //    template<typename Float>
 //    void apply_BC(
-//            int ncol, int nlay, int ngpt, Bool top_at_1,
+//            int ncol, int nlay, int ngpt, bool top_at_1,
 //            const Array<Float,2>& inc_flux, Array<Float,3>& gpt_flux_dn)
 //    {
 //        rrtmgp_kernels::apply_BC_gpt(
@@ -78,7 +78,7 @@ namespace
 //
 //    template<typename Float>
 //    void apply_BC(
-//            int ncol, int nlay, int ngpt, Bool top_at_1,
+//            int ncol, int nlay, int ngpt, bool top_at_1,
 //            const Array<Float,2>& inc_flux,
 //            const Array<Float,1>& factor,
 //            Array<Float,3>& gpt_flux)
@@ -93,7 +93,7 @@ namespace
 //
 //    template<typename Float>
 //    void sw_solver_2stream(
-//            int ncol, int nlay, int ngpt, Bool top_at_1,
+//            int ncol, int nlay, int ngpt, bool top_at_1,
 //            const Array<Float,3>& tau,
 //            const Array<Float,3>& ssa,
 //            const Array<Float,3>& g,
@@ -115,7 +115,7 @@ namespace
 
 void Rte_sw_gpu::rte_sw(
         const std::unique_ptr<Optical_props_arry_gpu>& optical_props,
-        const Bool top_at_1,
+        const bool top_at_1,
         const Array_gpu<Float,1>& mu0,
         const Array_gpu<Float,2>& inc_flux_dir,
         const Array_gpu<Float,2>& sfc_alb_dir,
@@ -135,12 +135,12 @@ void Rte_sw_gpu::rte_sw(
     expand_and_transpose(optical_props, sfc_alb_dir, sfc_alb_dir_gpt);
     expand_and_transpose(optical_props, sfc_alb_dif, sfc_alb_dif_gpt);
 
-    const Bool has_dif_bc = false;
-    const Bool do_broadband = (gpt_flux_up.dim(3) == 1) ? true : false;
+    const bool has_dif_bc = false;
+    const bool do_broadband = (gpt_flux_up.dim(3) == 1) ? true : false;
 
     if (do_broadband)
         throw std::runtime_error("Broadband fluxes not implemented, performance gain on GPU is negligible");
-    
+
     // pass null ptr if size of inc_flux is zero
     const Float* inc_flux_dif_ptr = (inc_flux_dif.size() == 0) ? nullptr : inc_flux_dif.ptr();
 

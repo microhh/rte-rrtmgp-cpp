@@ -40,7 +40,7 @@ class Rte_lw_rt
     public:
         void rte_lw(
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1,
+                const bool top_at_1,
                 const bool do_scattering,
                 const Source_func_lw_rt& sources,
                 const Array_gpu<Float,2>& sfc_emis,

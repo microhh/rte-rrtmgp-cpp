@@ -30,33 +30,33 @@
 
 namespace Rte_solver_kernels_cuda
 {
-    void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1,
+    void apply_BC(const int ncol, const int nlay, const int ngpt, const bool top_at_1,
                   const Float* inc_flux_dir, const Float* mu0, Float* gpt_flux_dir);
-    void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, Float* gpt_flux_dn);
-    void apply_BC(const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const Float* inc_flux_dif, Float* gpt_flux_dn);
+    void apply_BC(const int ncol, const int nlay, const int ngpt, const bool top_at_1, Float* gpt_flux_dn);
+    void apply_BC(const int ncol, const int nlay, const int ngpt, const bool top_at_1, const Float* inc_flux_dif, Float* gpt_flux_dn);
 
 
     void sw_solver_2stream(
-            const int ncol, const int nlay, const int ngpt, const Bool top_at_1,
+            const int ncol, const int nlay, const int ngpt, const bool top_at_1,
             const Float* tau, const Float* ssa, const Float* g,
             const Float* mu0,
             const Float* sfc_alb_dir, const Float* sfc_alb_dif,
             const Float* inc_flux_dir,
             Float* flux_up, Float* flux_dn, Float* flux_dir,
-            const Bool has_dif_bc, const Float* inc_flux_dif,
-            const Bool do_broadband, Float* flux_up_loc, Float* flux_dn_loc, Float* flux_dir_loc);
+            const bool has_dif_bc, const Float* inc_flux_dif,
+            const bool do_broadband, Float* flux_up_loc, Float* flux_dn_loc, Float* flux_dir_loc);
 
 
     void lw_solver_noscat(
-            const int ncol, const int nlay, const int ngpt, const Bool top_at_1, const int nmus,
+            const int ncol, const int nlay, const int ngpt, const bool top_at_1, const int nmus,
             const Float* secants, const Float* weights,
             const Float* tau, const Float* lay_source,
             const Float* lev_source,
             const Float* sfc_emis, const Float* sfc_src,
             const Float* inc_flux,
             Float* flux_up, Float* flux_dn,
-            const Bool do_broadband, Float* flux_up_loc, Float* flux_dn_loc,
-            const Bool do_jacobians, const Float* sfc_src_jac, Float* flux_up_jac);
+            const bool do_broadband, Float* flux_up_loc, Float* flux_dn_loc,
+            const bool do_jacobians, const Float* sfc_src_jac, Float* flux_up_jac);
 
 
     void lw_secants_array(

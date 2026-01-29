@@ -18,7 +18,7 @@ namespace
 
 namespace Rte_solver_kernels_cuda_rt
 {
-    void apply_BC(const int ncol, const int nlay, const Bool top_at_1,
+    void apply_BC(const int ncol, const int nlay, const bool top_at_1,
                   const Float* inc_flux_dir, const Float* mu0, Float* gpt_flux_dir)
     {
         const int block_col = 32;
@@ -30,7 +30,7 @@ namespace Rte_solver_kernels_cuda_rt
     }
 
 
-    void apply_BC(const int ncol, const int nlay, const Bool top_at_1, Float* gpt_flux_dn)
+    void apply_BC(const int ncol, const int nlay, const bool top_at_1, Float* gpt_flux_dn)
     {
         const int block_col = 32;
         const int grid_col = ncol/block_col + (ncol%block_col > 0);
@@ -41,7 +41,7 @@ namespace Rte_solver_kernels_cuda_rt
     }
 
 
-    void apply_BC(const int ncol, const int nlay, const Bool top_at_1, const Float inc_flux, Float* gpt_flux_dn)
+    void apply_BC(const int ncol, const int nlay, const bool top_at_1, const Float inc_flux, Float* gpt_flux_dn)
     {
         const int block_col = 32;
         const int grid_col = ncol/block_col + (ncol%block_col > 0);
@@ -51,7 +51,7 @@ namespace Rte_solver_kernels_cuda_rt
         apply_BC_kernel<<<grid_gpu, block_gpu>>>(ncol, nlay, top_at_1, inc_flux, gpt_flux_dn);
     }
 
-    void apply_BC(const int ncol, const int nlay, const Bool top_at_1, const Float* inc_flux_dif, Float* gpt_flux_dn)
+    void apply_BC(const int ncol, const int nlay, const bool top_at_1, const Float* inc_flux_dif, Float* gpt_flux_dn)
     {
         const int block_col = 32;
         const int grid_col = ncol/block_col + (ncol%block_col > 0);
@@ -62,7 +62,7 @@ namespace Rte_solver_kernels_cuda_rt
     }
 
     void lw_solver_noscat_gaussquad(
-            const int ncol, const int nlay, const Bool top_at_1, const int nmus,
+            const int ncol, const int nlay, const bool top_at_1, const int nmus,
             const Float* ds, const Float* weights, const Float* tau, const Float* lay_source,
             const Float* lev_source, const Float* sfc_emis,
             const Float* sfc_src, Float* flux_up, Float* flux_dn,
@@ -253,7 +253,7 @@ namespace Rte_solver_kernels_cuda_rt
     }
 
 
-    void sw_solver_2stream(const int ncol, const int nlay, const Bool top_at_1,
+    void sw_solver_2stream(const int ncol, const int nlay, const bool top_at_1,
                            const Float* tau, const Float* ssa, const Float* g,
                            const Float* mu0, const Float* sfc_alb_dir, const Float* sfc_alb_dif,
                            Float* flux_up, Float* flux_dn, Float* flux_dir)
@@ -398,7 +398,7 @@ namespace Rte_solver_kernels_cuda_rt
         Tools_gpu::free_gpu(denom);
     }
 
-    void lw_solver_2stream(const int ncol, const int nlay, const Bool top_at_1,
+    void lw_solver_2stream(const int ncol, const int nlay, const bool top_at_1,
                            const Float* tau, const Float* ssa, const Float* g,
                            const Float* lay_source, const Float* lev_source,
                            const Float* sfc_emis, const Float* sfc_src,

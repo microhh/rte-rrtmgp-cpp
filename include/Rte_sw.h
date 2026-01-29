@@ -64,7 +64,7 @@ class Rte_sw_gpu
     public:
         void rte_sw(
                 const std::unique_ptr<Optical_props_arry_gpu>& optical_props,
-                const Bool top_at_1,
+                const bool top_at_1,
                 const Array_gpu<Float,1>& mu0,
                 const Array_gpu<Float,2>& inc_flux_dir,
                 const Array_gpu<Float,2>& sfc_alb_dir,

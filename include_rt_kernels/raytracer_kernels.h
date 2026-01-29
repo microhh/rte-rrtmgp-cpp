@@ -20,7 +20,7 @@ constexpr Float k_null_gas_min = Float(1.e-3);
 
 __global__
 void ray_tracer_kernel(
-        const Bool independent_column,
+        const bool independent_column,
         const Int photons_to_shoot,
         const Int qrng_grid_x,
         const Int qrng_grid_y,

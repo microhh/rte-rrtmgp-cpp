@@ -70,7 +70,7 @@ void Gas_concs_gpu::set_vmr(const std::string& name, const Array<Float,2>& data)
 }
 
 // Check if gas exists in map.
-Bool Gas_concs_rt::exists(const std::string& name) const
+bool Gas_concs_rt::exists(const std::string& name) const
 {
     return gas_concs_map.count(name) != 0;
 }

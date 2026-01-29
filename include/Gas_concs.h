@@ -79,12 +79,12 @@ class Gas_concs_gpu
         ~Gas_concs_gpu();
 
         const Array_gpu<Float,2>& get_vmr(const std::string& name) const;
- 
+
         void set_vmr(const std::string& name, const Array<Float,2>& data);
         void set_vmr(const std::string& name, const Array_gpu<Float,2>& data);
 
         // Check if gas exists in map.
-        Bool exists(const std::string& name) const;
+        bool exists(const std::string& name) const;
 
     private:
         std::map<std::string, Array_gpu<Float,2>> gas_concs_map;

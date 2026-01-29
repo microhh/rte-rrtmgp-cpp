@@ -119,7 +119,7 @@ namespace
 
 __global__
 void ray_tracer_kernel(
-        const Bool independent_column,
+        const bool independent_column,
         const Int photons_to_shoot,
         const Int qrng_grid_x,
         const Int qrng_grid_y,
@@ -186,7 +186,7 @@ void ray_tracer_kernel(
     Float tau = Float(0.);
     Float d_max = Float(0.);
     Float k_ext_null;
-    Bool transition = false;
+    bool transition = false;
     int i_n, j_n, k_n;
 
     while (photons_shot < photons_to_shoot)

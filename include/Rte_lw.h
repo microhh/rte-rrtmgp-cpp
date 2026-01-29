@@ -64,7 +64,7 @@ class Rte_lw_gpu
     public:
         void rte_lw(
                 const std::unique_ptr<Optical_props_arry_gpu>& optical_props,
-                const Bool top_at_1,
+                const bool top_at_1,
                 const Source_func_lw_gpu& sources,
                 const Array_gpu<Float,2>& sfc_emis,
                 const Array_gpu<Float,2>& inc_flux,

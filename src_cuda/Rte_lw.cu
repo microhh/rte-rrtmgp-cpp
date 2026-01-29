@@ -59,7 +59,7 @@ namespace
 
 void Rte_lw_gpu::rte_lw(
         const std::unique_ptr<Optical_props_arry_gpu>& optical_props,
-        const Bool top_at_1,
+        const bool top_at_1,
         const Source_func_lw_gpu& sources,
         const Array_gpu<Float,2>& sfc_emis,
         const Array_gpu<Float,2>& inc_flux,
@@ -109,12 +109,12 @@ void Rte_lw_gpu::rte_lw(
     Array_gpu<Float,2> sfc_src_jac(sources.get_sfc_source().get_dims());
     Array_gpu<Float,3> gpt_flux_up_jac(gpt_flux_up.get_dims());
 
-    const Bool do_broadband = (gpt_flux_up.dim(3) == 1) ? true : false;
+    const bool do_broadband = (gpt_flux_up.dim(3) == 1) ? true : false;
 
     if (do_broadband)
         throw std::runtime_error("Broadband fluxes not implemented, performance gain on GPU is negligible");
 
-    const Bool do_jacobians = false;
+    const bool do_jacobians = false;
 
     // pass null ptr if size of inc_flux is zero
     const Float* inc_flux_ptr = (inc_flux.size() == 0) ? nullptr : inc_flux.ptr();

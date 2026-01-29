@@ -32,13 +32,13 @@
 template<typename, int> class Array_gpu;
 class Optical_props_arry_rt;
 
-#ifdef USECUDA 
+#ifdef USECUDA
 class Rte_sw_rt
 {
     public:
         void rte_sw(
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1,
+                const bool top_at_1,
                 const Array_gpu<Float,1>& mu0,
                 const Array_gpu<Float,1>& inc_flux_dir,
                 const Array_gpu<Float,2>& sfc_alb_dir,

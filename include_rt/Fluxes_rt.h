@@ -44,14 +44,14 @@ class Fluxes_rt
                 const Array_gpu<Float,3>& gpt_flux_up,
                 const Array_gpu<Float,3>& gpt_flux_dn,
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1) = 0;
+                const bool top_at_1) = 0;
 
         virtual void reduce(
                 const Array_gpu<Float,3>& gpt_flux_up,
                 const Array_gpu<Float,3>& gpt_flux_dn,
                 const Array_gpu<Float,3>& gpt_flux_dn_dir,
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1) = 0;
+                const bool top_at_1) = 0;
 };
 
 
@@ -67,14 +67,14 @@ class Fluxes_broadband_rt : public Fluxes_rt
                 const Array_gpu<Float,3>& gpt_flux_up,
                 const Array_gpu<Float,3>& gpt_flux_dn,
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1);
+                const bool top_at_1);
 
         virtual void reduce(
                 const Array_gpu<Float,3>& gpt_flux_up,
                 const Array_gpu<Float,3>& gpt_flux_dn,
                 const Array_gpu<Float,3>& gpt_flux_dn_dir,
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1);
+                const bool top_at_1);
 
         Array_gpu<Float,2>& get_flux_up    () { return flux_up;     }
         Array_gpu<Float,2>& get_flux_dn    () { return flux_dn;     }
@@ -88,8 +88,8 @@ class Fluxes_broadband_rt : public Fluxes_rt
         Array_gpu<Float,2>& get_flux_sfc_up    () { return flux_sfc_up; }
         Array_gpu<Float,3>& get_flux_abs_dir   () { return flux_abs_dir;}
         Array_gpu<Float,3>& get_flux_abs_dif   () { return flux_abs_dif;}
-        
-        
+
+
         virtual Array_gpu<Float,3>& get_bnd_flux_up    () { throw std::runtime_error("Band fluxes are not available"); }
         virtual Array_gpu<Float,3>& get_bnd_flux_dn    () { throw std::runtime_error("Band fluxes are not available"); }
         virtual Array_gpu<Float,3>& get_bnd_flux_dn_dir() { throw std::runtime_error("Band fluxes are not available"); }
@@ -120,14 +120,14 @@ class Fluxes_byband_rt : public Fluxes_broadband_rt
                 const Array_gpu<Float,3>& gpt_flux_up,
                 const Array_gpu<Float,3>& gpt_flux_dn,
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1);
+                const bool top_at_1);
 
         virtual void reduce(
                 const Array_gpu<Float,3>& gpt_flux_up,
                 const Array_gpu<Float,3>& gpt_flux_dn,
                 const Array_gpu<Float,3>& gpt_flux_dn_dir,
                 const std::unique_ptr<Optical_props_arry_rt>& optical_props,
-                const Bool top_at_1);
+                const bool top_at_1);
 
         Array_gpu<Float,3>& get_bnd_flux_up    () { return bnd_flux_up;     }
         Array_gpu<Float,3>& get_bnd_flux_dn    () { return bnd_flux_dn;     }
