@@ -158,8 +158,8 @@ void lw_solver_noscat_step_3_kernel(
     }
 }
 
-template<Bool top_at_1> __global__
-void sw_adding_kernel(
+template<Bool top_at_1, Bool direct_flux> __global__
+void adding_kernel(
         const int ncol, const int nlay, const Bool _top_at_1,
         const Float* __restrict__ sfc_alb_dif, const Float* __restrict__ r_dif, const Float* __restrict__ t_dif,
         const Float* __restrict__ source_dn, const Float* __restrict__ source_up, const Float* __restrict__ source_sfc,
@@ -203,7 +203,8 @@ void sw_adding_kernel(
                                          source_dn[lay_idx]) * denom[lay_idx];
                     flux_up[lev_idx1] = flux_dn[lev_idx1] * albedo[lev_idx1] + src[lev_idx1];
                 }
-                flux_dn[lev_idx2] += flux_dir[lev_idx2];
+                if (direct_flux)
+                    flux_dn[lev_idx2] += flux_dir[lev_idx2];
             }
         }
         else
@@ -241,55 +242,10 @@ void sw_adding_kernel(
                                              source_dn[lay_idx]) * denom[lay_idx];
                         flux_up[lev_idx1] = flux_dn[lev_idx1] * albedo[lev_idx1] + src[lev_idx1];
                     }
-                    flux_dn[lev_idx2] += flux_dir[lev_idx2];
+                    if (direct_flux)
+                        flux_dn[lev_idx2] += flux_dir[lev_idx2];
             }
 
-        }
-    }
-}
-
-template<Bool top_at_1> __global__
-void sw_source_kernel(
-        const int ncol, const int nlay, const Bool _top_at_1,
-        Float* __restrict__ r_dir, Float* __restrict__ t_dir, Float* __restrict__ t_noscat,
-        const Float* __restrict__ sfc_alb_dir, Float* __restrict__ source_up, Float* __restrict__ source_dn,
-        Float* __restrict__ source_sfc, Float* __restrict__ flux_dir)
-{
-    const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-
-    if ( (icol < ncol) )
-    {
-        if (top_at_1)
-        {
-            for (int ilay=0; ilay<nlay; ++ilay)
-            {
-                const int idx_lay  = icol + ilay*ncol;
-                const int idx_lev1 = icol + ilay*ncol;
-                const int idx_lev2 = icol + (ilay+1)*ncol;
-                source_up[idx_lay] = r_dir[idx_lay] * flux_dir[idx_lev1];
-                source_dn[idx_lay] = t_dir[idx_lay] * flux_dir[idx_lev1];
-                flux_dir[idx_lev2] = t_noscat[idx_lay] * flux_dir[idx_lev1];
-
-            }
-            const int sfc_idx = icol;
-            const int flx_idx = icol + nlay*ncol;
-            source_sfc[sfc_idx] = flux_dir[flx_idx] * sfc_alb_dir[icol];
-        }
-        else
-        {
-            for (int ilay=nlay-1; ilay>=0; --ilay)
-            {
-                const int idx_lay  = icol + ilay*ncol;
-                const int idx_lev1 = icol + (ilay)*ncol;
-                const int idx_lev2 = icol + (ilay+1)*ncol;
-                source_up[idx_lay] = r_dir[idx_lay] * flux_dir[idx_lev2];   //uses updated flux_dir from previous iteration
-                source_dn[idx_lay] = t_dir[idx_lay] * flux_dir[idx_lev2];   //uses updated flux_dir from previous
-                flux_dir[idx_lev1] = t_noscat[idx_lay] * flux_dir[idx_lev2];//updates flux_dir for 0 to nlay-1
-
-            }
-            const int sfc_idx = icol;
-            const int flx_idx = icol;
-            source_sfc[sfc_idx] = flux_dir[flx_idx] * sfc_alb_dir[icol];
         }
     }
 }
@@ -403,72 +359,6 @@ void sw_2stream_kernel(
                                    Float(2.) * (k_gamma4 + alpha1 * k_mu)  * exp_minusktau);
     }
 }
-
-/*
-__global__
-void sw_source_adding_kernel(const int ncol, const int nlay, const Bool top_at_1,
-                             const Float* __restrict__ sfc_alb_dir, const Float* __restrict__ sfc_alb_dif,
-                             Float* __restrict__ r_dif, Float* __restrict__ t_dif,
-                             Float* __restrict__ r_dir, Float* __restrict__ t_dir, Float* __restrict__ t_noscat,
-                             Float* __restrict__ flux_up, Float* __restrict__ flux_dn, Float* __restrict__ flux_dir,
-                             Float* __restrict__ source_up, Float* __restrict__ source_dn, Float* __restrict__ source_sfc,
-                             Float* __restrict__ albedo, Float* __restrict__ src, Float* __restrict__ denom)
-{
-    const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-    const int igpt = blockIdx.y*blockDim.y + threadIdx.y;
-
-    if ( (icol < ncol) && (igpt < ngpt) )
-    {
-        sw_source_kernel(icol, igpt, ncol, nlay, top_at_1, r_dir, t_dir,
-                         t_noscat, sfc_alb_dir, source_up, source_dn, source_sfc, flux_dir);
-
-        sw_adding_kernel(icol, igpt, ncol, nlay, top_at_1, sfc_alb_dif,
-                         r_dif, t_dif, source_dn, source_up, source_sfc,
-                         flux_up, flux_dn, flux_dir, albedo, src, denom);
-    }
-}
-*/
-// __global__
-// void lw_solver_noscat_gaussquad_kernel(const int ncol, const int nlay, const Float eps,
-//                                        const Bool top_at_1, const int nmus, const Float* __restrict__ ds, const Float* __restrict__ weights,
-//                                        const Float* __restrict__ tau, const Float* __restrict__ lay_source,
-//                                        const Float* __restrict__ lev_source, const Float* __restrict__ sfc_emis,
-//                                        const Float* __restrict__ sfc_src, Float* __restrict__ radn_up, Float* __restrict__ radn_dn,
-//                                        const Float* __restrict__ sfc_src_jac, Float* __restrict__ radn_up_jac, Float* __restrict__ tau_loc,
-//                                        Float* __restrict__ trans, Float* __restrict__ source_dn, Float* __restrict__ source_up,
-//                                        Float* __restrict__ source_sfc, Float* __restrict__ sfc_albedo, Float* __restrict__ source_sfc_jac,
-//                                        Float* __restrict__ flux_up, Float* __restrict__ flux_dn, Float* __restrict__ flux_up_jac)
-// {
-//     const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-//     const int igpt = blockIdx.y*blockDim.y + threadIdx.y;
-//
-//     if ( (icol < ncol) && (igpt < ngpt) )
-//     {
-//         lw_solver_noscat_kernel(icol, igpt, ncol, nlay, ngpt, eps, top_at_1, ds[0], weights[0], tau, lay_source,
-//                          lev_source, sfc_emis, sfc_src, flux_up, flux_dn, sfc_src_jac,
-//                          flux_up_jac, tau_loc, trans, source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
-//         const int top_level = top_at_1 ? 0 : nlay;
-//         apply_BC_kernel_lw(icol, igpt, top_level, ncol, nlay, ngpt, top_at_1, flux_dn, radn_dn);
-//
-//         if (nmus > 1)
-//         {
-//             for (int imu=1; imu<nmus; ++imu)
-//             {
-//                 lw_solver_noscat_kernel(icol, igpt, ncol, nlay, ngpt, eps, top_at_1, ds[imu], weights[imu], tau, lay_source,
-//                                  lev_source, sfc_emis, sfc_src, radn_up, radn_dn, sfc_src_jac,
-//                                  radn_up_jac, tau_loc, trans, source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
-//
-//                 for (int ilev=0; ilev<(nlay+1); ++ilev)
-//                 {
-//                     const int idx = icol + ilev*ncol + igpt*ncol*(nlay+1);
-//                     flux_up[idx] += radn_up[idx];
-//                     flux_dn[idx] += radn_dn[idx];
-//                     flux_up_jac[idx] += radn_up_jac[idx];
-//                 }
-//             }
-//         }
-//     }
-// }
 
 
 __global__
@@ -612,3 +502,103 @@ void sw_source_2stream_kernel(
     }
 }
 
+__device__
+void lw_2stream_function(
+        const int icol, const int ilay,
+        const int ncol, const int nlay,
+        const Float* __restrict__ tau, const Float* __restrict__ ssa,
+        const Float* __restrict__ g,
+        Float* __restrict__ gamma1, Float* __restrict__ gamma2,
+        Float* __restrict__ r_dif, Float* __restrict__ t_dif)
+{
+        const int idx = icol + ilay*ncol;
+        *gamma1 = Float(1.66) * (Float(1.) - Float(0.5) * ssa[idx] * (Float(1.) + g[idx]));
+        *gamma2 = Float(1.66) * (            Float(0.5) * ssa[idx] * (Float(1.) - g[idx]));
+
+        const Float k = sqrt(max((*gamma1 - *gamma2) * (*gamma1 + *gamma2), k_min<Float>()));
+        const Float exp_minusktau = exp(-tau[idx] * k);
+        const Float exp_minus2ktau = exp_minusktau * exp_minusktau;
+
+        const Float rt_term = Float(1.) / (k      * (Float(1.) + exp_minus2ktau) +
+                                     *gamma1 * (Float(1.) - exp_minus2ktau));
+
+        r_dif[idx] = rt_term * *gamma2 * (Float(1.) - exp_minus2ktau);
+        t_dif[idx] = rt_term * Float(2.) * k * exp_minusktau;
+}
+
+
+
+template<Bool top_at_1> __global__
+void lw_source_2stream_kernel(
+        const int ncol, const int nlay,
+        const Float* __restrict__ tau, const Float* __restrict__ ssa, const Float* __restrict__ g,
+        const Float* __restrict__ sfc_emis, const Float* __restrict__ sfc_src,
+        const Float* __restrict__ lay_source, const Float* __restrict__ lev_source,
+        Float* __restrict__ r_dif, Float* __restrict__ t_dif,
+        Float* __restrict__ source_up, Float* __restrict__ source_dn,
+        Float* __restrict__ source_sfc, Float* __restrict__ albedo_sfc)
+{
+    const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+
+    if ( (icol < ncol) )
+    {
+        const Float pi = acos(Float(-1.));
+
+        if (top_at_1)
+        {
+            for (int ilay=0; ilay<nlay; ++ilay)
+            {
+
+                Float gamma1, gamma2;
+                lw_2stream_function(icol, ilay,
+                        ncol, nlay,
+                        tau, ssa, g,
+                        &gamma1, &gamma2,
+                        r_dif, t_dif);
+
+                const int idx_lay  = icol + ilay*ncol;
+                const int idx_lev1 = icol + ilay*ncol;
+                const int idx_lev2 = icol + (ilay+1)*ncol;
+
+                // Toon et al. (JGR 1989) Eqs 26-27
+                const Float Z = (lev_source[idx_lev2] - lev_source[idx_lev1]) / (tau[idx_lay]*(gamma1+gamma2));
+                const Float Zup_top = Z + lev_source[idx_lev1];
+                const Float Zup_bot = Z + lev_source[idx_lev2];
+                const Float Zdn_top = -Z + lev_source[idx_lev1];
+                const Float Zdn_bot = -Z + lev_source[idx_lev2];
+
+                source_up[idx_lay] = pi * (Zup_top - r_dif[idx_lay] * Zdn_top - t_dif[idx_lay] * Zup_bot);
+                source_dn[idx_lay] = pi * (Zdn_bot - r_dif[idx_lay] * Zup_bot - t_dif[idx_lay] * Zdn_top);
+            }
+        }
+        else
+        {
+            for (int ilay=nlay-1; ilay>=0; --ilay)
+            {
+                Float gamma1, gamma2;
+                lw_2stream_function(icol, ilay,
+                        ncol, nlay,
+                        tau, ssa, g,
+                        &gamma1, &gamma2,
+                        r_dif, t_dif);
+
+                const int idx_lay  = icol + ilay*ncol;
+                const int idx_lev1 = icol + (ilay)*ncol;
+                const int idx_lev2 = icol + (ilay+1)*ncol;
+
+                // Toon et al. (JGR 1989) Eqs 26-27
+                const Float Z = (lev_source[idx_lev1] - lev_source[idx_lev2]) / (tau[idx_lay]*(gamma1+gamma2));
+                const Float Zup_top = Z + lev_source[idx_lev2];
+                const Float Zup_bot = Z + lev_source[idx_lev1];
+                const Float Zdn_top = -Z + lev_source[idx_lev2];
+                const Float Zdn_bot = -Z + lev_source[idx_lev1];
+
+                source_up[idx_lay] = pi * (Zup_top - r_dif[idx_lay] * Zdn_top - t_dif[idx_lay] * Zup_bot);
+                source_dn[idx_lay] = pi * (Zdn_bot - r_dif[idx_lay] * Zup_bot - t_dif[idx_lay] * Zdn_top);
+            }
+
+        }
+        source_sfc[icol] = pi * sfc_emis[icol] * sfc_src[icol];
+        albedo_sfc[icol] = Float(1.) - sfc_emis[icol];
+    }
+}

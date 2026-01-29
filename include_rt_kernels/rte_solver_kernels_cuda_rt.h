@@ -53,5 +53,11 @@ namespace Rte_solver_kernels_cuda_rt
             const Float* lev_source, const Float* sfc_emis,
             const Float* sfc_src, Float* flux_up, Float* flux_dn,
             const Float* sfc_src_jac, Float* flux_up_jac);
+
+    void lw_solver_2stream(const int ncol, const int nlay, const Bool top_at_1,
+             const Float* tau, const Float* ssa, const Float* g,
+             const Float* lay_source, const Float* lev_source,
+             const Float* sfc_emis, const Float* sfc_src,
+             Float* flux_up, Float* flux_dn);
 }
 #endif

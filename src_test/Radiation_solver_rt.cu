@@ -613,15 +613,15 @@ void Radiation_solver_longwave::solve_gpu(
             std::unique_ptr<Fluxes_broadband_rt> fluxes =
                     std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
 
-            rte_lw.rte_lw(
-                    optical_props,
-                    top_at_1,
-                    *sources,
-                    emis_sfc.subset({{ {band, band}, {1, n_col}}}),
-                    Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
-                    (*fluxes).get_flux_up(),
-                    (*fluxes).get_flux_dn(),
-                    n_ang);
+            //rte_lw.rte_lw(
+            //        optical_props,
+            //        top_at_1,
+            //        *sources,
+            //        emis_sfc.subset({{ {band, band}, {1, n_col}}}),
+            //        Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
+            //        (*fluxes).get_flux_up(),
+            //        (*fluxes).get_flux_dn(),
+            //        n_ang);
 
             (*fluxes).net_flux();
 

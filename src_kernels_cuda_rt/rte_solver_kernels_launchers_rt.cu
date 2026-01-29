@@ -327,7 +327,7 @@ namespace Rte_solver_kernels_cuda_rt
         // Step 2.
         dim3 grid_adding, block_adding;
 
-        if (tunings.count("sw_adding_rt") == 0)
+        if (tunings.count("adding_rt") == 0)
         {
             Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
             Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
@@ -336,10 +336,10 @@ namespace Rte_solver_kernels_cuda_rt
             if (top_at_1)
             {
                 std::tie(grid_adding, block_adding) = tune_kernel(
-                        "sw_adding_rt",
+                        "adding_rt",
                         dim3(ncol, 1),
                         {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
-                        sw_adding_kernel<1>,
+                        adding_kernel<1,1>,
                         ncol, nlay, top_at_1,
                         sfc_alb_dif, r_dif, t_dif,
                         source_dn, source_up, source_sfc,
@@ -348,10 +348,10 @@ namespace Rte_solver_kernels_cuda_rt
             else
             {
                 std::tie(grid_adding, block_adding) = tune_kernel(
-                        "sw_adding_rt",
+                        "adding_rt",
                         dim3(ncol, 1),
                         {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
-                        sw_adding_kernel<0>,
+                        adding_kernel<0,1>,
                         ncol, nlay, top_at_1,
                         sfc_alb_dif, r_dif, t_dif,
                         source_dn, source_up, source_sfc,
@@ -361,19 +361,19 @@ namespace Rte_solver_kernels_cuda_rt
             Tools_gpu::free_gpu<Float>(flux_up_tmp);
             Tools_gpu::free_gpu<Float>(flux_dn_tmp);
             Tools_gpu::free_gpu<Float>(flux_dir_tmp);
-            tunings["sw_adding_rt"].first = grid_adding;
-            tunings["sw_adding_rt"].second = block_adding;
+            tunings["adding_rt"].first = grid_adding;
+            tunings["adding_rt"].second = block_adding;
         }
         else
         {
-            block_adding = tunings["sw_adding_rt"].second;
+            block_adding = tunings["adding_rt"].second;
         }
 
         grid_adding = calc_grid_size(block_adding, dim3(ncol, 1));
 
         if (top_at_1)
         {
-            sw_adding_kernel<1><<<grid_adding, block_adding>>>(
+            adding_kernel<1,1><<<grid_adding, block_adding>>>(
                 ncol, nlay, top_at_1,
                 sfc_alb_dif, r_dif, t_dif,
                 source_dn, source_up, source_sfc,
@@ -381,11 +381,177 @@ namespace Rte_solver_kernels_cuda_rt
         }
         else
         {
-            sw_adding_kernel<0><<<grid_adding, block_adding>>>(
+            adding_kernel<0,1><<<grid_adding, block_adding>>>(
                         ncol, nlay, top_at_1,
                         sfc_alb_dif, r_dif, t_dif,
                         source_dn, source_up, source_sfc,
                         flux_up, flux_dn, flux_dir, albedo, src, denom);
+        }
+
+        Tools_gpu::free_gpu(r_dif);
+        Tools_gpu::free_gpu(t_dif);
+        Tools_gpu::free_gpu(source_up);
+        Tools_gpu::free_gpu(source_dn);
+        Tools_gpu::free_gpu(source_sfc);
+        Tools_gpu::free_gpu(albedo);
+        Tools_gpu::free_gpu(src);
+        Tools_gpu::free_gpu(denom);
+    }
+
+    void lw_solver_2stream(const int ncol, const int nlay, const Bool top_at_1,
+                           const Float* tau, const Float* ssa, const Float* g,
+                           const Float* lay_source, const Float* lev_source,
+                           const Float* sfc_emis, const Float* sfc_src,
+                           Float* flux_up, Float* flux_dn)
+    {
+        Tuner_map& tunings = Tuner::get_map();
+
+        const int flx_size = ncol*(nlay+1);
+        const int opt_size = ncol*nlay;
+        const int sfc_size = ncol;
+
+        Float* r_dif = Tools_gpu::allocate_gpu<Float>(opt_size);
+        Float* t_dif = Tools_gpu::allocate_gpu<Float>(opt_size);
+        Float* source_up = Tools_gpu::allocate_gpu<Float>(opt_size);
+        Float* source_dn = Tools_gpu::allocate_gpu<Float>(opt_size);
+        Float* source_sfc = Tools_gpu::allocate_gpu<Float>(sfc_size);
+        Float* albedo_sfc = Tools_gpu::allocate_gpu<Float>(sfc_size);
+
+        Float* albedo = Tools_gpu::allocate_gpu<Float>(flx_size);
+        Float* src = Tools_gpu::allocate_gpu<Float>(flx_size);
+        Float* denom = Tools_gpu::allocate_gpu<Float>(opt_size);
+
+        dim3 grid_source(ncol, 1), block_source;
+
+
+        // Step 1.
+        if (tunings.count("lw_source_2stream_kernel_rt") == 0)
+        {
+            if (top_at_1)
+            {
+                std::tie(grid_source, block_source) = tune_kernel(
+                        "lw_source_2stream_kernel_rt",
+                        dim3(ncol, 1),
+                        {32, 64, 96, 128, 256, 384, 512, 768, 1024}, {1}, {1},
+                        lw_source_2stream_kernel<1>,
+                        ncol, nlay, tau, ssa, g,
+                        sfc_emis, sfc_src,
+                        lay_source, lev_source,
+                        r_dif, t_dif,
+                        source_up, source_dn,
+                        source_sfc, albedo_sfc);
+            }
+            else
+            {
+                std::tie(grid_source, block_source) = tune_kernel(
+                        "lw_source_2stream_kernel_rt",
+                        dim3(ncol, 1),
+                        {32, 64, 96, 128, 256, 384, 512, 768, 1024}, {1}, {1},
+                        lw_source_2stream_kernel<0>,
+                        ncol, nlay, tau, ssa, g,
+                        sfc_emis, sfc_src,
+                        lay_source, lev_source,
+                        r_dif, t_dif,
+                        source_up, source_dn,
+                        source_sfc, albedo_sfc);
+            }
+
+            tunings["lw_source_2stream_kernel_rt"].first = grid_source;
+            tunings["lw_source_2stream_kernel_rt"].second = block_source;
+        }
+        else
+        {
+            block_source = tunings["lw_source_2stream_kernel_rt"].second;
+        }
+
+        grid_source = calc_grid_size(block_source, dim3(ncol, 1));
+
+        if (top_at_1)
+        {
+            lw_source_2stream_kernel<1><<<grid_source, block_source>>>(
+                    ncol, nlay, tau, ssa, g,
+                    sfc_emis, sfc_src,
+                    lay_source, lev_source,
+                    r_dif, t_dif,
+                    source_up, source_dn,
+                    source_sfc, albedo_sfc);
+        }
+        else
+        {
+            lw_source_2stream_kernel<0><<<grid_source, block_source>>>(
+                    ncol, nlay, tau, ssa, g,
+                    sfc_emis, sfc_src,
+                    lay_source, lev_source,
+                    r_dif, t_dif,
+                    source_up, source_dn,
+                    source_sfc, albedo_sfc);
+        }
+
+
+        // Step 2.
+        dim3 grid_adding, block_adding;
+
+        if (tunings.count("adding_rt") == 0)
+        {
+            Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
+            Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
+            Float* flux_dir_tmp;// = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
+
+            if (top_at_1)
+            {
+                std::tie(grid_adding, block_adding) = tune_kernel(
+                        "adding_rt",
+                        dim3(ncol, 1),
+                        {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
+                        adding_kernel<1,0>,
+                        ncol, nlay, top_at_1,
+                        albedo_sfc, r_dif, t_dif,
+                        source_dn, source_up, source_sfc,
+                        flux_up_tmp, flux_dn_tmp, flux_dir_tmp, albedo, src, denom);
+            }
+            else
+            {
+                std::tie(grid_adding, block_adding) = tune_kernel(
+                        "adding_rt",
+                        dim3(ncol, 1),
+                        {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
+                        adding_kernel<0,0>,
+                        ncol, nlay, top_at_1,
+                        albedo_sfc, r_dif, t_dif,
+                        source_dn, source_up, source_sfc,
+                        flux_up_tmp, flux_dn_tmp, flux_dir_tmp, albedo, src, denom);
+            }
+
+            Tools_gpu::free_gpu<Float>(flux_up_tmp);
+            Tools_gpu::free_gpu<Float>(flux_dn_tmp);
+            Tools_gpu::free_gpu<Float>(flux_dir_tmp);
+            tunings["adding_rt"].first = grid_adding;
+            tunings["adding_rt"].second = block_adding;
+        }
+        else
+        {
+            block_adding = tunings["adding_rt"].second;
+        }
+
+        grid_adding = calc_grid_size(block_adding, dim3(ncol, 1));
+
+        Float* flux_dir_empty;
+
+        if (top_at_1)
+        {
+            adding_kernel<1,0><<<grid_adding, block_adding>>>(
+                ncol, nlay, top_at_1,
+                albedo_sfc, r_dif, t_dif,
+                source_dn, source_up, source_sfc,
+                flux_up, flux_dn, flux_dir_empty, albedo, src, denom);
+        }
+        else
+        {
+            adding_kernel<0,0><<<grid_adding, block_adding>>>(
+                        ncol, nlay, top_at_1,
+                        albedo_sfc, r_dif, t_dif,
+                        source_dn, source_up, source_sfc,
+                        flux_up, flux_dn, flux_dir_empty, albedo, src, denom);
         }
 
         Tools_gpu::free_gpu(r_dif);
