@@ -880,6 +880,9 @@ void Radiation_solver_shortwave::solve_gpu(
                     break;
                 }
             }
+
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_tau().ptr());
+
             Array_gpu<Float,2> albedo;
             if (!switch_lu_albedo) albedo = sfc_alb.subset({{ {band, band}, {1, n_col}}});
 
@@ -1194,6 +1197,8 @@ void Radiation_solver_shortwave::solve_gpu_bb(
                     break;
                 }
             }
+
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_tau().ptr());
 
             constexpr int n_col_block = 1<<14; // 2^14
 

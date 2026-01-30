@@ -489,6 +489,11 @@ void Radiation_solver_longwave::solve_gpu(
         }
 
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_tau().ptr());
+        if (switch_lw_scattering)
+        {
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_ssa().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_g().ptr());
+        }
 
         // We loop over the gas optics, due to memory constraints
         constexpr int n_col_block = 1<<14;
@@ -530,6 +535,7 @@ void Radiation_solver_longwave::solve_gpu(
             const int col_s = n_blocks*n_col_block;
             gas_optics_subset(col_s, n_col_residual);
         }
+
 
         if (switch_cloud_optics)
         {
@@ -613,15 +619,16 @@ void Radiation_solver_longwave::solve_gpu(
             std::unique_ptr<Fluxes_broadband_rt> fluxes =
                     std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
 
-            //rte_lw.rte_lw(
-            //        optical_props,
-            //        top_at_1,
-            //        *sources,
-            //        emis_sfc.subset({{ {band, band}, {1, n_col}}}),
-            //        Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
-            //        (*fluxes).get_flux_up(),
-            //        (*fluxes).get_flux_dn(),
-            //        n_ang);
+            rte_lw.rte_lw(
+                    optical_props,
+                    top_at_1,
+                    switch_lw_scattering,
+                    *sources,
+                    emis_sfc.subset({{ {band, band}, {1, n_col}}}),
+                    Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
+                    (*fluxes).get_flux_up(),
+                    (*fluxes).get_flux_dn(),
+                    n_ang);
 
             (*fluxes).net_flux();
 

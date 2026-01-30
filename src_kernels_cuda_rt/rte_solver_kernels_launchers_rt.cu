@@ -327,7 +327,7 @@ namespace Rte_solver_kernels_cuda_rt
         // Step 2.
         dim3 grid_adding, block_adding;
 
-        if (tunings.count("adding_rt") == 0)
+        if (tunings.count("sw_adding_rt") == 0)
         {
             Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
             Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
@@ -336,7 +336,7 @@ namespace Rte_solver_kernels_cuda_rt
             if (top_at_1)
             {
                 std::tie(grid_adding, block_adding) = tune_kernel(
-                        "adding_rt",
+                        "sw_adding_rt",
                         dim3(ncol, 1),
                         {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
                         adding_kernel<1,1>,
@@ -348,7 +348,7 @@ namespace Rte_solver_kernels_cuda_rt
             else
             {
                 std::tie(grid_adding, block_adding) = tune_kernel(
-                        "adding_rt",
+                        "sw_adding_rt",
                         dim3(ncol, 1),
                         {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
                         adding_kernel<0,1>,
@@ -361,12 +361,12 @@ namespace Rte_solver_kernels_cuda_rt
             Tools_gpu::free_gpu<Float>(flux_up_tmp);
             Tools_gpu::free_gpu<Float>(flux_dn_tmp);
             Tools_gpu::free_gpu<Float>(flux_dir_tmp);
-            tunings["adding_rt"].first = grid_adding;
-            tunings["adding_rt"].second = block_adding;
+            tunings["sw_adding_rt"].first = grid_adding;
+            tunings["sw_adding_rt"].second = block_adding;
         }
         else
         {
-            block_adding = tunings["adding_rt"].second;
+            block_adding = tunings["sw_adding_rt"].second;
         }
 
         grid_adding = calc_grid_size(block_adding, dim3(ncol, 1));
@@ -491,7 +491,7 @@ namespace Rte_solver_kernels_cuda_rt
         // Step 2.
         dim3 grid_adding, block_adding;
 
-        if (tunings.count("adding_rt") == 0)
+        if (tunings.count("lw_adding_rt") == 0)
         {
             Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
             Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>((nlay+1)*ncol);
@@ -500,7 +500,7 @@ namespace Rte_solver_kernels_cuda_rt
             if (top_at_1)
             {
                 std::tie(grid_adding, block_adding) = tune_kernel(
-                        "adding_rt",
+                        "lw_adding_rt",
                         dim3(ncol, 1),
                         {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
                         adding_kernel<1,0>,
@@ -512,7 +512,7 @@ namespace Rte_solver_kernels_cuda_rt
             else
             {
                 std::tie(grid_adding, block_adding) = tune_kernel(
-                        "adding_rt",
+                        "lw_adding_rt",
                         dim3(ncol, 1),
                         {16, 32, 64, 96, 128, 256, 384, 512}, {1}, {1},
                         adding_kernel<0,0>,
@@ -524,13 +524,14 @@ namespace Rte_solver_kernels_cuda_rt
 
             Tools_gpu::free_gpu<Float>(flux_up_tmp);
             Tools_gpu::free_gpu<Float>(flux_dn_tmp);
-            Tools_gpu::free_gpu<Float>(flux_dir_tmp);
-            tunings["adding_rt"].first = grid_adding;
-            tunings["adding_rt"].second = block_adding;
+            //Tools_gpu::free_gpu<Float>(flux_dir_tmp);
+
+            tunings["lw_adding_rt"].first = grid_adding;
+            tunings["lw_adding_rt"].second = block_adding;
         }
         else
         {
-            block_adding = tunings["adding_rt"].second;
+            block_adding = tunings["lw_adding_rt"].second;
         }
 
         grid_adding = calc_grid_size(block_adding, dim3(ncol, 1));

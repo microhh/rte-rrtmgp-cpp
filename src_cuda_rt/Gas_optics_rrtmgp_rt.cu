@@ -1179,9 +1179,6 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
 
     bool has_rayleigh = (this->krayl.size() > 0);
 
-
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(ncol, nlay, optical_props->get_tau().ptr());
-
     if (has_rayleigh)
     {
         Array_gpu<Float,2> tau_rayleigh({ncol_sub, nlay});

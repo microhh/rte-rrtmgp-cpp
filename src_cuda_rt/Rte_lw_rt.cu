@@ -132,6 +132,16 @@ void Rte_lw_rt::rte_lw(
 
     if (do_scattering)
     {
+        Rte_solver_kernels_cuda_rt::lw_solver_2stream(
+                ncol,   nlay,   top_at_1,
+                optical_props->get_tau().ptr(), optical_props->get_ssa().ptr(), optical_props->get_g().ptr(),
+                sources.get_lay_source().ptr(),
+                sources.get_lev_source().ptr(),
+                sfc_emis.ptr(), sources.get_sfc_source().ptr(),
+                gpt_flux_up.ptr(), gpt_flux_dn.ptr());
+    }
+    else
+    {
         Rte_solver_kernels_cuda_rt::lw_solver_noscat_gaussquad(
                 ncol, nlay, top_at_1, n_quad_angs,
                 gauss_Ds_subset.ptr(), gauss_wts_subset.ptr(),
@@ -141,18 +151,6 @@ void Rte_lw_rt::rte_lw(
                 sfc_emis.ptr(), sources.get_sfc_source().ptr(),
                 gpt_flux_up.ptr(), gpt_flux_dn.ptr(),
                 sfc_src_jac.ptr(), gpt_flux_up_jac.ptr());
-    }
-    else
-    {
-
-        //Rte_solver_kernels_cuda_rt::lw_solver_2stream(
-        //        ncol,   nlay,   top_at_1,
-        //        optical_props->get_tau().ptr(), optical_props->get_ssa().ptr(). optical_props->get_asy().ptr(),
-        //        sources.get_lay_source().ptr(),
-        //        sources.get_lev_source().ptr(),
-        //        sfc_emis.ptr(), sources.get_sfc_source().ptr(),
-        //        gpt_flux_up.ptr(), gpt_flux_dn.ptr());
-
     }
     // CvH: In the fortran code this call is here, I removed it for performance and flexibility.
     // fluxes->reduce(gpt_flux_up, gpt_flux_dn, optical_props, top_at_1);
