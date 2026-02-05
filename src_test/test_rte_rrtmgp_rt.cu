@@ -341,7 +341,6 @@ void solve_radiation(int argc, char** argv)
     Array<Float,1> grid_yh(input_nc.get_variable<Float>("yh", {n_col_y+1}), {n_col_y+1});
     Array<Float,1> grid_z(input_nc.get_variable<Float>("z", {n_z_in}), {n_z_in});
 
-    const Vector<int> grid_cells = {n_col_x, n_col_y, n_z};
     const Vector<Float> grid_d = {grid_xh({2}) - grid_xh({1}), grid_yh({2}) - grid_yh({1}), grid_z({2}) - grid_z({1})};
     const Vector<int> kn_grid = {input_nc.get_variable<int>("ngrid_x"),
                                  input_nc.get_variable<int>("ngrid_y"),
@@ -677,6 +676,21 @@ void solve_radiation(int argc, char** argv)
             lw_gpt_flux_net.set_dims({n_col, n_lev});
         }
 
+        Array_gpu<Float,2> rt_flux_tod_up;
+        Array_gpu<Float,2> rt_flux_tod_dn;
+        Array_gpu<Float,2> rt_flux_sfc_up;
+        Array_gpu<Float,2> rt_flux_sfc_dn;
+        Array_gpu<Float,3> rt_flux_abs;
+
+        if (switch_raytracing)
+        {
+            rt_flux_tod_up.set_dims({n_col_x, n_col_y});
+            rt_flux_tod_dn.set_dims({n_col_x, n_col_y});
+            rt_flux_sfc_up.set_dims({n_col_x, n_col_y});
+            rt_flux_sfc_dn.set_dims({n_col_x, n_col_y});
+            rt_flux_abs   .set_dims({n_col_x, n_col_y, n_zh_in});
+        }
+
 
         // Solve the radiation.
 
@@ -684,6 +698,8 @@ void solve_radiation(int argc, char** argv)
 
         auto run_solver = [&]()
         {
+            const Vector<int> grid_cells = {n_col_x, n_col_y, n_z_in};
+
             Array_gpu<Float,2> p_lay_gpu(p_lay);
             Array_gpu<Float,2> p_lev_gpu(p_lev);
             Array_gpu<Float,2> t_lay_gpu(t_lay);
@@ -716,6 +732,7 @@ void solve_radiation(int argc, char** argv)
                     switch_aerosol_optics,
                     switch_single_gpt,
                     switch_lw_scattering,
+                    switch_independent_column,
                     single_gpt,
                     photons_per_pixel,
                     grid_cells,
@@ -734,7 +751,9 @@ void solve_radiation(int argc, char** argv)
                     lw_tau_aer, lw_ssa_aer, lw_asy_aer,
                     lay_source, lev_source, sfc_source,
                     lw_flux_up, lw_flux_dn, lw_flux_net,
-                    lw_gpt_flux_up, lw_gpt_flux_dn, lw_gpt_flux_net);
+                    lw_gpt_flux_up, lw_gpt_flux_dn, lw_gpt_flux_net,
+                    rt_flux_tod_up, rt_flux_tod_dn, rt_flux_sfc_up,
+                    rt_flux_sfc_dn, rt_flux_abs);
 
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -785,6 +804,12 @@ void solve_radiation(int argc, char** argv)
         Array<Float,2> lw_gpt_flux_up_cpu(lw_gpt_flux_up);
         Array<Float,2> lw_gpt_flux_dn_cpu(lw_gpt_flux_dn);
         Array<Float,2> lw_gpt_flux_net_cpu(lw_gpt_flux_net);
+
+        Array<Float,2> rt_flux_tod_up_cpu(rt_flux_tod_up);
+        Array<Float,2> rt_flux_tod_dn_cpu(rt_flux_tod_dn);
+        Array<Float,2> rt_flux_sfc_up_cpu(rt_flux_sfc_up);
+        Array<Float,2> rt_flux_sfc_dn_cpu(rt_flux_sfc_dn);
+        Array<Float,3> rt_flux_abs_cpu(rt_flux_abs);
 
         output_nc.add_dimension("gpt_lw", n_gpt_lw);
         output_nc.add_dimension("band_lw", n_bnd_lw);
@@ -854,6 +879,21 @@ void solve_radiation(int argc, char** argv)
                 nc_lw_gpt_flux_up .insert(lw_gpt_flux_up_cpu.v(), {0, 0, 0});
                 nc_lw_gpt_flux_dn .insert(lw_gpt_flux_dn_cpu.v(), {0, 0, 0});
                 nc_lw_gpt_flux_net.insert(lw_gpt_flux_net_cpu.v(), {0, 0, 0});
+            }
+
+            if (switch_raytracing)
+            {
+                auto rt_flux_tod_up  = output_nc.add_variable<Float>("rt_lw_flux_tod_up" , { "y", "x"});
+                auto rt_flux_tod_dn  = output_nc.add_variable<Float>("rt_lw_flux_tod_dn" , { "y", "x"});
+                auto rt_flux_sfc_up  = output_nc.add_variable<Float>("rt_lw_flux_sfc_up" , { "y", "x"});
+                auto rt_flux_sfc_dn  = output_nc.add_variable<Float>("rt_lw_flux_sfc_dn" , { "y", "x"});
+                auto rt_flux_abs     = output_nc.add_variable<Float>("rt_lw_flux_abs" , {"z", "y", "x"});
+
+                rt_flux_tod_up.insert(rt_flux_tod_up_cpu.v(), {0, 0});
+                rt_flux_tod_dn.insert(rt_flux_tod_dn_cpu.v(), {0, 0});
+                rt_flux_sfc_up.insert(rt_flux_sfc_up_cpu.v(), {0, 0});
+                rt_flux_sfc_dn.insert(rt_flux_sfc_dn_cpu.v(), {0, 0});
+                rt_flux_abs   .insert(rt_flux_abs_cpu.v(), {0, 0, 0});
             }
         }
     }
@@ -984,6 +1024,8 @@ void solve_radiation(int argc, char** argv)
 
         auto run_solver = [&]()
         {
+            const Vector<int> grid_cells = {n_col_x, n_col_y, n_z};
+
             Array_gpu<Float,2> p_lay_gpu(p_lay);
             Array_gpu<Float,2> p_lev_gpu(p_lev);
             Array_gpu<Float,2> t_lay_gpu(t_lay);

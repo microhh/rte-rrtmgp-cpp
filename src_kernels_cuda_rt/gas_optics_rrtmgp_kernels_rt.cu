@@ -405,7 +405,7 @@ void gas_optical_depths_major_kernel(
         #pragma unroll 1
         for (int i=0; i<2; ++i)
         {
-            tau[idx_off] = col_mix[idx_fcl1+i] *
+            tau[idx_off] += col_mix[idx_fcl1+i] *
                 (ifmajor[i*4+0] * kmajor[(ljtemp-1+i) + (jeta[idx_fcl1+i]-1)*ntemp + (jpressi-1)*ntemp*neta + igpt*ntemp*neta*npress] +
                  ifmajor[i*4+1] * kmajor[(ljtemp-1+i) +  jeta[idx_fcl1+i]   *ntemp + (jpressi-1)*ntemp*neta + igpt*ntemp*neta*npress] +
                  ifmajor[i*4+2] * kmajor[(ljtemp-1+i) + (jeta[idx_fcl1+i]-1)*ntemp + jpressi    *ntemp*neta + igpt*ntemp*neta*npress] +

@@ -28,6 +28,7 @@
 #include "Rte_lw_rt.h"
 #include "Rte_sw_rt.h"
 #include "Raytracer.h"
+#include "Raytracer_lw.h"
 #include "raytracer_kernels.h"
 #include "Source_functions_rt.h"
 #include <curand_kernel.h>
@@ -50,7 +51,8 @@ class Radiation_solver_longwave
                 const bool switch_cloud_optics,
                 const bool switch_aerosol_optics,
                 const bool switch_single_gpt,
-                const bool do_scattering,
+                const bool switch_lw_scattering,
+                const bool switch_independent_column,
                 const int single_gpt,
                 const Int ray_count,
                 const Vector<int> grid_cells,
@@ -70,7 +72,9 @@ class Radiation_solver_longwave
                 Array_gpu<Float,2>& aer_tau_out,Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
                 Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
                 Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-                Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net);
+                Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net,
+                Array_gpu<Float,2>& rt_flux_tod_up, Array_gpu<Float,2>& rt_flux_tod_dn, Array_gpu<Float,2>& rt_flux_sfc_up,
+                Array_gpu<Float,2>& rt_flux_sfc_dn, Array_gpu<Float,3>& rt_flux_abs);
 
         int get_n_gpt_gpu() const { return this->kdist_gpu->get_ngpt(); };
         int get_n_bnd_gpu() const { return this->kdist_gpu->get_nband(); };
@@ -83,6 +87,8 @@ class Radiation_solver_longwave
         #endif
 
     private:
+        Raytracer_lw raytracer_lw;
+
         #ifdef __CUDACC__
         std::unique_ptr<Gas_optics_rrtmgp_rt> kdist_gpu;
         std::unique_ptr<Cloud_optics_rt> cloud_optics_gpu;

@@ -87,7 +87,7 @@ namespace Raytracer_functions
     }
 
     __device__
-    inline int find_index(const float* mie_cdf, const int size, const float random_number)
+    inline int find_index(const Float* mie_cdf, const int size, const Float random_number)
     {
         int left = 0;
         int right = size - 1;

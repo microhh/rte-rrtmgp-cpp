@@ -3,7 +3,7 @@
 #include "Raytracer.h"
 #include "Array.h"
 #include "Optical_props_rt.h"
-
+#include <cub/cub.cuh>
 #include "raytracer_definitions.h"
 #include "raytracer_functions.h"
 #include "raytracer_kernels.h"
@@ -296,7 +296,6 @@ void Raytracer::trace_rays(
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
             k_ext.ptr(), scat_asy.ptr());
 
-    // create k_null_grid
     const int block_kn_x = 8;
     const int block_kn_y = 8;
     const int block_kn_z = 4;

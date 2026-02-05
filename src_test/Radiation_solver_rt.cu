@@ -419,6 +419,7 @@ void Radiation_solver_longwave::solve_gpu(
         const bool switch_aerosol_optics,
         const bool switch_single_gpt,
         const bool switch_lw_scattering,
+        const bool switch_independent_column,
         const int single_gpt,
         const Int ray_count,
         const Vector<int> grid_cells,
@@ -438,7 +439,9 @@ void Radiation_solver_longwave::solve_gpu(
         Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
         Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
         Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-        Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net)
+        Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net,
+        Array_gpu<Float,2>& rt_flux_tod_up, Array_gpu<Float,2>& rt_flux_tod_dn, Array_gpu<Float,2>& rt_flux_sfc_up,
+        Array_gpu<Float,2>& rt_flux_sfc_dn, Array_gpu<Float,3>& rt_flux_abs)
 {
 
     // throw std::runtime_error("Longwave raytracing is not implemented");
@@ -489,11 +492,8 @@ void Radiation_solver_longwave::solve_gpu(
         }
 
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_tau().ptr());
-        if (switch_lw_scattering)
-        {
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_ssa().ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_g().ptr());
-        }
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_ssa().ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_g().ptr());
 
         // We loop over the gas optics, due to memory constraints
         constexpr int n_col_block = 1<<14;
@@ -535,6 +535,7 @@ void Radiation_solver_longwave::solve_gpu(
             const int col_s = n_blocks*n_col_block;
             gas_optics_subset(col_s, n_col_residual);
         }
+
 
 
         if (switch_cloud_optics)
@@ -629,7 +630,6 @@ void Radiation_solver_longwave::solve_gpu(
                     (*fluxes).get_flux_up(),
                     (*fluxes).get_flux_dn(),
                     n_ang);
-
             (*fluxes).net_flux();
 
             // Copy the data to the output.
@@ -643,6 +643,44 @@ void Radiation_solver_longwave::solve_gpu(
                 lw_gpt_flux_dn = (*fluxes).get_flux_dn();
                 lw_gpt_flux_net = (*fluxes).get_flux_net();
             }
+
+            if (switch_raytracing)
+            {
+
+                raytracer_lw.trace_rays(
+                        igpt,
+                        switch_independent_column,
+                        ray_count,
+                        grid_cells,
+                        grid_d,
+                        kn_grid,
+                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
+                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
+                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
+                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
+                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
+                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
+                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
+                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
+                        (*sources).get_lay_source(),
+                        (*sources).get_sfc_source(),
+                        emis_sfc,
+                        (*fluxes).get_flux_dn()({1, grid_cells.z}),
+                        (*fluxes).get_flux_tod_dn(),
+                        (*fluxes).get_flux_tod_up(),
+                        (*fluxes).get_flux_sfc_dif(),
+                        (*fluxes).get_flux_sfc_up(),
+                        (*fluxes).get_flux_abs_dif());
+
+                Gpt_combine_kernels_cuda_rt::add_from_gpoint(
+                        grid_cells.x, grid_cells.y,
+                        rt_flux_tod_dn.ptr(), rt_flux_tod_up.ptr(), rt_flux_sfc_dn.ptr(), rt_flux_sfc_up.ptr(),
+                        (*fluxes).get_flux_tod_dn().ptr(), (*fluxes).get_flux_tod_up().ptr(), (*fluxes).get_flux_sfc_dif().ptr(), (*fluxes).get_flux_sfc_up().ptr());
+
+                Gpt_combine_kernels_cuda_rt::add_from_gpoint(
+                        n_col, grid_cells.z, rt_flux_abs.ptr(), (*fluxes).get_flux_abs_dif().ptr());
+            }
+
         }
     }
 }
