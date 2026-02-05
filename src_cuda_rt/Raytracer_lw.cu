@@ -54,11 +54,9 @@ namespace
 
         if ( (ix < grid_cells.x) && (iy < grid_cells.y) && (iz < (grid_cells.z)) )
         {
-            const int idx_out = ix + iy*grid_cells.x + iz*grid_cells.x*grid_cells.y;
-
             // tau = k_ext * dz; hence k_ext*cell_volume = tau * cell_area
-            const int idx_in = ix + iy*grid_cells.x + (iz-1)*grid_cells.x*grid_cells.y;
-            power_atm[idx_out] = Float(4.) * M_PI * tau_tot[idx_in] * lay_source[idx_in] * (Float(1.) - ssa_tot[idx_in]);
+            const int idx = ix + iy*grid_cells.x + iz*grid_cells.x*grid_cells.y;
+            power_atm[idx] = Float(4.) * M_PI * tau_tot[idx] * lay_source[idx] * (Float(1.) - ssa_tot[idx]);
 
             if (iz == 0)
             {
@@ -337,12 +335,6 @@ void Raytracer_lw::trace_rays(
     Array_gpu<Float,2> surface_up_count({grid_cells.x, grid_cells.y});
     Array_gpu<Float,3> atmos_count({grid_cells.x, grid_cells.y, grid_cells.z});
 
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_dn_count.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_up_count.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_dn_count.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_up_count.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, atmos_count.ptr());
-
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, flux_tod_dn.ptr());
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, flux_tod_up.ptr());
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, flux_sfc_dn.ptr());
@@ -385,6 +377,12 @@ void Raytracer_lw::trace_rays(
         const Float* cum_power,
         const Float total_power)
     {
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_dn_count.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_up_count.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_dn_count.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_up_count.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, atmos_count.ptr());
+
         ray_tracer_lw_kernel<<<grid, block>>>(
                 rng_offset,
                 src_type,
@@ -422,9 +420,10 @@ void Raytracer_lw::trace_rays(
                 atmos_count.ptr(),
                 flux_abs.ptr());
     };
+
     run_raytracer(0, cum_power_atm.ptr(), total_power_atm);
     run_raytracer(1, cum_power_sfc.ptr(), total_power_sfc);
-     run_raytracer(2, cum_power_tod.ptr(), total_power_tod);
+    run_raytracer(2, cum_power_tod.ptr(), total_power_tod);
 }
 
 Raytracer_lw::Raytracer_lw()

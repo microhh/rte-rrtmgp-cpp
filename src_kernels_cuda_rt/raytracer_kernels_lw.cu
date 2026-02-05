@@ -50,7 +50,7 @@ namespace
     };
 
     __device__
-    int find_source_index(const Float* weights, int n, const Float r)
+    inline int find_source_index(const Float* weights, int n, const Float r)
     {
         int left = 0;
         int right = n;
@@ -374,7 +374,7 @@ void ray_tracer_lw_kernel(
             const Float k_sca_tot = scat_asy[ijk].k_sca_gas + scat_asy[ijk].k_sca_cld + scat_asy[ijk].k_sca_aer;
             const Float ssa_tot = k_sca_tot / k_ext[ijk];
 
-            const Float f_no_abs = Float(1.) - (Float(1.) - ssa_tot) * (k_ext[ijk]/k_ext_null);
+            const Float f_no_abs = max(Float(0.), Float(1.) - (Float(1.) - ssa_tot) * (k_ext[ijk]/k_ext_null));
 
             #ifndef NDEBUG
             if (ijk < 0 || ijk >= grid_cells.x*grid_cells.y*grid_cells.z) printf("Out of Bounds at Heating Rates %d %d %d %f %f %f  \n",i,j,k,photon.position.x,photon.position.y, photon.position.z);
