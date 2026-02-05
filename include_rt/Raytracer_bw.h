@@ -20,7 +20,6 @@ class Raytracer_bw
 
         void trace_rays(
                 const int igpt,
-                const Float emis_frac,
                 const int photons_per_pixel,
                 const int nlay,
                 const Vector<int>& grid_cells,
