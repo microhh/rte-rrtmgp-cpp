@@ -108,7 +108,7 @@ namespace
                 photon.position.y = (j + rng()) * grid_d.y;
                 photon.position.z = (k + rng()) * grid_d.z;
 
-                mu = sqrt(rng())*Float(2.) - Float(1.);
+                mu = rng()*Float(2.) - Float(1.);
                 azi = Float(2.*M_PI)*rng();
 
                 const int ijk = ij + k*grid_cells.x*grid_cells.y;
