@@ -26,7 +26,7 @@
 #define GPT_COMBINE_KERNELS_CUDA_RT_H
 
 #include "types.h"
-// #include "Gas_concs.h"
+// #include "gas_concs.h"
 
 
 namespace Gpt_combine_kernels_cuda_rt

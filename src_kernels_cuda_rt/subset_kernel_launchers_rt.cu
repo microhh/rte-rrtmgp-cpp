@@ -3,7 +3,7 @@
 
 #include "subset_kernel_launcher_cuda_rt.h"
 #include "tools_gpu.h"
-#include "Array.h"
+#include "array.h"
 
 namespace
 {

@@ -20,11 +20,11 @@
 #include <chrono>
 #include <iomanip>
 
-#include "Status.h"
-#include "Netcdf_interface.h"
-#include "Array.h"
-#include "Aerosol_optics.h"
-#include "Radiation_solver.h"
+#include "status.h"
+#include "netcdf_interface.h"
+#include "array.h"
+#include "aerosol_optics.h"
+#include "radiation_solver.h"
 #include "types.h"
 
 
