@@ -22,16 +22,16 @@
 #include <cuda_profiler_api.h>
 
 
-#include "Status.h"
-#include "Netcdf_interface.h"
-#include "Array.h"
-#include "Raytracer.h"
+#include "status.h"
+#include "netcdf_interface.h"
+#include "array.h"
+#include "raytracer.h"
 #include "raytracer_kernels.h"
-#include "Raytracer_bw.h"
+#include "raytracer_bw.h"
 #include "raytracer_kernels_bw.h"
 #include "types.h"
 #include "rte_solver_kernels_cuda_rt.h"
-#include "Rte_sw_rt.h"
+#include "rte_sw_rt.h"
 #include "tools_gpu.h"
 
 

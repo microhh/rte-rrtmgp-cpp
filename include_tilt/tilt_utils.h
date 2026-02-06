@@ -6,8 +6,8 @@
 #include <random>
 #include <vector>
 
-#include "Array.h"
-#include "Source_functions.h"
+#include "array.h"
+#include "source_functions.h"
 
 struct ColumnResult {
     Array<Float,1> lwp;

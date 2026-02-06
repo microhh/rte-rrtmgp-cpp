@@ -7,11 +7,11 @@
 #include <random>
 #include <vector>
 
-#include "Status.h"
-#include "Netcdf_interface.h"
-#include "Array.h"
-#include "Gas_concs.h"
-#include "Aerosol_optics_rt.h"
+#include "status.h"
+#include "netcdf_interface.h"
+#include "array.h"
+#include "gas_concs.h"
+#include "aerosol_optics_rt.h"
 #include "tilt_utils.h"
 #include "types.h"
 

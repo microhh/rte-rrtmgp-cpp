@@ -2,7 +2,7 @@
 
 #include "rte_solver_kernels_cuda_rt.h"
 #include "tools_gpu.h"
-#include "Array.h"
+#include "array.h"
 #include "tuner.h"
 
 #include <iomanip>

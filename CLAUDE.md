@@ -63,7 +63,7 @@ Core physics classes exist in both CPU (`src/`, `include/`) and CUDA (`src_cuda/
 
 ### Key classes
 
-- **`Array<T,N>`** (`include/Array.h`): Template N-dimensional array, used throughout for all data storage
+- **`Array<T,N>`** (`include/array.h`): Template N-dimensional array, used throughout for all data storage
 - **`Gas_optics_rrtmgp`**: Computes gas optical properties from k-distributions (largest source file)
 - **`Optical_props`** / `Optical_props_1scl` / `Optical_props_2str`: Optical properties with 1-scalar or 2-stream representations
 - **`Rte_lw`** / **`Rte_sw`**: Longwave and shortwave RTE solvers
@@ -86,7 +86,7 @@ Monte Carlo ray tracer in `src_cuda_rt/` and `include_rt/` supports forward (`Ra
 
 ### Test executables
 
-`src_test/` contains the test driver code. `Radiation_solver.cpp` (CPU) and `Radiation_solver.cu` (GPU) implement the full solver pipeline used by all test cases. The different `.cu` test files correspond to different GPU executables (two-stream, ray tracer, backward).
+`src_test/` contains the test driver code. `radiation_solver.cpp` (CPU) and `radiation_solver.cu` (GPU) implement the full solver pipeline used by all test cases. The different `.cu` test files correspond to different GPU executables (two-stream, ray tracer, backward).
 
 ## Licensing
 

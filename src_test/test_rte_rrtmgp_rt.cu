@@ -22,13 +22,13 @@
 #include <cuda_profiler_api.h>
 
 
-#include "Status.h"
-#include "Netcdf_interface.h"
-#include "Array.h"
+#include "status.h"
+#include "netcdf_interface.h"
+#include "array.h"
 #include "raytracer_kernels.h"
-#include "Radiation_solver_rt.h"
-#include "Aerosol_optics_rt.h"
-#include "Gas_concs.h"
+#include "radiation_solver_rt.h"
+#include "aerosol_optics_rt.h"
+#include "gas_concs.h"
 #include "types.h"
 #include "mem_pool_gpu.h"
 #include "tilt_utils.h"
