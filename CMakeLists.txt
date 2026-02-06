@@ -35,8 +35,9 @@ else()
 endif()
 
 # Start the project only after the system specific settings are loaded.
+# If CUDA is enabled, don't compile the Fortran kernels as they are not needed.
 if(USECUDA)
-  project(rte-rrtmgp-cpp C CXX Fortran CUDA)
+  project(rte-rrtmgp-cpp C CXX CUDA)
 else()
   project(rte-rrtmgp-cpp C CXX Fortran)
 endif()
@@ -106,12 +107,14 @@ if(USECUDA)
   endif()
 endif()
 
-add_subdirectory(src_kernels)
-add_subdirectory(src)
 if(USECUDA)
   add_subdirectory(src_kernels_cuda)
   add_subdirectory(src_cuda)
   add_subdirectory(src_kernels_cuda_rt)
   add_subdirectory(src_cuda_rt)
+else()
+  add_subdirectory(src_kernels)
+  add_subdirectory(src)
 endif()
+
 add_subdirectory(src_test)
