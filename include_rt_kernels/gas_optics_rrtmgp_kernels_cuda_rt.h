@@ -33,10 +33,10 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
     void reorder123x321(const int ni, const int nj, const int nk,
             const Float* arr_in, Float* arr_out);
 
-    
+
     void reorder12x21(const int ni, const int nj, const Float* arr_in, Float* arr_out);
 
-    
+
     void zero_array(const int ni, const int nj, const int nk, const int nn, Float* arr);
     void zero_array(const int ni, const int nj, const int nk, Float* arr);
     void zero_array(const int ni, const int nj, Float* arr);
@@ -67,7 +67,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
     void combine_abs_and_rayleigh(
             const int col_s, const int ncol_sub, const int ncol, const int nlay,
-            const Float* tau_local, const Float* tau_rayleigh,
+            const Float* tau_rayleigh,
             Float* tau, Float* ssa, Float* g);
 
 
@@ -84,7 +84,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
 
     void compute_tau_absorption(
-            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband, 
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband,
             const int ngpt, const int igpt,
             const int ngas, const int nflav, const int neta, const int npres, const int ntemp,
             const int nminorlower, const int nminorklower,
@@ -117,8 +117,8 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             Float* tau);
 
 
-    void Planck_source(
-            const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
+    void compute_planck_source(
+            const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
             const int nflav, const int neta, const int npres, const int ntemp,
             const int nPlanckTemp,
             const Float* tlay,
@@ -137,8 +137,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
             const Float* totplnk,
             Float* sfc_src,
             Float* lay_src,
-            Float* lev_src_inc,
-            Float* lev_src_dec,
+            Float* lev_src,
             Float* sfc_src_jac);
 }
 #endif

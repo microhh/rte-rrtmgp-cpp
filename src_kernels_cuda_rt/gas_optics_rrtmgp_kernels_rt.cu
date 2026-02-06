@@ -172,9 +172,9 @@ void zero_array_kernel(
 }
 
 __global__
-void Planck_source_kernel(
-        const int ncol, const int nlay, const int nband, const int ngpt,
-        const int nflav, const int neta, const int npres, const int ntemp,
+void planck_source_kernel(
+        const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nband,
+        const int ngpt,const int nflav, const int neta, const int npres, const int ntemp,
         const int nPlanckTemp, const int igpt,
         const Float* __restrict__ tlay, const Float* __restrict__ tlev,
         const Float* __restrict__ tsfc,
@@ -186,21 +186,23 @@ void Planck_source_kernel(
         const Float temp_ref_min, const Float totplnk_delta,
         const Float* __restrict__ totplnk,
         const Float delta_Tsurf,
-        Float* __restrict__ sfc_src, Float* __restrict__ lay_src,
-        Float* __restrict__ lev_src_inc, Float* __restrict__ lev_src_dec,
+        Float* __restrict__ sfc_src,
+        Float* __restrict__ lay_src,
+        Float* __restrict__ lev_src,
         Float* __restrict__ sfc_src_jac)
 {
     const int icol = blockIdx.x*blockDim.x + threadIdx.x;
     const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
 
-    if ( (icol < ncol) && (ilay < nlay))
+    if ( (icol < ncol_sub) && (ilay < nlay))
     {
         const int ibnd = gpoint_bands[igpt]-1;
-        const int idx_collay = icol + ilay * ncol;
+        const int idx_collay = icol + ilay * ncol_sub;
+
         const int itropo = !tropo[idx_collay];
 
-        const int idx_fcl3 = 2 * 2 * 2 * (icol + ilay*ncol);
-        const int idx_fcl1 = 2 *         (icol + ilay*ncol);
+        const int idx_fcl3 = 2 * 2 * 2 * (icol + ilay*ncol_sub);
+        const int idx_fcl1 = 2 *         (icol + ilay*ncol_sub);
 
         const int j0 = jeta[idx_fcl1+0];
         const int j1 = jeta[idx_fcl1+1];
@@ -208,17 +210,10 @@ void Planck_source_kernel(
         const int jpress_idx = jpress[idx_collay]+itropo;
 
         // compute layer source irradiances.
-        const int idx_tmp = icol + ilay*ncol;
-        const Float planck_function_lay = interpolate1D(tlay[idx_tmp], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
+        const int idx_tmp = icol + col_s + ilay*ncol;
+        Float planck_function_1 = interpolate1D(tlay[idx_tmp], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
 
-        // compute level source irradiances.
-        const int idx_tmp1 = icol + (ilay+1)*ncol;
-        const int idx_tmp2 = icol + ilay*ncol;
-        const Float planck_function_lev1 = interpolate1D(tlev[idx_tmp1], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
-        const Float planck_function_lev2 = interpolate1D(tlev[idx_tmp2], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
-
-        const int idx = icol + ilay*ncol;
-        const int idx_sfc = icol;
+        const int idx = icol + col_s + ilay*ncol;
 
         const Float pfrac_loc =
               (fmajor[idx_fcl3+0] * pfracin[(jtemp_idx-1) + (j0-1)*ntemp + (jpress_idx-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
@@ -232,23 +227,60 @@ void Planck_source_kernel(
                fmajor[idx_fcl3+7] * pfracin[jtemp_idx +  j1   *ntemp + jpress_idx    *ntemp*neta + igpt*ntemp*neta*(npres+1)]);
 
         // Layer source
-        lay_src[idx] = pfrac_loc * planck_function_lay;
+        lay_src[idx] = pfrac_loc * planck_function_1;
 
-        // Level source
-        lev_src_inc[idx] = pfrac_loc * planck_function_lev1;
-        lev_src_dec[idx] = pfrac_loc * planck_function_lev2;
+        // level source irradiances.
+        planck_function_1 = interpolate1D(tlev[idx_tmp], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
 
-        // Surface
-        if (ilay == sfc_lay - 1) // Subtract one to correct for fortran indexing.
+        if (ilay == 0)
         {
-            const Float planck_function_sfc1 = interpolate1D(
-                    tsfc[icol], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
-            const Float planck_function_sfc2 = interpolate1D(
-                    tsfc[icol] + delta_Tsurf, temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
-
-            sfc_src[idx_sfc] = pfrac_loc * planck_function_sfc1;
-            sfc_src_jac[idx_sfc] = pfrac_loc * (planck_function_sfc2 - planck_function_sfc1);
+            lev_src[idx] = pfrac_loc * planck_function_1;
         }
+        else
+        {
+            const int idx_collay_m1 = icol + (ilay-1) * ncol_sub;
+            const int itropo_m1 = !tropo[idx_collay_m1];
+
+            const int idx_fcl3_m1 = 2 * 2 * 2 * (icol + (ilay-1)*ncol_sub);
+            const int idx_fcl1_m1 = 2 *         (icol + (ilay-1)*ncol_sub);
+
+            const int j0_m1 = jeta[idx_fcl1_m1+0];
+            const int j1_m1 = jeta[idx_fcl1_m1+1];
+            const int jtemp_idx_m1 = jtemp[idx_collay_m1];
+            const int jpress_idx_m1 = jpress[idx_collay_m1]+itropo_m1;
+
+            const Float pfrac_m1 =
+                  (fmajor[idx_fcl3_m1+0] * pfracin[(jtemp_idx_m1-1) + (j0_m1-1)*ntemp + (jpress_idx_m1-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
+                   fmajor[idx_fcl3_m1+1] * pfracin[(jtemp_idx_m1-1) +  j0_m1   *ntemp + (jpress_idx_m1-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
+                   fmajor[idx_fcl3_m1+2] * pfracin[(jtemp_idx_m1-1) + (j0_m1-1)*ntemp + jpress_idx_m1    *ntemp*neta + igpt*ntemp*neta*(npres+1)] +
+                   fmajor[idx_fcl3_m1+3] * pfracin[(jtemp_idx_m1-1) +  j0_m1   *ntemp + jpress_idx_m1    *ntemp*neta + igpt*ntemp*neta*(npres+1)])
+
+                + (fmajor[idx_fcl3_m1+4] * pfracin[jtemp_idx_m1 + (j1_m1-1)*ntemp + (jpress_idx_m1-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
+                   fmajor[idx_fcl3_m1+5] * pfracin[jtemp_idx_m1 +  j1_m1   *ntemp + (jpress_idx_m1-1)*ntemp*neta + igpt*ntemp*neta*(npres+1)] +
+                   fmajor[idx_fcl3_m1+6] * pfracin[jtemp_idx_m1 + (j1_m1-1)*ntemp + jpress_idx_m1    *ntemp*neta + igpt*ntemp*neta*(npres+1)] +
+                   fmajor[idx_fcl3_m1+7] * pfracin[jtemp_idx_m1 +  j1_m1   *ntemp + jpress_idx_m1    *ntemp*neta + igpt*ntemp*neta*(npres+1)]);
+
+            lev_src[idx] = sqrt(pfrac_loc * pfrac_m1) * planck_function_1;
+        }
+
+        if (ilay ==  (nlay-1))
+        {
+            const int idx_tmp_p1 = idx_tmp + ncol;
+            planck_function_1 = interpolate1D(tlev[idx_tmp_p1], temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
+            lev_src[idx_tmp_p1] = pfrac_loc * planck_function_1;
+        }
+
+        if (ilay == sfc_lay)
+        {
+            const int idx_sfc = icol + col_s;
+                        planck_function_1 = interpolate1D(tsfc[idx_sfc],               temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
+            const Float planck_function_2 = interpolate1D(tsfc[idx_sfc] + delta_Tsurf, temp_ref_min, totplnk_delta, nPlanckTemp, &totplnk[ibnd * nPlanckTemp]);
+
+            sfc_src[idx_sfc] = pfrac_loc * planck_function_1;
+            sfc_src_jac[idx_sfc] = pfrac_loc * (planck_function_2 - planck_function_1);
+
+        }
+
     }
 }
 
@@ -256,8 +288,8 @@ void Planck_source_kernel(
 __global__
 void interpolation_kernel(
         const int igpt,
-        const int col_s, const int ncol_sub, const int ncol, const int nlay, const int ngas, 
-        const int nflav, const int neta, const int npres, const int ntemp, 
+        const int col_s, const int ncol_sub, const int ncol, const int nlay, const int ngas,
+        const int nflav, const int neta, const int npres, const int ntemp,
         const Float tmin,
         const int* __restrict__ gpoint_flavor,
         const int* __restrict__ flavor,
@@ -293,7 +325,7 @@ void interpolation_kernel(
 
         jpress[idx] = min(npres-1, max(1, int(locpress)));
         tropo[idx] = log(play[idx_off]) > press_ref_trop_log;
-        
+
         const int itropo = !tropo[idx];
         const int iflav = gpoint_flavor[itropo + 2*igpt] - 1;
 
@@ -305,7 +337,7 @@ void interpolation_kernel(
 
         const Float gas1 = col_gas[idx + gas_idx1*nlay*ncol_sub];
         const Float gas2 = col_gas[idx + gas_idx2*nlay*ncol_sub];
-        
+
         for (int itemp=0; itemp<2; ++itemp)
         {
             const int vmr_base_idx = itropo + (jtemp[idx]+itemp-1) * (ngas+1) * 2;
@@ -356,6 +388,7 @@ void gas_optical_depths_major_kernel(
     if ( (icol < ncol_sub) && (ilay < nlay) )
     {
         const int idx_collay = icol + ilay*ncol_sub;
+        const int idx_off = icol + col_s + ilay*ncol;
         const int itropo = !tropo[idx_collay];
 
         const int ljtemp = jtemp[idx_collay];
@@ -372,7 +405,7 @@ void gas_optical_depths_major_kernel(
         #pragma unroll 1
         for (int i=0; i<2; ++i)
         {
-            tau[idx_collay] += col_mix[idx_fcl1+i] *
+            tau[idx_off] += col_mix[idx_fcl1+i] *
                 (ifmajor[i*4+0] * kmajor[(ljtemp-1+i) + (jeta[idx_fcl1+i]-1)*ntemp + (jpressi-1)*ntemp*neta + igpt*ntemp*neta*npress] +
                  ifmajor[i*4+1] * kmajor[(ljtemp-1+i) +  jeta[idx_fcl1+i]   *ntemp + (jpressi-1)*ntemp*neta + igpt*ntemp*neta*npress] +
                  ifmajor[i*4+2] * kmajor[(ljtemp-1+i) + (jeta[idx_fcl1+i]-1)*ntemp + jpressi    *ntemp*neta + igpt*ntemp*neta*npress] +
@@ -414,7 +447,7 @@ void gas_optical_depths_minor_kernel(
         const int ncollay = ncol_sub * nlay;
         const int idx_collay = icol + ilay*ncol_sub;
         const int idx_off = icol + col_s + ilay*ncol;
-        
+
         const int minor_start = first_last_minor[2*igpt];
         const int minor_end   = first_last_minor[2*igpt+1];
 
@@ -460,7 +493,7 @@ void gas_optical_depths_minor_kernel(
                                    kfminor[2] * kin[kjtemp     + (j1-1)*ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta] +
                                    kfminor[3] * kin[kjtemp     +  j1   *ntemp + (igpt-start_of_band+gpt_offset)*ntemp*neta];
 
-                tau[idx_collay] += ltau_minor * scaling;
+                tau[idx_off] += ltau_minor * scaling;
             }
         }
     }
@@ -512,7 +545,7 @@ void compute_tau_rayleigh_kernel(
 __global__
 void combine_abs_and_rayleigh_kernel(
         const int col_s, const int ncol_sub, const int ncol, const int nlay, const Float tmin,
-        const Float* __restrict__ tau_abs, const Float* __restrict__ tau_rayleigh,
+        const Float* __restrict__ tau_rayleigh,
         Float* __restrict__ tau, Float* __restrict__ ssa, Float* __restrict__ g)
 {
     // Fetch the three coordinates.
@@ -521,17 +554,17 @@ void combine_abs_and_rayleigh_kernel(
 
     if ( (icol < ncol_sub) && (ilay < nlay) )
     {
-        const int idx = icol + ilay*ncol_sub;
-        const int idx_out = icol + col_s + ilay*ncol;
+        const int idx_sub = icol + ilay*ncol_sub;
+        const int idx_full = icol + col_s + ilay*ncol;
 
-        const Float tau_tot = tau_abs[idx] + tau_rayleigh[idx];
+        const Float tau_tot = tau[idx_full] + tau_rayleigh[idx_sub];
 
-        tau[idx_out] = tau_tot;
-        g  [idx_out] = Float(0.);
+        tau[idx_full] = tau_tot;
+        g  [idx_full] = Float(0.);
 
         if (tau_tot>(Float(2.)*tmin))
-            ssa[idx_out] = tau_rayleigh[idx]/tau_tot;
+            ssa[idx_full] = tau_rayleigh[idx_sub]/tau_tot;
         else
-            ssa[idx_out] = Float(0.);
+            ssa[idx_full] = Float(0.);
     }
 }

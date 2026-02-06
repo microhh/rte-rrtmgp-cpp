@@ -809,7 +809,7 @@ void Gas_optics_rrtmgp_rt::init_abs_coeffs(
     this->planck_frac_gpu = this->planck_frac;
 }
 
-    
+
 void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
     const int igpt,
     std::vector<int>& gases)
@@ -867,7 +867,7 @@ void Gas_optics_rrtmgp_rt::find_relevant_gases_gpt(
 
 __global__
 void fill_gases_kernel(
-        const int col_s, const int ncol_sub, const int ncol, const int nlay, 
+        const int col_s, const int ncol_sub, const int ncol, const int nlay,
         const int dim1, const int dim2, const int ngas, const int igas,
         const Float* __restrict__ vmr_in,
         Float* __restrict__ col_gas, const Float* __restrict__ col_dry)
@@ -1013,12 +1013,12 @@ void Gas_optics_rrtmgp_rt::gas_optics(
         const Array_gpu<Float,2>& play,
         const Array_gpu<Float,2>& plev,
         const Array_gpu<Float,2>& tlay,
+        const Array_gpu<Float,2>& tlev,
         const Array_gpu<Float,1>& tsfc,
         const Gas_concs_gpu& gas_desc,
         std::unique_ptr<Optical_props_arry_rt>& optical_props,
         Source_func_lw_rt& sources,
-        const Array_gpu<Float,2>& col_dry,
-        const Array_gpu<Float,2>& tlev)
+        const Array_gpu<Float,2>& col_dry)
 {
     const int nlay = play.dim(2);
     const int ngpt = this->get_ngpt();
@@ -1026,16 +1026,16 @@ void Gas_optics_rrtmgp_rt::gas_optics(
 
     if (jtemp.size()==0)
     {
-        this->jtemp.set_dims({play.dim(1), play.dim(2)});
-        this->jpress.set_dims({play.dim(1), play.dim(2)});
-        this->tropo.set_dims({play.dim(1), play.dim(2)});
-        this->fmajor.set_dims({2, 2, 2, play.dim(1), play.dim(2)});
-        this->jeta.set_dims({2, play.dim(1), play.dim(2)});
+        this->jtemp.set_dims({ncol_sub, nlay});
+        this->jpress.set_dims({ncol_sub, nlay});
+        this->tropo.set_dims({ncol_sub, nlay});
+        this->fmajor.set_dims({2, 2, 2, ncol_sub, nlay});
+        this->jeta.set_dims({2, ncol_sub, nlay});
     }
 
     // Gas optics.
     compute_gas_taus(
-            1, ncol_sub, ncol, nlay, ngpt, nband, igpt,
+            col_s, ncol_sub, ncol, nlay, ngpt, nband, igpt,
             play, plev, tlay, gas_desc,
             optical_props,
             this->jtemp, this->jpress, this->jeta, this->tropo, this->fmajor,
@@ -1043,7 +1043,7 @@ void Gas_optics_rrtmgp_rt::gas_optics(
 
     // External sources.
     source(
-            ncol, nlay, nband, ngpt, igpt,
+            col_s, ncol_sub, ncol, nlay, nband, ngpt, igpt,
             play, plev, tlay, tsfc,
             this->jtemp, this->jpress, this->jeta, this->tropo, this->fmajor,
             sources, tlev);
@@ -1053,7 +1053,7 @@ void Gas_optics_rrtmgp_rt::gas_optics(
 // Gas optics solver shortwave variant.
 
 void Gas_optics_rrtmgp_rt::gas_optics(
-        const int igpt, 
+        const int igpt,
         const int col_s, const int ncol_sub, const int ncol,
         const Array_gpu<Float,2>& play,
         const Array_gpu<Float,2>& plev,
@@ -1144,7 +1144,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
         fill_gases_kernel<<<grid_gpu, block_gpu>>>(
             col_s, ncol_sub, ncol, nlay, vmr_2d.dim(1), vmr_2d.dim(2), ngas, igas, vmr_2d.ptr(), col_gas.ptr(), col_dry.ptr());
     }
-    
+
     Gas_optics_rrtmgp_kernels_cuda_rt::interpolation(
             col_s, ncol_sub, ncol, nlay, igpt,
             ngas, nflav, neta, npres, ntemp,
@@ -1181,9 +1181,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
 
     if (has_rayleigh)
     {
-        Array_gpu<Float,2> tau({ncol_sub, nlay});
         Array_gpu<Float,2> tau_rayleigh({ncol_sub, nlay});
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(nlay, ncol_sub, tau.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(ncol_sub, nlay, tau_rayleigh.ptr());
 
         Gas_optics_rrtmgp_kernels_cuda_rt::compute_tau_absorption(
@@ -1214,7 +1212,7 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
                 col_mix.ptr(), fmajor.ptr(), fminor.ptr(),
                 play.ptr(), tlay.ptr(), col_gas.ptr(),
                 jeta.ptr(), jtemp.ptr(), jpress.ptr(),
-                tau.ptr());
+                optical_props->get_tau().ptr());
 
         Gas_optics_rrtmgp_kernels_cuda_rt::compute_tau_rayleigh(
                 col_s, ncol_sub, ncol, nlay, nband, ngpt, igpt,
@@ -1228,13 +1226,11 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
 
         Gas_optics_rrtmgp_kernels_cuda_rt::combine_abs_and_rayleigh(
                 col_s, ncol_sub, ncol, nlay,
-                tau.ptr(), tau_rayleigh.ptr(),
+                tau_rayleigh.ptr(),
                 optical_props->get_tau().ptr(), optical_props->get_ssa().ptr(), optical_props->get_g().ptr());
     }
     else
     {
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(ncol, nlay, optical_props->get_tau().ptr());
-
         Gas_optics_rrtmgp_kernels_cuda_rt::compute_tau_absorption(
                 col_s, ncol_sub, ncol, nlay, nband, ngpt, igpt,
                 ngas, nflav, neta, npres, ntemp,
@@ -1267,22 +1263,8 @@ void Gas_optics_rrtmgp_rt::compute_gas_taus(
     }
 }
 
-// void Gas_optics_rrtmgp_rt::combine_abs_and_rayleigh(
-//         const Array_gpu<Float,2>& tau,
-//         const Array_gpu<Float,2>& tau_rayleigh,
-//         std::unique_ptr<Optical_props_arry_rt>& optical_props)
-// {
-//     int ncol = tau.dim(1);
-//     int nlay = tau.dim(2);
-//
-//     Gas_optics_rrtmgp_kernels_cuda_rt::combine_abs_and_rayleigh(
-//             ncol, nlay,
-//             tau, tau_rayleigh,
-//             optical_props->get_tau(), optical_props->get_ssa(), optical_props->get_g());
-// }
-
 void Gas_optics_rrtmgp_rt::source(
-        const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
+        const int col_s, const int ncol_sub, const int ncol, const int nlay, const int nbnd, const int ngpt, const int igpt,
         const Array_gpu<Float,2>& play, const Array_gpu<Float,2>& plev,
         const Array_gpu<Float,2>& tlay, const Array_gpu<Float,1>& tsfc,
         const Array_gpu<int,2>& jtemp, const Array_gpu<int,2>& jpress,
@@ -1301,15 +1283,15 @@ void Gas_optics_rrtmgp_rt::source(
 
     int sfc_lay = play({1, 1}) > play({1, nlay}) ? 1 : nlay;
 
-    Gas_optics_rrtmgp_kernels_cuda_rt::Planck_source(
-            ncol, nlay, nbnd, ngpt, igpt,
+    Gas_optics_rrtmgp_kernels_cuda_rt::compute_planck_source(
+            col_s, ncol_sub, ncol, nlay, nbnd, ngpt, igpt,
             nflav, neta, npres, ntemp, nPlanckTemp,
             tlay.ptr(), tlev.ptr(), tsfc.ptr(), sfc_lay,
             fmajor.ptr(), jeta.ptr(), tropo.ptr(), jtemp.ptr(), jpress.ptr(),
             gpoint_bands.ptr(), band_lims_gpoint.ptr(), this->planck_frac_gpu.ptr(), this->temp_ref_min,
             this->totplnk_delta, this->totplnk_gpu.ptr(),
-            sources.get_sfc_source().ptr(), sources.get_lay_source().ptr(), sources.get_lev_source_inc().ptr(),
-            sources.get_lev_source_dec().ptr(), sources.get_sfc_source_jac().ptr());
+            sources.get_sfc_source().ptr(), sources.get_lay_source().ptr(),
+            sources.get_lev_source().ptr(), sources.get_sfc_source_jac().ptr());
 }
 
 

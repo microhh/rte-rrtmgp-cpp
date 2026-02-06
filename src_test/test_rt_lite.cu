@@ -366,11 +366,11 @@ void solve_radiation(int argc, char** argv)
         flux_dn_dir_2stream.set_dims({ncol, n_lay+1});
 
         Rte_sw_rt rte_sw;
-        Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 1, 0, tod_dir * cos(zenith_angle), flux_dn_dir_2stream.ptr());
-        Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 1, 0, flux_dn_2stream.ptr());
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 0, tod_dir * cos(zenith_angle), flux_dn_dir_2stream.ptr());
+        Rte_solver_kernels_cuda_rt::apply_BC(ncol, n_lay, 0, flux_dn_2stream.ptr());
 
         Rte_solver_kernels_cuda_rt::sw_solver_2stream(
-            ncol, n_lay, 1, 0,
+            ncol, n_lay, 0,
             tot_tau_g.ptr(),
             tot_ssa_g.ptr(),
             tot_asy_g.ptr(),

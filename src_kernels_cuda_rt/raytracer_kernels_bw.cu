@@ -280,7 +280,8 @@ namespace
             const Vector<Float>& normal,
             const Phase_kind kind)
     {
-        const Float cos_angle = dot(photon.direction, sun_direction);
+        const Float cos_angle = min(max(Float(-1.), dot(photon.direction, sun_direction)), Float(1.));
+
         if (kind == Phase_kind::HG)
         {
             return henyey_phase(g, cos_angle) * sun_solid_angle;

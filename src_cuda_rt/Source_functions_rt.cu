@@ -35,8 +35,7 @@ Source_func_lw_rt::Source_func_lw_rt(
     sfc_source({n_col}),
     sfc_source_jac({n_col}),
     lay_source({n_col, n_lay}),
-    lev_source_inc({n_col, n_lay}),
-    lev_source_dec({n_col, n_lay})
+    lev_source({n_col, n_lay+1})
 {}
 
 

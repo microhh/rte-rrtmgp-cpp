@@ -63,7 +63,7 @@ if args['radiance']:
     cam["yaw"][:]   = 0
     cam["pitch"][:] = -90
     cam["roll"][:]  = 0
-    cam["cam_type"][:]= 1
+    cam["cam_type"][:]= 0
     cam["fov"][:] = 80
     cam["px"][:] = 0
     cam["py"][:] = 0
@@ -76,7 +76,7 @@ if args['image']:
     cam["yaw"][:] = 0
     cam["pitch"][:] = 0
     cam["roll"][:]  = 0
-    cam["cam_type"][:]= 0
+    cam["cam_type"][:]= 1
     cam["fov"][:] = 80
     cam["px"][:] = 0.
     cam["py"][:] = 0.
