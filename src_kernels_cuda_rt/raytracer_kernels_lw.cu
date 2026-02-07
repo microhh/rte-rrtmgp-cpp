@@ -54,7 +54,7 @@ namespace
     inline void reset_photon(
             Photon& photon, const int src_type,
             Int& photons_shot, const Int photons_to_shoot,
-            const float* __restrict__ alias_prob,
+            const Float* __restrict__ alias_prob,
             const int* __restrict__ alias_idx,
             const int alias_n,
             Random_number_generator<Float>& rng,
@@ -75,7 +75,7 @@ namespace
             {
                 const int idx = sample_alias_table(
                         alias_prob, alias_idx, alias_n,
-                        float(rng()), float(rng()));
+                        Float(rng()), Float(rng()));
 
                 const int i = (idx%(grid_cells.x * grid_cells.y)) % grid_cells.x ;
                 const int j = (idx%(grid_cells.x * grid_cells.y)) / grid_cells.x ;
@@ -97,7 +97,7 @@ namespace
             {
                 const int idx = sample_alias_table(
                         alias_prob, alias_idx, alias_n,
-                        float(rng()), float(rng()));
+                        Float(rng()), Float(rng()));
 
                 const int i = idx % grid_cells.x ;
                 const int j = idx / grid_cells.x ;
@@ -117,7 +117,7 @@ namespace
             {
                 const int idx = sample_alias_table(
                         alias_prob, alias_idx, alias_n,
-                        float(rng()), float(rng()));
+                        Float(rng()), Float(rng()));
 
                 const int i = idx % grid_cells.x ;
                 const int j = idx / grid_cells.x ;
@@ -153,7 +153,7 @@ void ray_tracer_lw_kernel(
         const int src_type,
         const bool independent_column,
         const Int photons_to_shoot,
-        const float* __restrict__ alias_prob,
+        const Float* __restrict__ alias_prob,
         const int* __restrict__ alias_idx,
         const int alias_n,
         const Float* __restrict__ k_null_grid,

@@ -10,15 +10,15 @@ namespace
             const Float* __restrict__ weights,
             const int n,
             const Float total_sum,
-            float* __restrict__ w,
-            float* __restrict__ prob,
+            Float* __restrict__ w,
+            Float* __restrict__ prob,
             int* __restrict__ alias,
             int* __restrict__ active)
     {
         const int i = blockIdx.x * blockDim.x + threadIdx.x;
         if (i < n)
         {
-            w[i] = float(weights[i] * Float(n) / total_sum);
+            w[i] = Float(weights[i] * Float(n) / total_sum);
             prob[i] = 1.0f;
             alias[i] = i;
             active[i] = i;
@@ -31,8 +31,8 @@ namespace
             const int* __restrict__ small_indices,
             const int* __restrict__ large_indices,
             const int k,
-            float* __restrict__ w,
-            float* __restrict__ prob,
+            Float* __restrict__ w,
+            Float* __restrict__ prob,
             int* __restrict__ alias)
     {
         const int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -49,7 +49,7 @@ namespace
 
     struct Is_small
     {
-        const float* w;
+        const Float* w;
         __device__ __forceinline__ bool operator()(int idx) const
         {
             return w[idx] < 1.0f;
@@ -61,7 +61,7 @@ namespace
 void build_alias_table(
         const Float* weights_gpu,
         const int n,
-        float* prob_gpu,
+        Float* prob_gpu,
         int* alias_gpu,
         Float& total_sum)
 {
@@ -83,7 +83,7 @@ void build_alias_table(
     if (total_sum <= Float(0.)) return;
 
     // 2. Allocate working arrays.
-    float* w = Tools_gpu::allocate_gpu<float>(n);
+    Float* w = Tools_gpu::allocate_gpu<Float>(n);
     int* buf_a = Tools_gpu::allocate_gpu<int>(n);
     int* buf_b = Tools_gpu::allocate_gpu<int>(n);
     int* d_n_small = Tools_gpu::allocate_gpu<int>(1);

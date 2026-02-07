@@ -254,13 +254,13 @@ void Raytracer_lw::trace_rays(
     const int n_atm = grid_cells.x*grid_cells.y*grid_cells.z;
     const int n_2d = grid_cells.x*grid_cells.y;
 
-    Array_gpu<float,1> alias_prob_atm({n_atm});
+    Array_gpu<Float,1> alias_prob_atm({n_atm});
     Array_gpu<int,1> alias_idx_atm({n_atm});
 
-    Array_gpu<float,1> alias_prob_sfc({n_2d});
+    Array_gpu<Float,1> alias_prob_sfc({n_2d});
     Array_gpu<int,1> alias_idx_sfc({n_2d});
 
-    Array_gpu<float,1> alias_prob_tod({n_2d});
+    Array_gpu<Float,1> alias_prob_tod({n_2d});
     Array_gpu<int,1> alias_idx_tod({n_2d});
 
     Float total_power_atm, total_power_sfc, total_power_tod;
@@ -331,12 +331,12 @@ void Raytracer_lw::trace_rays(
     dim3 grid(rt_lw_kernel_grid);
     dim3 block(rt_lw_kernel_block);
 
-    const Int photons_per_thread = 512;
+    const Int photons_per_thread = 1024;
     const Float rng_offset = igpt*rt_lw_kernel_grid*rt_lw_kernel_block;
 
     auto run_raytracer = [&](
         const int src_type,
-        const float* alias_prob,
+        const Float* alias_prob,
         const int* alias_idx,
         const int n_table,
         const Float total_power_src)
