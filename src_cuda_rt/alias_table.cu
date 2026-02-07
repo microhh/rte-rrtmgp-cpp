@@ -127,10 +127,14 @@ void build_alias_table(
         pair_entries<<<pair_grid, block_size>>>(
                 buf_b, buf_b + n_small, k, w, prob_gpu, alias_gpu);
 
-        // Large entries become the active set for the next iteration.
+        // Carry forward unpaired small entries and all (adjusted) large entries.
+        const int unpaired_small = n_small - k;
+        if (unpaired_small > 0)
+            cuda_safe_call(cudaMemcpy(
+                    buf_a, buf_b + k, unpaired_small * sizeof(int), cudaMemcpyDeviceToDevice));
         cuda_safe_call(cudaMemcpy(
-                buf_a, buf_b + n_small, n_large * sizeof(int), cudaMemcpyDeviceToDevice));
-        n_active = n_large;
+                buf_a + unpaired_small, buf_b + n_small, n_large * sizeof(int), cudaMemcpyDeviceToDevice));
+        n_active = unpaired_small + n_large;
     }
 
     cudaFree(d_part_temp);

@@ -251,15 +251,17 @@ void Raytracer_lw::trace_rays(
             power_atm.ptr(), power_sfc.ptr(), power_tod.ptr());
 
     // Build alias tables for emission source sampling.
-    const int n_atm = grid_cells.x * grid_cells.y * grid_cells.z;
-    const int n_2d = grid_cells.x * grid_cells.y;
+    const int n_atm = grid_cells.x*grid_cells.y*grid_cells.z;
+    const int n_2d = grid_cells.x*grid_cells.y;
 
     Array_gpu<float,1> alias_prob_atm({n_atm});
-    Array_gpu<int,1>   alias_idx_atm({n_atm});
+    Array_gpu<int,1> alias_idx_atm({n_atm});
+
     Array_gpu<float,1> alias_prob_sfc({n_2d});
-    Array_gpu<int,1>   alias_idx_sfc({n_2d});
+    Array_gpu<int,1> alias_idx_sfc({n_2d});
+
     Array_gpu<float,1> alias_prob_tod({n_2d});
-    Array_gpu<int,1>   alias_idx_tod({n_2d});
+    Array_gpu<int,1> alias_idx_tod({n_2d});
 
     Float total_power_atm, total_power_sfc, total_power_tod;
 
