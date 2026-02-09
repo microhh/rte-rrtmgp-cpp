@@ -51,6 +51,52 @@ namespace
     };
 
     __device__
+
+    inline int find_source_index(const Float* weights, int n, const Float r)
+    {
+        int left = 0;
+        int right = n;
+
+        while (left < right)
+        {
+            int mid = left + (right - left) / 2;
+            if (weights[mid] <= r)
+            {
+                left = mid + 1;
+            }
+            else
+            {
+                right = mid;
+            }
+        }
+
+        return min(left, n-1);
+    }
+
+    __device__
+    inline void write_emission(
+            Photon& photon,
+            const int src_type,
+            const Float total_absorbed_weight,
+            Float* __restrict__ const toa_down_count,
+            Float* __restrict__ const surface_up_count,
+            Float* __restrict__ const atmos_count)
+    {
+        if (src_type == 0)
+        {
+            atomicAdd(&atmos_count[photon.starting_idx], Float(-1.)*total_absorbed_weight);
+        }
+        if (src_type == 1)
+        {
+            atomicAdd(&surface_up_count[photon.starting_idx], total_absorbed_weight);
+        }
+        if (src_type == 2)
+        {
+            atomicAdd(&toa_down_count[photon.starting_idx], total_absorbed_weight);
+        }
+    }
+
+    __device__
     inline void reset_photon(
             Photon& photon, const int src_type,
             Int& photons_shot, const Int photons_to_shoot,
@@ -64,7 +110,8 @@ namespace
             Float* __restrict__ const toa_down_count,
             Float* __restrict__ const surface_up_count,
             Float* __restrict__ const atmos_count,
-            Float& weight)
+            Float& photon_weight,
+            Float& total_absorbed_weight)
     {
         ++photons_shot;
         if (photons_shot < photons_to_shoot)
@@ -91,7 +138,7 @@ namespace
                 azi = Float(2.*M_PI)*rng();
 
                 const int ijk = ij + k*grid_cells.x*grid_cells.y;
-                atomicAdd(&atmos_count[ijk], Float(-1.));
+                photon.starting_idx = ijk;
             }
             if (src_type == 1)
             {
@@ -111,7 +158,7 @@ namespace
                 mu = sqrt(rng());
                 azi = Float(2.*M_PI)*rng();
 
-                atomicAdd(&surface_up_count[ij], Float(1.));
+                photon.starting_idx = ij;
             }
             if (src_type == 2)
             {
@@ -131,7 +178,7 @@ namespace
                 mu = Float(-1.)*sqrt(rng());
                 azi = Float(2.*M_PI)*rng();
 
-                atomicAdd(&toa_down_count[ij], Float(1.));
+                photon.starting_idx = ij;
             }
 
             const Float s = sqrt(Float(1.) - mu*mu + Float_epsilon);
@@ -139,7 +186,8 @@ namespace
             photon.direction.y = s*cos(azi);
             photon.direction.z = mu;
 
-            weight = 1;
+            photon_weight = Float(1.);
+            total_absorbed_weight = Float(0.);
 
         }
     }
@@ -183,15 +231,16 @@ void ray_tracer_lw_kernel(
 
     // Set up the initial photons.
     Int photons_shot = Atomic_reduce_const;
-    Float weight;
+    Float photon_weight;
+    Float total_absorbed_weight;
 
     reset_photon(
             photon, src_type,
             photons_shot, photons_to_shoot,
             alias_prob, alias_idx, alias_n, rng,
             grid_size, grid_d, grid_cells,
-            toa_down_count, surface_up_count,
-            atmos_count, weight);
+            toa_down_count, surface_up_count, atmos_count,
+            photon_weight, total_absorbed_weight);
 
     Float tau = Float(0.);
     Float d_max = Float(0.);
@@ -253,18 +302,39 @@ void ray_tracer_lw_kernel(
                 #endif
 
                 // // Add surface irradiance
-                write_photon_out(&surface_down_count[ij], weight);
+                write_photon_out(&surface_down_count[ij], photon_weight);
 
                 // Update weights and add upward surface flux
                 const Float local_albedo = Float(1.) - surface_emis[ij];
-                weight *= local_albedo;
-                write_photon_out(&surface_up_count[ij], weight);
 
-                if (weight < w_thres)
-                    weight = (rng() > weight) ? Float(0.) : Float(1.);
+                total_absorbed_weight += (1-local_albedo)*photon_weight;
 
+                photon_weight *= local_albedo;
+                write_photon_out(&surface_up_count[ij], photon_weight);
+
+
+                if (photon_weight < w_thres)
+                {
+                    if (rng() >  photon_weight)
+                    {
+                        write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
+
+                        reset_photon(
+                             photon, src_type,
+                             photons_shot, photons_to_shoot,
+                             alias_prob, alias_idx, alias_n, rng,
+                             grid_size, grid_d, grid_cells,
+                             toa_down_count, surface_up_count, atmos_count,
+                             photon_weight, total_absorbed_weight);
+                    }
+                    else
+                    {
+                        photon_weight = Float(1.0);
+                    }
+
+                }
                 // only with nonzero weight continue ray tracing, else start new ray
-                if (weight > Float(0.))
+                if (photon_weight > Float(0.))
                 {
                     const Float mu_surface = sqrt(rng());
                     const Float azimuth_surface = Float(2.*M_PI)*rng();
@@ -280,8 +350,9 @@ void ray_tracer_lw_kernel(
                          photons_shot, photons_to_shoot,
                          alias_prob, alias_idx, alias_n, rng,
                          grid_size, grid_d, grid_cells,
-                         toa_down_count, surface_up_count,
-                         atmos_count, weight);
+                         toa_down_count, surface_up_count, atmos_count,
+                         photon_weight, total_absorbed_weight);
+                    printf ("uh oh, this should not happend \n");
                 }
             }
 
@@ -298,15 +369,19 @@ void ray_tracer_lw_kernel(
                 if (ij < 0 || ij >=grid_cells.x*grid_cells.y) printf("Out of bounds at TOD \n");
                 #endif
 
-                write_photon_out(&tod_up_count[ij], weight);
+                write_photon_out(&tod_up_count[ij], photon_weight);
+
+                total_absorbed_weight += photon_weight;
+
+                write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
 
                 reset_photon(
                        photon, src_type,
                        photons_shot, photons_to_shoot,
                        alias_prob, alias_idx, alias_n, rng,
                        grid_size, grid_d, grid_cells,
-                       toa_down_count, surface_up_count,
-                       atmos_count, weight);
+                       toa_down_count, surface_up_count, atmos_count,
+                       photon_weight, total_absorbed_weight);
             }
             // regular cell crossing: adjust tau and apply periodic BC
             else
@@ -362,15 +437,17 @@ void ray_tracer_lw_kernel(
             if (ijk < 0 || ijk >= grid_cells.x*grid_cells.y*grid_cells.z) printf("Out of Bounds at Heating Rates %d %d %d %f %f %f  \n",i,j,k,photon.position.x,photon.position.y, photon.position.z);
             #endif
 
-            write_photon_out(&atmos_count[ijk], weight*(1-f_no_abs));
+            write_photon_out(&atmos_count[ijk], photon_weight*(1-f_no_abs));
+
+            total_absorbed_weight += photon_weight*(1-f_no_abs);
 
             // Update weights (see Iwabuchi 2006: https://doi.org/10.1175/JAS3755.1)
-            weight *= f_no_abs;
-            if (weight < w_thres)
-                weight = (rng() > weight) ? Float(0.) : Float(1.);
+            photon_weight *= f_no_abs;
+            if (photon_weight < w_thres)
+                photon_weight = (rng() > photon_weight) ? Float(0.) : Float(1.);
 
             // only with nonzero weight continue ray tracing, else start new ray
-            if (weight > Float(0.))
+            if (photon_weight > Float(0.))
             {
                 // Null collision.
                 if (rng() >= ssa_tot / (ssa_tot - Float(1.) + k_ext_null / k_ext[ijk]))
@@ -430,13 +507,15 @@ void ray_tracer_lw_kernel(
             else
             {
                 d_max = Float(0.);
+                write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
+
                 reset_photon(
                        photon, src_type,
                        photons_shot, photons_to_shoot,
                        alias_prob, alias_idx, alias_n, rng,
                        grid_size, grid_d, grid_cells,
-                       toa_down_count, surface_up_count,
-                       atmos_count, weight);
+                       toa_down_count, surface_up_count, atmos_count,
+                       photon_weight, total_absorbed_weight);
             }
         }
     }
