@@ -86,11 +86,11 @@ namespace
         {
             atomicAdd(&atmos_count[photon.starting_idx], Float(-1.)*total_absorbed_weight);
         }
-        if (src_type == 1)
+        else if (src_type == 1)
         {
             atomicAdd(&surface_up_count[photon.starting_idx], total_absorbed_weight);
         }
-        if (src_type == 2)
+        else // if (src_type == 2)
         {
             atomicAdd(&toa_down_count[photon.starting_idx], total_absorbed_weight);
         }
@@ -114,6 +114,7 @@ namespace
             Float& total_absorbed_weight)
     {
         ++photons_shot;
+
         if (photons_shot < photons_to_shoot)
         {
             Float mu, azi;
@@ -315,7 +316,7 @@ void ray_tracer_lw_kernel(
 
                 if (photon_weight < w_thres)
                 {
-                    if (rng() >  photon_weight)
+                    if (rng() > photon_weight)
                     {
                         write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
 
@@ -326,6 +327,9 @@ void ray_tracer_lw_kernel(
                              grid_size, grid_d, grid_cells,
                              toa_down_count, surface_up_count, atmos_count,
                              photon_weight, total_absorbed_weight);
+
+                        // Cycle the while loop, this photon is done.
+                        continue;
                     }
                     else
                     {
@@ -333,29 +337,13 @@ void ray_tracer_lw_kernel(
                     }
 
                 }
-                // only with nonzero weight continue ray tracing, else start new ray
-                if (photon_weight > Float(0.))
-                {
-                    const Float mu_surface = sqrt(rng());
-                    const Float azimuth_surface = Float(2.*M_PI)*rng();
-                    const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
-                    photon.direction.x = sin_theta*sin(azimuth_surface);
-                    photon.direction.y = sin_theta*cos(azimuth_surface);
-                    photon.direction.z = mu_surface;
-                }
-                else
-                {
-                    write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
 
-                    reset_photon(
-                         photon, src_type,
-                         photons_shot, photons_to_shoot,
-                         alias_prob, alias_idx, alias_n, rng,
-                         grid_size, grid_d, grid_cells,
-                         toa_down_count, surface_up_count, atmos_count,
-                         photon_weight, total_absorbed_weight);
-                    printf ("uh oh, this should not happend \n");
-                }
+                const Float mu_surface = sqrt(rng());
+                const Float azimuth_surface = Float(2.*M_PI)*rng();
+
+                photon.direction.x = mu_surface*sin(azimuth_surface);
+                photon.direction.y = mu_surface*cos(azimuth_surface);
+                photon.direction.z = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
             }
 
             // TOD exit
@@ -384,6 +372,9 @@ void ray_tracer_lw_kernel(
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight);
+
+                // Cycle the while loop, this photon is done.
+                continue;
             }
             // regular cell crossing: adjust tau and apply periodic BC
             else

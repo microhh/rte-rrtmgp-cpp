@@ -21,7 +21,6 @@
 #include <iomanip>
 #include <cuda_profiler_api.h>
 
-
 #include "status.h"
 #include "netcdf_interface.h"
 #include "array.h"
@@ -32,6 +31,7 @@
 #include "types.h"
 #include "mem_pool_gpu.h"
 #include "tilt_utils.h"
+
 
 void read_and_set_vmr(
         const std::string& gas_name, const int n_col_x, const int n_col_y, const int n_lay,
@@ -274,13 +274,6 @@ void solve_radiation(int argc, char** argv)
     {
         std::string error = "number of photons per pixel should be a power of 2 ";
         throw std::runtime_error(error);
-    }
-
-    if (switch_longwave)
-    {
-        Status::print_message("Note: no longwave radiation implemented in the ray tracer, yet");
-        // std::string error = "No longwave radiation implemented in the ray tracer";
-        // throw std::runtime_error(error);
     }
 
     if (!switch_twostream && !switch_raytracing) {
