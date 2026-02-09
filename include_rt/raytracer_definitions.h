@@ -30,6 +30,7 @@ namespace Raytracer_definitions
         Vector<Float>position;
         Vector<Float>direction;
         Photon_kind kind;
+        int starting_idx;
     };
 }
 #endif
