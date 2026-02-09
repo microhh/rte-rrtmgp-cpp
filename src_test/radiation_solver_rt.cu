@@ -443,9 +443,6 @@ void Radiation_solver_longwave::solve_gpu(
         Array_gpu<Float,2>& rt_flux_tod_up, Array_gpu<Float,2>& rt_flux_tod_dn, Array_gpu<Float,2>& rt_flux_sfc_up,
         Array_gpu<Float,2>& rt_flux_sfc_dn, Array_gpu<Float,3>& rt_flux_abs)
 {
-
-    // throw std::runtime_error("Longwave raytracing is not implemented");
-
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
     const int n_lev = p_lev.dim(2);
