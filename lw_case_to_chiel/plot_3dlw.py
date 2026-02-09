@@ -24,7 +24,17 @@ sfc_up = data.variables["rt_lw_flux_sfc_up"][:, :].mean()
 sfc_dn = data.variables["rt_lw_flux_sfc_dn"][:, :].mean()
 hr = (data.variables["rt_lw_flux_abs"][:, :, :].mean(axis=(1, 2)) * dz).sum()
 
+print("Energy balance")
 print(tod_up, tod_dn, sfc_up, sfc_dn, hr)
 print(tod_dn - tod_up, sfc_up - sfc_dn, hr)
 print((tod_dn - tod_up) + (sfc_up - sfc_dn), hr)
 print((tod_dn - tod_up) + (sfc_up - sfc_dn) - hr)
+
+print("Surface balance 1d vs 3d (toa_up, toa_dn, sfc_up, sfc_dn")
+print('3d', tod_up, tod_dn, sfc_up, sfc_dn)
+
+tod_up = data.variables["lw_flux_up"][len(z), :, :].mean()
+tod_dn = data.variables["lw_flux_dn"][len(z), :, :].mean()
+sfc_up = data.variables["lw_flux_up"][0, :, :].mean()
+sfc_dn = data.variables["lw_flux_dn"][0, :, :].mean()
+print('1d', tod_up, tod_dn, sfc_up, sfc_dn)

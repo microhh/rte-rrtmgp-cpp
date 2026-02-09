@@ -106,9 +106,8 @@ void build_alias_table(
     cudaMalloc(&d_part_temp, part_temp_bytes);
 
     int n_active = n;
-    const int max_iter = 64;
 
-    for (int iter = 0; iter < max_iter && n_active > 0; ++iter)
+    while (n_active > 0)
     {
         size_t temp_bytes = part_temp_bytes;
         cub::DevicePartition::If(
