@@ -345,6 +345,8 @@ void ray_tracer_lw_kernel(
                 }
                 else
                 {
+                    write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
+
                     reset_photon(
                          photon, src_type,
                          photons_shot, photons_to_shoot,
