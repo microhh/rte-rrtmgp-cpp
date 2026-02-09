@@ -338,10 +338,10 @@ void ray_tracer_lw_kernel(
                 {
                     const Float mu_surface = sqrt(rng());
                     const Float azimuth_surface = Float(2.*M_PI)*rng();
-
-                    photon.direction.x = mu_surface*sin(azimuth_surface);
-                    photon.direction.y = mu_surface*cos(azimuth_surface);
-                    photon.direction.z = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
+                    const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
+                    photon.direction.x = sin_theta*sin(azimuth_surface);
+                    photon.direction.y = sin_theta*cos(azimuth_surface);
+                    photon.direction.z = mu_surface;
                 }
                 else
                 {
