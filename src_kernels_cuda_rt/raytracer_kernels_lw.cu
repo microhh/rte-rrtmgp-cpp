@@ -86,11 +86,11 @@ namespace
         {
             atomicAdd(&atmos_count[photon.starting_idx], Float(-1.)*total_absorbed_weight);
         }
-        if (src_type == 1)
+        else if (src_type == 1)
         {
             atomicAdd(&surface_up_count[photon.starting_idx], total_absorbed_weight);
         }
-        if (src_type == 2)
+        else // if (src_type == 2)
         {
             atomicAdd(&toa_down_count[photon.starting_idx], total_absorbed_weight);
         }
@@ -326,6 +326,9 @@ void ray_tracer_lw_kernel(
                              grid_size, grid_d, grid_cells,
                              toa_down_count, surface_up_count, atmos_count,
                              photon_weight, total_absorbed_weight);
+
+                        // Cycle the while loop, this photon is done.
+                        continue;
                     }
                     else
                     {
