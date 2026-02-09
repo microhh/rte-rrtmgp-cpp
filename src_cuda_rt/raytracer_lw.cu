@@ -4,10 +4,10 @@
 #include "array.h"
 #include "optical_props_rt.h"
 
-#include <cub/cub.cuh>
 #include "raytracer_definitions.h"
 #include "raytracer_functions.h"
 #include "raytracer_kernels_lw.h"
+#include "alias_table.h"
 
 #include "gas_optics_rrtmgp_kernels_cuda_rt.h"
 
@@ -250,62 +250,24 @@ void Raytracer_lw::trace_rays(
             sfc_source.ptr(), emis_sfc.ptr(), tod_inc_flx,
             power_atm.ptr(), power_sfc.ptr(), power_tod.ptr());
 
-    // cumulative power
-    Array_gpu<Float,3> cum_power_atm({grid_cells.x, grid_cells.y, grid_cells.z});
-    Array_gpu<Float,2> cum_power_sfc({grid_cells.x, grid_cells.y});
-    Array_gpu<Float,2> cum_power_tod({grid_cells.x, grid_cells.y});
+    // Build alias tables for emission source sampling.
+    const int n_atm = grid_cells.x*grid_cells.y*grid_cells.z;
+    const int n_2d = grid_cells.x*grid_cells.y;
 
+    Array_gpu<Float,1> alias_prob_atm({n_atm});
+    Array_gpu<int,1> alias_idx_atm({n_atm});
 
-    void     *d_temp_storage_3d = nullptr;
-    size_t   temp_storage_bytes_3d = 0;
+    Array_gpu<Float,1> alias_prob_sfc({n_2d});
+    Array_gpu<int,1> alias_idx_sfc({n_2d});
 
-    // Determine temporary device storage requirements for inclusive sum
-    cub::DeviceScan::InclusiveSum(
-        d_temp_storage_3d, temp_storage_bytes_3d,
-        power_atm.ptr(), cum_power_atm.ptr(), grid_cells.x*grid_cells.y*grid_cells.z);
+    Array_gpu<Float,1> alias_prob_tod({n_2d});
+    Array_gpu<int,1> alias_idx_tod({n_2d});
 
-    // Allocate temporary storage for inclusive prefix sum
-    cudaMalloc(&d_temp_storage_3d, temp_storage_bytes_3d);
+    Float total_power_atm, total_power_sfc, total_power_tod;
 
-    // Run inclusive prefix sum
-    cub::DeviceScan::InclusiveSum(
-        d_temp_storage_3d, temp_storage_bytes_3d,
-        power_atm.ptr(), cum_power_atm.ptr(), grid_cells.x*grid_cells.y*grid_cells.z);
-
-    cudaFree(d_temp_storage_3d);
-
-    void     *d_temp_storage_2d = nullptr;
-    size_t   temp_storage_bytes_2d = 0;
-
-    // Determine temporary device storage requirements for inclusive sum
-    cub::DeviceScan::InclusiveSum(
-        d_temp_storage_2d, temp_storage_bytes_2d,
-        power_sfc.ptr(), cum_power_sfc.ptr(), grid_cells.x*grid_cells.y);
-
-    // Allocate temporary storage for inclusive prefix sum
-    cudaMalloc(&d_temp_storage_2d, temp_storage_bytes_2d);
-
-    // Run inclusive prefix sum
-    cub::DeviceScan::InclusiveSum(
-        d_temp_storage_2d, temp_storage_bytes_2d,
-        power_sfc.ptr(), cum_power_sfc.ptr(), grid_cells.x*grid_cells.y);
-
-    cub::DeviceScan::InclusiveSum(
-        d_temp_storage_2d, temp_storage_bytes_2d,
-        power_tod.ptr(), cum_power_tod.ptr(), grid_cells.x*grid_cells.y);
-
-    cudaFree(d_temp_storage_2d);
-
-    //power_atm.dump("power_atm"+std::to_string(igpt));
-    //power_sfc.dump("power_sfc"+std::to_string(igpt));
-    //power_tod.dump("power_tod"+std::to_string(igpt));
-    //cum_power_atm.dump("cumpower_atm"+std::to_string(igpt));
-    //cum_power_sfc.dump("cumpower_sfc"+std::to_string(igpt));
-    //cum_power_tod.dump("cumpower_tod"+std::to_string(igpt));
-
-    const Float total_power_atm = cum_power_atm({grid_cells.x, grid_cells.y, grid_cells.z});
-    const Float total_power_sfc = cum_power_sfc({grid_cells.x, grid_cells.y});
-    const Float total_power_tod = cum_power_tod({grid_cells.x, grid_cells.y});
+    build_alias_table(power_atm.ptr(), n_atm, alias_prob_atm.ptr(), alias_idx_atm.ptr(), total_power_atm);
+    build_alias_table(power_sfc.ptr(), n_2d,  alias_prob_sfc.ptr(), alias_idx_sfc.ptr(), total_power_sfc);
+    build_alias_table(power_tod.ptr(), n_2d,  alias_prob_tod.ptr(), alias_idx_tod.ptr(), total_power_tod);
 
     const Float total_power = total_power_atm + total_power_sfc + total_power_tod;
 
@@ -369,13 +331,15 @@ void Raytracer_lw::trace_rays(
     dim3 grid(rt_lw_kernel_grid);
     dim3 block(rt_lw_kernel_block);
 
-    const Int photons_per_thread = 512;
+    const Int photons_per_thread = 1024;
     const Float rng_offset = igpt*rt_lw_kernel_grid*rt_lw_kernel_block;
 
     auto run_raytracer = [&](
         const int src_type,
-        const Float* cum_power,
-        const Float total_power)
+        const Float* alias_prob,
+        const int* alias_idx,
+        const int n_table,
+        const Float total_power_src)
     {
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_dn_count.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_up_count.ptr());
@@ -388,8 +352,9 @@ void Raytracer_lw::trace_rays(
                 src_type,
                 switch_independent_column,
                 photons_per_thread,
-                cum_power,
-                total_power,
+                alias_prob,
+                alias_idx,
+                n_table,
                 k_null_grid.ptr(),
                 tod_dn_count.ptr(),
                 tod_up_count.ptr(),
@@ -400,7 +365,7 @@ void Raytracer_lw::trace_rays(
                 emis_sfc.ptr(),
                 grid_size, grid_d, grid_cells, kn_grid);
 
-        const Float power_per_photon = total_power / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block);
+        const Float power_per_photon = total_power_src / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block);
 
         count_to_flux_2d<<<grid_2d, block_2d>>>(
                 grid_cells,
@@ -421,9 +386,9 @@ void Raytracer_lw::trace_rays(
                 flux_abs.ptr());
     };
 
-    run_raytracer(0, cum_power_atm.ptr(), total_power_atm);
-    run_raytracer(1, cum_power_sfc.ptr(), total_power_sfc);
-    run_raytracer(2, cum_power_tod.ptr(), total_power_tod);
+    run_raytracer(0, alias_prob_atm.ptr(), alias_idx_atm.ptr(), n_atm, total_power_atm);
+    run_raytracer(1, alias_prob_sfc.ptr(), alias_idx_sfc.ptr(), n_2d,  total_power_sfc);
+    run_raytracer(2, alias_prob_tod.ptr(), alias_idx_tod.ptr(), n_2d,  total_power_tod);
 }
 
 Raytracer_lw::Raytracer_lw()

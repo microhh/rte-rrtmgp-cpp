@@ -3,6 +3,7 @@
 
 #include "raytracer_kernels_lw.h"
 #include "raytracer_definitions.h"
+#include "alias_table.h"
 
 namespace
 {
@@ -50,6 +51,7 @@ namespace
     };
 
     __device__
+
     inline int find_source_index(const Float* weights, int n, const Float r)
     {
         int left = 0;
@@ -84,11 +86,11 @@ namespace
         {
             atomicAdd(&atmos_count[photon.starting_idx], Float(-1.)*total_absorbed_weight);
         }
-        if (src_type == 1)
+        else if (src_type == 1)
         {
             atomicAdd(&surface_up_count[photon.starting_idx], total_absorbed_weight);
         }
-        if (src_type == 2)
+        else // if (src_type == 2)
         {
             atomicAdd(&toa_down_count[photon.starting_idx], total_absorbed_weight);
         }
@@ -98,8 +100,9 @@ namespace
     inline void reset_photon(
             Photon& photon, const int src_type,
             Int& photons_shot, const Int photons_to_shoot,
-            const Float* __restrict__ const cum_power,
-            const Float tot_power,
+            const Float* __restrict__ alias_prob,
+            const int* __restrict__ alias_idx,
+            const int alias_n,
             Random_number_generator<Float>& rng,
             const Vector<Float> grid_size,
             const Vector<Float> grid_d,
@@ -111,16 +114,16 @@ namespace
             Float& total_absorbed_weight)
     {
         ++photons_shot;
+
         if (photons_shot < photons_to_shoot)
         {
-            // random weight;
-            const Float random_power = rng() * tot_power;
             Float mu, azi;
 
             if (src_type == 0)
             {
-                // loop through weights array and return
-                const int idx = find_source_index(cum_power, grid_cells.x*grid_cells.y*(grid_cells.z), random_power);
+                const int idx = sample_alias_table(
+                        alias_prob, alias_idx, alias_n,
+                        Float(rng()), Float(rng()));
 
                 const int i = (idx%(grid_cells.x * grid_cells.y)) % grid_cells.x ;
                 const int j = (idx%(grid_cells.x * grid_cells.y)) / grid_cells.x ;
@@ -140,8 +143,9 @@ namespace
             }
             if (src_type == 1)
             {
-                // loop through weights array and return
-                const int idx = find_source_index(cum_power, grid_cells.x*grid_cells.y, random_power);
+                const int idx = sample_alias_table(
+                        alias_prob, alias_idx, alias_n,
+                        Float(rng()), Float(rng()));
 
                 const int i = idx % grid_cells.x ;
                 const int j = idx / grid_cells.x ;
@@ -159,8 +163,9 @@ namespace
             }
             if (src_type == 2)
             {
-                // loop through weights array and return
-                const int idx = find_source_index(cum_power, grid_cells.x*grid_cells.y, random_power);
+                const int idx = sample_alias_table(
+                        alias_prob, alias_idx, alias_n,
+                        Float(rng()), Float(rng()));
 
                 const int i = idx % grid_cells.x ;
                 const int j = idx / grid_cells.x ;
@@ -197,8 +202,9 @@ void ray_tracer_lw_kernel(
         const int src_type,
         const bool independent_column,
         const Int photons_to_shoot,
-        const Float* __restrict__ cum_power,
-        const Float tot_power,
+        const Float* __restrict__ alias_prob,
+        const int* __restrict__ alias_idx,
+        const int alias_n,
         const Float* __restrict__ k_null_grid,
         Float* __restrict__ toa_down_count,
         Float* __restrict__ tod_up_count,
@@ -232,7 +238,7 @@ void ray_tracer_lw_kernel(
     reset_photon(
             photon, src_type,
             photons_shot, photons_to_shoot,
-            cum_power, tot_power, rng,
+            alias_prob, alias_idx, alias_n, rng,
             grid_size, grid_d, grid_cells,
             toa_down_count, surface_up_count, atmos_count,
             photon_weight, total_absorbed_weight);
@@ -310,17 +316,20 @@ void ray_tracer_lw_kernel(
 
                 if (photon_weight < w_thres)
                 {
-                    if (rng() >  photon_weight)
+                    if (rng() > photon_weight)
                     {
                         write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
 
                         reset_photon(
                              photon, src_type,
                              photons_shot, photons_to_shoot,
-                             cum_power, tot_power, rng,
+                             alias_prob, alias_idx, alias_n, rng,
                              grid_size, grid_d, grid_cells,
                              toa_down_count, surface_up_count, atmos_count,
                              photon_weight, total_absorbed_weight);
+
+                        // Cycle the while loop, this photon is done.
+                        continue;
                     }
                     else
                     {
@@ -328,20 +337,13 @@ void ray_tracer_lw_kernel(
                     }
 
                 }
-                // only with nonzero weight continue ray tracing, else start new ray
-                if (photon_weight > Float(0.))
-                {
-                    const Float mu_surface = sqrt(rng());
-                    const Float azimuth_surface = Float(2.*M_PI)*rng();
 
-                    photon.direction.x = mu_surface*sin(azimuth_surface);
-                    photon.direction.y = mu_surface*cos(azimuth_surface);
-                    photon.direction.z = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
-                }
-                else
-                {
-                    printf ("uh oh, this should not happend \n");
-                }
+                const Float mu_surface = sqrt(rng());
+                const Float azimuth_surface = Float(2.*M_PI)*rng();
+
+                photon.direction.x = mu_surface*sin(azimuth_surface);
+                photon.direction.y = mu_surface*cos(azimuth_surface);
+                photon.direction.z = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
             }
 
             // TOD exit
@@ -366,10 +368,13 @@ void ray_tracer_lw_kernel(
                 reset_photon(
                        photon, src_type,
                        photons_shot, photons_to_shoot,
-                       cum_power, tot_power, rng,
+                       alias_prob, alias_idx, alias_n, rng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight);
+
+                // Cycle the while loop, this photon is done.
+                continue;
             }
             // regular cell crossing: adjust tau and apply periodic BC
             else
@@ -500,7 +505,7 @@ void ray_tracer_lw_kernel(
                 reset_photon(
                        photon, src_type,
                        photons_shot, photons_to_shoot,
-                       cum_power, tot_power, rng,
+                       alias_prob, alias_idx, alias_n, rng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight);
