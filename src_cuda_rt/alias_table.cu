@@ -9,17 +9,17 @@ namespace
     void normalize_and_init(
             const Float* __restrict__ weights,
             const int n,
-            const Float total_sum,
-            Float* __restrict__ w,
-            Float* __restrict__ prob,
+            const double total_sum,
+            double* __restrict__ w,
+            double* __restrict__ prob,
             int* __restrict__ alias,
             int* __restrict__ active)
     {
         const int i = blockIdx.x * blockDim.x + threadIdx.x;
         if (i < n)
         {
-            w[i] = Float(weights[i] * Float(n) / total_sum);
-            prob[i] = 1.0f;
+            w[i] = static_cast<double>(weights[i]) * double(n) / total_sum;
+            prob[i] = 1.0;
             alias[i] = i;
             active[i] = i;
         }
@@ -31,8 +31,8 @@ namespace
             const int* __restrict__ small_indices,
             const int* __restrict__ large_indices,
             const int k,
-            Float* __restrict__ w,
-            Float* __restrict__ prob,
+            double* __restrict__ w,
+            double* __restrict__ prob,
             int* __restrict__ alias)
     {
         const int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -42,17 +42,17 @@ namespace
             const int l = large_indices[j];
             prob[s] = w[s];
             alias[s] = l;
-            w[l] += w[s] - 1.0f;
+            w[l] += w[s] - 1.0;
         }
     }
 
 
     struct Is_small
     {
-        const Float* w;
+        const double* w;
         __device__ __forceinline__ bool operator()(int idx) const
         {
-            return w[idx] < 1.0f;
+            return w[idx] < 1.0;
         }
     };
 }
@@ -61,14 +61,14 @@ namespace
 void build_alias_table(
         const Float* weights_gpu,
         const int n,
-        Float* prob_gpu,
+        double* prob_gpu,
         int* alias_gpu,
-        Float& total_sum)
+        double& total_sum)
 {
     if (n == 0) return;
 
     // 1. Reduce to get total sum.
-    Float* d_total = Tools_gpu::allocate_gpu<Float>(1);
+    double* d_total = Tools_gpu::allocate_gpu<double>(1);
 
     void* d_reduce_temp = nullptr;
     size_t reduce_temp_bytes = 0;
@@ -77,13 +77,13 @@ void build_alias_table(
     cub::DeviceReduce::Sum(d_reduce_temp, reduce_temp_bytes, weights_gpu, d_total, n);
     cudaFree(d_reduce_temp);
 
-    cuda_safe_call(cudaMemcpy(&total_sum, d_total, sizeof(Float), cudaMemcpyDeviceToHost));
+    cuda_safe_call(cudaMemcpy(&total_sum, d_total, sizeof(double), cudaMemcpyDeviceToHost));
     Tools_gpu::free_gpu(d_total);
 
-    if (total_sum <= Float(0.)) return;
+    if (total_sum <= 0.) return;
 
     // 2. Allocate working arrays.
-    Float* w = Tools_gpu::allocate_gpu<Float>(n);
+    double* w = Tools_gpu::allocate_gpu<double>(n);
     int* buf_a = Tools_gpu::allocate_gpu<int>(n);
     int* buf_b = Tools_gpu::allocate_gpu<int>(n);
     int* d_n_small = Tools_gpu::allocate_gpu<int>(1);
