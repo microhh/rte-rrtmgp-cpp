@@ -84,12 +84,13 @@ namespace
             }
             else
             {
-                const Float mu_surface = sqrt(rng());
-                const Float azimuth_surface = Float(2.*M_PI)*rng();
+                const Float mu = sqrt(rng());
+                const Float azimuth = Float(2.*M_PI)*rng();
+                const Float sin_theta = sqrt(Float(1.) - mu*mu + Float_epsilon);
 
-                photon.direction.x = mu_surface*sin(azimuth_surface);
-                photon.direction.y = mu_surface*cos(azimuth_surface);
-                photon.direction.z = Float(-1) * (sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon));
+                photon.direction.x = sin_theta*sin(azimuth);
+                photon.direction.y = sin_theta*cos(azimuth);
+                photon.direction.z = Float(-1) * mu;
                 photon.kind = Photon_kind::Diffuse;
             }
 
@@ -265,10 +266,11 @@ void ray_tracer_kernel(
                 {
                     const Float mu_surface = sqrt(rng());
                     const Float azimuth_surface = Float(2.*M_PI)*rng();
+                    const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
 
-                    photon.direction.x = mu_surface*sin(azimuth_surface);
-                    photon.direction.y = mu_surface*cos(azimuth_surface);
-                    photon.direction.z = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
+                    photon.direction.x = sin_theta*sin(azimuth_surface);
+                    photon.direction.y = sin_theta*cos(azimuth_surface);
+                    photon.direction.z = mu_surface;
                     photon.kind = Photon_kind::Diffuse;
                 }
                 else
