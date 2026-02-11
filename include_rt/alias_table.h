@@ -5,11 +5,11 @@
 
 #ifdef __CUDACC__
 __device__ inline int sample_alias_table(
-        const Float* __restrict__ prob,
+        const double* __restrict__ prob,
         const int* __restrict__ alias,
         const int n,
-        const Float u1,
-        const Float u2)
+        const double u1,
+        const double u2)
 {
     const int i = min(int(u1 * n), n-1);
     return (u2 < prob[i]) ? i : alias[i];
@@ -19,7 +19,7 @@ __device__ inline int sample_alias_table(
 void build_alias_table(
         const Float* weights_gpu,
         const int n,
-        Float* prob_gpu,
+        double* prob_gpu,
         int* alias_gpu,
-        Float& total_sum);
+        double& total_sum);
 #endif

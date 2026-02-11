@@ -100,10 +100,11 @@ namespace
     inline void reset_photon(
             Photon& photon, const int src_type,
             Int& photons_shot, const Int photons_to_shoot,
-            const Float* __restrict__ alias_prob,
+            const double* __restrict__ alias_prob,
             const int* __restrict__ alias_idx,
             const int alias_n,
             Random_number_generator<Float>& rng,
+            Random_number_generator<double>& alias_rng,
             const Vector<Float> grid_size,
             const Vector<Float> grid_d,
             const Vector<int> grid_cells,
@@ -123,7 +124,7 @@ namespace
             {
                 const int idx = sample_alias_table(
                         alias_prob, alias_idx, alias_n,
-                        Float(rng()), Float(rng()));
+                        alias_rng(), alias_rng());
 
                 const int i = (idx%(grid_cells.x * grid_cells.y)) % grid_cells.x ;
                 const int j = (idx%(grid_cells.x * grid_cells.y)) / grid_cells.x ;
@@ -202,7 +203,7 @@ void ray_tracer_lw_kernel(
         const int src_type,
         const bool independent_column,
         const Int photons_to_shoot,
-        const Float* __restrict__ alias_prob,
+        const double* __restrict__ alias_prob,
         const int* __restrict__ alias_idx,
         const int alias_n,
         const Float* __restrict__ k_null_grid,
@@ -227,6 +228,7 @@ void ray_tracer_lw_kernel(
 
     // todo, different random seed per g-point
     Random_number_generator<Float> rng(n + rng_offset);
+    Random_number_generator<double> alias_rng(n + rng_offset + 1);
 
     const Float s_min = max(grid_size.z, max(grid_size.y, grid_size.x)) * Float_epsilon;
 
@@ -238,7 +240,7 @@ void ray_tracer_lw_kernel(
     reset_photon(
             photon, src_type,
             photons_shot, photons_to_shoot,
-            alias_prob, alias_idx, alias_n, rng,
+            alias_prob, alias_idx, alias_n, rng, alias_rng,
             grid_size, grid_d, grid_cells,
             toa_down_count, surface_up_count, atmos_count,
             photon_weight, total_absorbed_weight);
@@ -323,7 +325,7 @@ void ray_tracer_lw_kernel(
                         reset_photon(
                              photon, src_type,
                              photons_shot, photons_to_shoot,
-                             alias_prob, alias_idx, alias_n, rng,
+                             alias_prob, alias_idx, alias_n, rng, alias_rng,
                              grid_size, grid_d, grid_cells,
                              toa_down_count, surface_up_count, atmos_count,
                              photon_weight, total_absorbed_weight);
@@ -368,7 +370,7 @@ void ray_tracer_lw_kernel(
                 reset_photon(
                        photon, src_type,
                        photons_shot, photons_to_shoot,
-                       alias_prob, alias_idx, alias_n, rng,
+                       alias_prob, alias_idx, alias_n, rng, alias_rng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight);
@@ -505,10 +507,11 @@ void ray_tracer_lw_kernel(
                 reset_photon(
                        photon, src_type,
                        photons_shot, photons_to_shoot,
-                       alias_prob, alias_idx, alias_n, rng,
+                       alias_prob, alias_idx, alias_n, rng, alias_rng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight);
+
             }
         }
     }

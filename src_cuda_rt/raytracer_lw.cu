@@ -254,16 +254,16 @@ void Raytracer_lw::trace_rays(
     const int n_atm = grid_cells.x*grid_cells.y*grid_cells.z;
     const int n_2d = grid_cells.x*grid_cells.y;
 
-    Array_gpu<Float,1> alias_prob_atm({n_atm});
+    Array_gpu<double,1> alias_prob_atm({n_atm});
     Array_gpu<int,1> alias_idx_atm({n_atm});
 
-    Array_gpu<Float,1> alias_prob_sfc({n_2d});
+    Array_gpu<double,1> alias_prob_sfc({n_2d});
     Array_gpu<int,1> alias_idx_sfc({n_2d});
 
-    Array_gpu<Float,1> alias_prob_tod({n_2d});
+    Array_gpu<double,1> alias_prob_tod({n_2d});
     Array_gpu<int,1> alias_idx_tod({n_2d});
 
-    Float total_power_atm, total_power_sfc, total_power_tod;
+    double total_power_atm, total_power_sfc, total_power_tod;
 
     build_alias_table(power_atm.ptr(), n_atm, alias_prob_atm.ptr(), alias_idx_atm.ptr(), total_power_atm);
     build_alias_table(power_sfc.ptr(), n_2d,  alias_prob_sfc.ptr(), alias_idx_sfc.ptr(), total_power_sfc);
@@ -336,10 +336,10 @@ void Raytracer_lw::trace_rays(
 
     auto run_raytracer = [&](
         const int src_type,
-        const Float* alias_prob,
+        const double* alias_prob,
         const int* alias_idx,
         const int n_table,
-        const Float total_power_src)
+        const double total_power_src)
     {
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_dn_count.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_up_count.ptr());
