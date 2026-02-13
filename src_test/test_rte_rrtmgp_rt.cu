@@ -731,6 +731,7 @@ void solve_radiation(int argc, char** argv)
                     switch_lw_scattering,
                     switch_independent_column,
                     single_gpt,
+                    tau_frac_threshold,
                     photons_per_pixel,
                     grid_cells,
                     grid_d,
