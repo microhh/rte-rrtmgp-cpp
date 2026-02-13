@@ -643,6 +643,11 @@ void Radiation_solver_longwave::solve_gpu(
 
             if (switch_raytracing)
             {
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_dn().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_up().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_dif().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_up().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, (*fluxes).get_flux_abs_dif().ptr());
 
                 raytracer_lw.trace_rays(
                         igpt,

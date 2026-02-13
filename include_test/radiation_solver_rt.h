@@ -54,6 +54,7 @@ class Radiation_solver_longwave
                 const bool switch_lw_scattering,
                 const bool switch_independent_column,
                 const int single_gpt,
+                const Float tau_frac_threshold,
                 const Int ray_count,
                 const Vector<int> grid_cells,
                 const Vector<Float> grid_d,
