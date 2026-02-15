@@ -146,7 +146,7 @@ namespace
             {
                 const int idx = sample_alias_table(
                         alias_prob, alias_idx, alias_n,
-                        Float(rng()), Float(rng()));
+                        alias_rng(), alias_rng());
 
                 const int i = idx % grid_cells.x ;
                 const int j = idx / grid_cells.x ;
@@ -166,7 +166,7 @@ namespace
             {
                 const int idx = sample_alias_table(
                         alias_prob, alias_idx, alias_n,
-                        Float(rng()), Float(rng()));
+                        alias_rng(), alias_rng());
 
                 const int i = idx % grid_cells.x ;
                 const int j = idx / grid_cells.x ;

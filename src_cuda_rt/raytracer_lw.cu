@@ -297,12 +297,6 @@ void Raytracer_lw::trace_rays(
     Array_gpu<Float,2> surface_up_count({grid_cells.x, grid_cells.y});
     Array_gpu<Float,3> atmos_count({grid_cells.x, grid_cells.y, grid_cells.z});
 
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, flux_tod_dn.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, flux_tod_up.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, flux_sfc_dn.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, flux_sfc_up.ptr());
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, flux_abs.ptr());
-
     // domain sizes
     const Vector<Float> grid_size = grid_d * grid_cells;
 

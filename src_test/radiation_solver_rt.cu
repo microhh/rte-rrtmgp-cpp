@@ -34,7 +34,7 @@
 #include "fluxes_rt.h"
 #include "rte_lw_rt.h"
 #include "rte_sw_rt.h"
-
+#include "cub/cub.cuh"
 #include "subset_kernels_cuda.h"
 #include "gas_optics_rrtmgp_kernels_cuda_rt.h"
 #include "gpt_combine_kernels_cuda_rt.h"
@@ -42,28 +42,94 @@
 
 namespace
 {
-        __global__
-        void scale_tau_kernel(Float* tau, const int ncol, const int nlay, Float scale_factor) {
-                const int icol = blockIdx.x*blockDim.x + threadIdx.x;
-                const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
+    __global__
+    void convert_1d_to_rt_hr_kernels(
+        const int ncol,
+        const int nz,
+        const Float dz,
+        const Float* flux_net,
+        Float* flux_rt_abs)
+    {
+        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+        const int iz = blockIdx.y*blockDim.y + threadIdx.y;
 
-                if ( (icol < ncol) && (ilay < nlay) )
-                {
+        if ( (icol < ncol) && (iz < nz) )
+        {
+            const int idx = icol + iz*ncol;
+            const int idx_p = icol + (iz+1)*ncol;
+
+            flux_rt_abs[idx] = (flux_net[idx_p] - flux_net[idx])/dz;
+        }
+    }
+
+    __global__
+    void convert_1d_to_rt_flx_kernels(
+        const int ncol,
+        const int iz,
+        const Float* flux_1d_dn,
+        const Float* flux_1d_up,
+        Float* flux_rt_dn,
+        Float* flux_rt_up)
+    {
+        const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+
+        if (icol < ncol)
+        {
+            const int idx_in = icol + iz*ncol;
+            flux_rt_dn[icol] = flux_1d_dn[idx_in];
+            flux_rt_up[icol] = flux_1d_up[idx_in];
+        }
+    }
+
+    void convert_1d_to_rt_output(
+        const int ncol,
+        const int nlay,
+        const int nz,
+        const Float dz,
+        const Array_gpu<Float,2>& flux_up,
+        const Array_gpu<Float,2>& flux_dn,
+        const Array_gpu<Float,2>& flux_net,
+        Array_gpu<Float,2>& flux_tod_dn,
+        Array_gpu<Float,2>& flux_tod_up,
+        Array_gpu<Float,2>& flux_sfc_dn,
+        Array_gpu<Float,2>& flux_sfc_up,
+        Array_gpu<Float,3>& flux_abs)
+    {
+        const int block_col = 64;
+        const int grid_col = ncol/block_col + (ncol%block_col > 0);
+
+        convert_1d_to_rt_flx_kernels<<<grid_col, block_col>>>(ncol, 0, flux_dn.ptr(), flux_up.ptr(), flux_sfc_dn.ptr(), flux_sfc_up.ptr());
+        convert_1d_to_rt_flx_kernels<<<grid_col, block_col>>>(ncol, nz+1, flux_dn.ptr(), flux_up.ptr(), flux_tod_dn.ptr(), flux_tod_up.ptr());
+
+        const dim3 block_2d(block_col, 1, 1);
+        const dim3 grid_2d(grid_col, nz, 1);
+        convert_1d_to_rt_hr_kernels<<<grid_2d, block_2d>>>(
+            ncol, nz, dz, flux_net.ptr(), flux_abs.ptr());
+    }
+
+
+    __global__
+    void scale_tau_kernel(Float* tau, const int ncol, const int nlay, Float scale_factor) {
+            const int icol = blockIdx.x*blockDim.x + threadIdx.x;
+            const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
+
+            if ( (icol < ncol) && (ilay < nlay) )
+            {
                 const int idx = icol + ilay*ncol;
                 tau[idx] = tau[idx] * scale_factor;
-                }
-        }
+            }
+    }
 
-        void scale_tau(Float* tau, const int ncol, const int nlay, Float scale_factor) {
-                const int block_col = 64;
-                const int block_lay = 1;
-                const int grid_col  = ncol/block_col + (ncol%block_col > 0);
-                const int grid_lay  = nlay/block_lay + (nlay%block_lay > 0);
+    void scale_tau(Float* tau, const int ncol, const int nlay, Float scale_factor) {
+            const int block_col = 64;
+            const int block_lay = 1;
+            const int grid_col  = ncol/block_col + (ncol%block_col > 0);
+            const int grid_lay  = nlay/block_lay + (nlay%block_lay > 0);
 
-                dim3 grid_gpu(grid_col, grid_lay);
-                dim3 block_gpu(block_col, block_lay);
-                scale_tau_kernel<<<grid_gpu, block_gpu>>>(tau, ncol, nlay, scale_factor);
-        }
+            dim3 grid_gpu(grid_col, grid_lay);
+            dim3 block_gpu(block_col, block_lay);
+            scale_tau_kernel<<<grid_gpu, block_gpu>>>(tau, ncol, nlay, scale_factor);
+    }
 
     std::vector<std::string> get_variable_string(
             const std::string& var_name,
@@ -421,6 +487,7 @@ void Radiation_solver_longwave::solve_gpu(
         const bool switch_lw_scattering,
         const bool switch_independent_column,
         const int single_gpt,
+        const Float min_mfp_grid_ratio,
         const Int ray_count,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
@@ -450,6 +517,8 @@ void Radiation_solver_longwave::solve_gpu(
     const int n_bnd = this->kdist_gpu->get_nband();
 
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
+
+    const Float grid_d_xy_min = min(grid_d.x, grid_d.y);
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
@@ -534,6 +603,29 @@ void Radiation_solver_longwave::solve_gpu(
         }
 
 
+        // Allocate temporary storage
+        void* d_temp_storage = nullptr;
+        size_t temp_storage_bytes = 0;
+
+        const int max_size = n_col * grid_cells.z;
+
+        Float* max_tau_gas_g = Tools_gpu::allocate_gpu<Float>(1);
+        Float max_tau_gas = 0;
+
+        // Get required temp storage size
+        cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
+                               optical_props->get_tau().ptr(), max_tau_gas_g, max_size);
+
+        // Allocate temp storage
+        cudaMalloc(&d_temp_storage, temp_storage_bytes);
+
+        // Compute max
+        cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
+                               optical_props->get_tau().ptr(), max_tau_gas_g, max_size);
+
+        cudaMemcpy(&max_tau_gas, max_tau_gas_g, sizeof(Float), cudaMemcpyDeviceToHost);
+
+        const Float lowest_gas_mean_free_path = grid_d.z / max_tau_gas;
 
         if (switch_cloud_optics)
         {
@@ -550,6 +642,7 @@ void Radiation_solver_longwave::solve_gpu(
                 // cloud->delta_scale();
 
             }
+
             // Add the cloud optical props to the gas optical properties.
             add_to(
                     dynamic_cast<Optical_props_2str_rt&>(*optical_props),
@@ -643,31 +736,53 @@ void Radiation_solver_longwave::solve_gpu(
 
             if (switch_raytracing)
             {
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_dn().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_up().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_dif().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_up().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, (*fluxes).get_flux_abs_dif().ptr());
 
-                raytracer_lw.trace_rays(
-                        igpt,
-                        switch_independent_column,
-                        ray_count,
-                        grid_cells,
-                        grid_d,
-                        kn_grid,
-                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
-                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
-                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
-                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
-                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
-                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
-                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
-                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
-                        (*sources).get_lay_source(),
-                        (*sources).get_sfc_source(),
-                        emis_sfc,
-                        (*fluxes).get_flux_dn()({1, grid_cells.z}),
+                if ( (lowest_gas_mean_free_path / grid_d_xy_min) > min_mfp_grid_ratio)
+                {
+                    raytracer_lw.trace_rays(
+                            igpt,
+                            switch_independent_column,
+                            ray_count,
+                            grid_cells,
+                            grid_d,
+                            kn_grid,
+                            dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
+                            dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
+                            dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
+                            dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
+                            dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
+                            dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
+                            dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
+                            dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
+                            (*sources).get_lay_source(),
+                            (*sources).get_sfc_source(),
+                            emis_sfc,
+                            (*fluxes).get_flux_dn()({1, grid_cells.z}),
+                            (*fluxes).get_flux_tod_dn(),
+                            (*fluxes).get_flux_tod_up(),
+                            (*fluxes).get_flux_sfc_dif(),
+                            (*fluxes).get_flux_sfc_up(),
+                            (*fluxes).get_flux_abs_dif());
+                }
+                else
+                {
+                    convert_1d_to_rt_output(
+                        n_col, n_lay, grid_cells.z, grid_d.z,
+                        (*fluxes).get_flux_up(),
+                        (*fluxes).get_flux_dn(),
+                        (*fluxes).get_flux_net(),
                         (*fluxes).get_flux_tod_dn(),
                         (*fluxes).get_flux_tod_up(),
                         (*fluxes).get_flux_sfc_dif(),
                         (*fluxes).get_flux_sfc_up(),
                         (*fluxes).get_flux_abs_dif());
+
+                }
 
                 Gpt_combine_kernels_cuda_rt::add_from_gpoint(
                         grid_cells.x, grid_cells.y,
@@ -679,6 +794,7 @@ void Radiation_solver_longwave::solve_gpu(
             }
 
         }
+        Tools_gpu::free_gpu<Float>(max_tau_gas_g);
     }
 }
 
