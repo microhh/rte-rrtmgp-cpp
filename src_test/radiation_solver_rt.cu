@@ -487,7 +487,7 @@ void Radiation_solver_longwave::solve_gpu(
         const bool switch_lw_scattering,
         const bool switch_independent_column,
         const int single_gpt,
-        const Float tau_frac_threshold,
+        const Float min_mfp_grid_ratio,
         const Int ray_count,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
@@ -517,6 +517,8 @@ void Radiation_solver_longwave::solve_gpu(
     const int n_bnd = this->kdist_gpu->get_nband();
 
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
+
+    const Float grid_d_xy_min = min(grid_d.x, grid_d.y);
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
@@ -608,9 +610,7 @@ void Radiation_solver_longwave::solve_gpu(
         const int max_size = n_col * grid_cells.z;
 
         Float* max_tau_gas_g = Tools_gpu::allocate_gpu<Float>(1);
-        Float* max_tau_cld_g = Tools_gpu::allocate_gpu<Float>(1);
         Float max_tau_gas = 0;
-        Float max_tau_cld = 0;
 
         // Get required temp storage size
         cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
@@ -624,6 +624,8 @@ void Radiation_solver_longwave::solve_gpu(
                                optical_props->get_tau().ptr(), max_tau_gas_g, max_size);
 
         cudaMemcpy(&max_tau_gas, max_tau_gas_g, sizeof(Float), cudaMemcpyDeviceToHost);
+
+        const Float lowest_gas_mean_free_path = grid_d.z / max_tau_gas;
 
         if (switch_cloud_optics)
         {
@@ -640,10 +642,6 @@ void Radiation_solver_longwave::solve_gpu(
                 // cloud->delta_scale();
 
             }
-            // Compute max
-            cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
-                                   cloud_optical_props->get_tau().ptr(), max_tau_cld_g, max_size);
-            cudaMemcpy(&max_tau_cld, max_tau_cld_g, sizeof(Float), cudaMemcpyDeviceToHost);
 
             // Add the cloud optical props to the gas optical properties.
             add_to(
@@ -744,7 +742,7 @@ void Radiation_solver_longwave::solve_gpu(
                 Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_up().ptr());
                 Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, (*fluxes).get_flux_abs_dif().ptr());
 
-                if ( ((max_tau_gas / max_tau_cld) < tau_frac_threshold) || (tau_frac_threshold < 0) )
+                if ( (lowest_gas_mean_free_path / grid_d_xy_min) > min_mfp_grid_ratio)
                 {
                     raytracer_lw.trace_rays(
                             igpt,
@@ -796,6 +794,7 @@ void Radiation_solver_longwave::solve_gpu(
             }
 
         }
+        Tools_gpu::free_gpu<Float>(max_tau_gas_g);
     }
 }
 

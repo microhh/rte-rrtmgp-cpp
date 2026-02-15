@@ -241,13 +241,13 @@ void solve_radiation(int argc, char** argv)
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
-        {"tau-frac-threshold", { true,  "Skip ray tracing and use 1D solution above given ratio between highest per-cell gas and cloud optical depths. Default: '--tau-frac-threshold 0.1'" }},
+        {"min-mfp-grid-ratio", { true,  "Lowest ratio between the shortest gasous mean free path and the smallest grid dimension at which we still do ray tracing. Below this ratio, the 1D solution is used. '--min-mfp-grid-ratio 1'" }},
         {"tica"              , { false, "attenuate path when doing an overhead 1D calculation of tilted input"   }}};
 
     std::map<std::string, Float> command_line_numbers {
         {"raytracing", 32},
         {"single-gpt", 1},
-        {"tau-frac-threshold", 0.1}};
+        {"min-mfp-grid-ratio", 1}};
 
     if (parse_command_line_options(command_line_switches, command_line_numbers, argc, argv))
         return;
@@ -262,7 +262,7 @@ void solve_radiation(int argc, char** argv)
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_lw_scattering     = command_line_switches.at("lw-scattering"     ).first;
-    const bool switch_tau_frac_threshold= command_line_switches.at("tau-frac-threshold").first;
+    const bool switch_min_mfp_grid_ratio= command_line_switches.at("min-mfp-grid-ratio").first;
     const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
     const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
@@ -309,7 +309,7 @@ void solve_radiation(int argc, char** argv)
 
     int single_gpt = int(command_line_numbers.at("single-gpt"));
 
-    const Float tau_frac_threshold = switch_tau_frac_threshold ? command_line_numbers.at("tau-frac-threshold") : Float(-1.);
+    const Float min_mfp_grid_ratio = switch_min_mfp_grid_ratio ? command_line_numbers.at("min-mfp-grid-ratio") : Float(0.);
 
     Status::print_message("Using "+ std::to_string(photons_per_pixel) + " rays per pixel");
 
@@ -731,7 +731,7 @@ void solve_radiation(int argc, char** argv)
                     switch_lw_scattering,
                     switch_independent_column,
                     single_gpt,
-                    tau_frac_threshold,
+                    min_mfp_grid_ratio,
                     photons_per_pixel,
                     grid_cells,
                     grid_d,
