@@ -186,7 +186,7 @@ namespace
 void Raytracer_lw::trace_rays(
         const int igpt,
         const bool switch_independent_column,
-        const Int photons_per_pixel,
+        const Int lw_photon_count,
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
         const Vector<int> kn_grid,
@@ -322,10 +322,29 @@ void Raytracer_lw::trace_rays(
     //     actual_photons_per_pixel = photons_per_thread * rt_kernel_grid_size * rt_kernel_block_size / (qrng_grid_x * qrng_grid_y);
     // }
 
-    dim3 grid(rt_lw_kernel_grid);
-    dim3 block(rt_lw_kernel_block);
+    Int photons_per_thread;
+    Int rt_kernel_grid_size = rt_lw_kernel_grid;
+    Int rt_kernel_block_size = rt_lw_kernel_block;
 
-    const Int photons_per_thread = 1024;
+    if (rt_lw_kernel_grid*rt_lw_kernel_block < lw_photon_count)
+    {
+        photons_per_thread = lw_photon_count / (rt_lw_kernel_grid*rt_lw_kernel_block);
+    }
+    else if (lw_photon_count > rt_lw_kernel_block)
+    {
+        photons_per_thread = 1;
+        rt_kernel_grid_size = lw_photon_count / rt_lw_kernel_grid;
+    }
+    else
+    {
+        photons_per_thread = 1;
+        rt_kernel_grid_size = 1;
+        rt_kernel_block_size = lw_photon_count;
+    }
+
+    dim3 grid(rt_kernel_grid_size);
+    dim3 block(rt_kernel_block_size);
+
     const Float rng_offset = igpt*rt_lw_kernel_grid*rt_lw_kernel_block;
 
     auto run_raytracer = [&](
