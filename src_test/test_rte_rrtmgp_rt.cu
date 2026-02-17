@@ -131,7 +131,7 @@ void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbn
 
 bool parse_command_line_options(
         std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        std::map<std::string, std::pair<int, std::string>>& command_line_ints,
+        std::map<std::string, Float>& command_line_numbers,
         int argc, char** argv)
 {
     for (int i=1; i<argc; ++i)
@@ -179,21 +179,21 @@ bool parse_command_line_options(
             command_line_switches.at(argument).first = enable;
         }
 
-        // Check if a is integer is too be expect and if so, supplied
-        if (command_line_ints.find(argument) != command_line_ints.end() && i+1 < argc)
+        // Check if a is number (int of float) and hether that ir is too be expect and if so, supplied
+        if (command_line_numbers.find(argument) != command_line_numbers.end() && i+1 < argc)
         {
-            std::string next_argument(argv[i+1]);
-            boost::trim(next_argument);
-
-            bool arg_is_int = true;
-            for (int j=0; j<next_argument.size(); ++j)
-                arg_is_int *= std::isdigit(next_argument[j]);
-
-            if (arg_is_int)
+            try
             {
-                command_line_ints.at(argument).first = std::stoi(argv[i+1]);
-                ++i;
+                size_t p;
+                Float val = Float(std::stod(argv[i+1], &p));
+                if (p == strlen(argv[i+1]))
+                {
+                    command_line_numbers.at(argument) = Float(std::stod(argv[i+1]));
+                    ++i;
+                }
+
             }
+            catch(...){}
         }
     }
 
@@ -202,15 +202,15 @@ bool parse_command_line_options(
 
 void print_command_line_options(
         const std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        const std::map<std::string, std::pair<int, std::string>>& command_line_ints)
+        const std::map<std::string, Float>& command_line_numbers)
 {
     Status::print_message("Solver settings:");
     for (const auto& option : command_line_switches)
     {
         std::ostringstream ss;
         ss << std::left << std::setw(20) << (option.first);
-        if (command_line_ints.find(option.first) != command_line_ints.end() && option.second.first)
-            ss << " = " << std::boolalpha << command_line_ints.at(option.first).first << std::endl;
+        if (command_line_numbers.find(option.first) != command_line_numbers.end() && option.second.first)
+            ss << " = " << std::boolalpha << command_line_numbers.at(option.first) << std::endl;
         else
             ss << " = " << std::boolalpha << option.second.first << std::endl;
         Status::print_message(ss);
@@ -229,7 +229,7 @@ void solve_radiation(int argc, char** argv)
         {"longwave"          , { false, "Enable computation of longwave radiation." }},
         {"fluxes"            , { true,  "Enable computation of fluxes."             }},
         {"two-stream"        , { true, "Run two-stream solver for to obtain 1D fluxes" }},
-        {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
+        {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel per spectral quadrature point" }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
@@ -241,13 +241,15 @@ void solve_radiation(int argc, char** argv)
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
+        {"min-mfp-grid-ratio", { true,  "Lowest ratio between the shortest gasous mean free path and the smallest grid dimension at which we still do ray tracing. Below this ratio, the 1D solution is used. '--min-mfp-grid-ratio 1'" }},
         {"tica"              , { false, "attenuate path when doing an overhead 1D calculation of tilted input"   }}};
 
-    std::map<std::string, std::pair<int, std::string>> command_line_ints {
-        {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
-        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }}};
+    std::map<std::string, Float> command_line_numbers {
+        {"raytracing", 32},
+        {"single-gpt", 1},
+        {"min-mfp-grid-ratio", 1}};
 
-    if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
+    if (parse_command_line_options(command_line_switches, command_line_numbers, argc, argv))
         return;
 
     const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
@@ -260,6 +262,7 @@ void solve_radiation(int argc, char** argv)
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_lw_scattering     = command_line_switches.at("lw-scattering"     ).first;
+    const bool switch_min_mfp_grid_ratio= command_line_switches.at("min-mfp-grid-ratio").first;
     const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
     const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
@@ -268,8 +271,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
     const bool switch_tica              = command_line_switches.at("tica"     ).first;
 
-    Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
-
+    Int photons_per_pixel = Int(command_line_numbers.at("raytracing"));
     if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
     {
         std::string error = "number of photons per pixel should be a power of 2 ";
@@ -303,9 +305,11 @@ void solve_radiation(int argc, char** argv)
     }
 
     // Print the options to the screen.
-    print_command_line_options(command_line_switches, command_line_ints);
+    print_command_line_options(command_line_switches, command_line_numbers);
 
-    int single_gpt = command_line_ints.at("single-gpt").first;
+    int single_gpt = int(command_line_numbers.at("single-gpt"));
+
+    const Float min_mfp_grid_ratio = switch_min_mfp_grid_ratio ? command_line_numbers.at("min-mfp-grid-ratio") : Float(0.);
 
     Status::print_message("Using "+ std::to_string(photons_per_pixel) + " rays per pixel");
 
@@ -727,6 +731,7 @@ void solve_radiation(int argc, char** argv)
                     switch_lw_scattering,
                     switch_independent_column,
                     single_gpt,
+                    min_mfp_grid_ratio,
                     photons_per_pixel,
                     grid_cells,
                     grid_d,
