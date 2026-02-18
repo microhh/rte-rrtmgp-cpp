@@ -269,8 +269,6 @@ void Raytracer_lw::trace_rays(
     build_alias_table(power_sfc.ptr(), n_2d,  alias_prob_sfc.ptr(), alias_idx_sfc.ptr(), total_power_sfc);
     build_alias_table(power_tod.ptr(), n_2d,  alias_prob_tod.ptr(), alias_idx_tod.ptr(), total_power_tod);
 
-    const Float total_power = total_power_atm + total_power_sfc + total_power_tod;
-
     const int block_kn_x = 8;
     const int block_kn_y = 8;
     const int block_kn_z = 4;
@@ -378,7 +376,7 @@ void Raytracer_lw::trace_rays(
                 emis_sfc.ptr(),
                 grid_size, grid_d, grid_cells, kn_grid);
 
-        const Float power_per_photon = total_power_src / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block);
+        const Float power_per_photon = Float(total_power_src / photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block);
 
         count_to_flux_2d<<<grid_2d, block_2d>>>(
                 grid_cells,
