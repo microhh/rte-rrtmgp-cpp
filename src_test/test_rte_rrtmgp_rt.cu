@@ -257,7 +257,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
     const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
     const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
-    const bool switch_twostream         = command_line_switches.at("two-stream"        ).first;
+    bool switch_twostream         = command_line_switches.at("two-stream"        ).first;
     bool switch_sw_raytracing     = command_line_switches.at("sw-raytracing"        ).first;
     bool switch_lw_raytracing     = command_line_switches.at("lw-raytracing"        ).first;
     bool switch_independent_column= command_line_switches.at("independent-column").first;
