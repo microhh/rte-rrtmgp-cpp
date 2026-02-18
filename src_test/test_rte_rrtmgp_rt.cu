@@ -228,7 +228,7 @@ void solve_radiation(int argc, char** argv)
         {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
         {"longwave"          , { true,  "Enable computation of longwave radiation." }},
         {"fluxes"            , { true,  "Enable computation of fluxes."             }},
-        {"two-stream"        , { true,  "Run two-stream solver for to obtain 1D fluxes" }},
+        {"sw-two-stream"     , { false, "Run two-stream solver for to obtain 1D fluxes" }},
         {"sw-raytracing"     , { true,  "Use shortwave raytracing for flux computation. '--sw-raytracing 256': use 256 rays per pixel per spectral quadrature point" }},
         {"lw-raytracing"     , { true,  "Use longwave raytracing for flux computation. '--lw-raytracing 22': use a total of 2**22 rays per spectral quadrature point" }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
@@ -257,7 +257,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
     const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
     const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
-    bool switch_twostream         = command_line_switches.at("two-stream"           ).first;
+    bool switch_sw_twostream      = command_line_switches.at("sw-two-stream"        ).first;
     bool switch_sw_raytracing     = command_line_switches.at("sw-raytracing"        ).first;
     bool switch_lw_raytracing     = command_line_switches.at("lw-raytracing"        ).first;
     bool switch_independent_column= command_line_switches.at("independent-column").first;
@@ -276,14 +276,12 @@ void solve_radiation(int argc, char** argv)
 
 
     if (!switch_shortwave)
-    {
         switch_sw_raytracing = false;
-    }
 
     if (!switch_longwave)
         switch_lw_raytracing = false;
 
-    if (switch_shortwave && !switch_twostream && !switch_sw_raytracing)
+    if (switch_shortwave && !switch_sw_twostream && !switch_sw_raytracing)
     {
         std::string error = "With shortwave enable, need to run either two-stream solver or ray tracer ";
         throw std::runtime_error(error);
@@ -1009,7 +1007,7 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            if(switch_twostream)
+            if(switch_sw_twostream)
             {
                 sw_flux_up    .set_dims({n_col, n_lev});
                 sw_flux_dn    .set_dims({n_col, n_lev});
@@ -1078,7 +1076,7 @@ void solve_radiation(int argc, char** argv)
 
             rad_sw.solve_gpu(
                     switch_fluxes,
-                    switch_twostream,
+                    switch_sw_twostream,
                     switch_sw_raytracing,
                     switch_independent_column,
                     switch_cloud_optics,
@@ -1217,7 +1215,7 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            if (switch_twostream)
+            if (switch_sw_twostream)
             {
                 auto nc_sw_flux_up     = output_nc.add_variable<Float>("sw_flux_up"    , {"lev", "y", "x"});
                 auto nc_sw_flux_dn     = output_nc.add_variable<Float>("sw_flux_dn"    , {"lev", "y", "x"});
@@ -1283,7 +1281,7 @@ void solve_radiation(int argc, char** argv)
 
             if (switch_single_gpt)
             {
-                if (switch_twostream)
+                if (switch_sw_twostream)
                 {
                     auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});
                     auto nc_sw_gpt_flux_dn     = output_nc.add_variable<Float>("sw_gpt_flux_dn"    , {"lev", "y", "x"});
