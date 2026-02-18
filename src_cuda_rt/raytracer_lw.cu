@@ -40,13 +40,11 @@ namespace
 
     __global__
     void get_emitted_power(
-            const Vector<int> grid_cells, const Vector<Float> grid_d,
+            const Vector<int> grid_cells,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ lay_source, const Float* __restrict__ sfc_source,
             const Float* __restrict__ emis_sfc, const Float tod_inc_flx,
-            Float* __restrict__ power_atm,
-            Float* __restrict__ power_sfc,
-            Float* __restrict__ power_tod)
+            Float* __restrict__ emitted_power)
     {
         const int ix = blockIdx.x*blockDim.x + threadIdx.x;
         const int iy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -54,19 +52,19 @@ namespace
 
         if ( (ix < grid_cells.x) && (iy < grid_cells.y) && (iz < (grid_cells.z)) )
         {
-            // tau = k_ext * dz; hence k_ext*cell_volume = tau * cell_area
-            const int idx = ix + iy*grid_cells.x + iz*grid_cells.x*grid_cells.y;
-            power_atm[idx] = Float(4.) * M_PI * tau_tot[idx] * lay_source[idx] * (Float(1.) - ssa_tot[idx]);
+            const int idx_3d_in = ix + iy*grid_cells.x + iz*grid_cells.x*grid_cells.y;
+            const int idx_3d_out = idx_3d_in + grid_cells.x*grid_cells.y;
+            emitted_power[idx_3d_out] = Float(4.) * M_PI * tau_tot[idx_3d_in] * lay_source[idx_3d_in] * (Float(1.) - ssa_tot[idx_3d_in]);
 
             if (iz == 0)
             {
                 const int idx_2d = ix + iy*grid_cells.x;
-                power_sfc[idx_2d] = M_PI * emis_sfc[idx_2d] * sfc_source[idx_2d];
+                emitted_power[idx_2d] = M_PI * emis_sfc[idx_2d] * sfc_source[idx_2d];
             }
             if (iz == grid_cells.z-1)
             {
-                const int idx_2d = ix + iy*grid_cells.x;
-                power_tod[idx_2d] = tod_inc_flx;
+                const int idx_2d = ix + iy*grid_cells.x + (iz+2)*grid_cells.x*grid_cells.y;
+                emitted_power[idx_2d] = tod_inc_flx;
             }
 
         }
@@ -236,38 +234,28 @@ void Raytracer_lw::trace_rays(
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
             k_ext.ptr(), scat_asy.ptr());
 
-    Array_gpu<Float,3> power_atm({grid_cells.x, grid_cells.y, grid_cells.z});
-    Array_gpu<Float,2> power_sfc({grid_cells.x, grid_cells.y});
-    Array_gpu<Float,2> power_tod({grid_cells.x, grid_cells.y});
+    Array_gpu<Float,3> emitted_power({grid_cells.x, grid_cells.y, grid_cells.z+2});
 
-    const int grid_z_pwr = (grid_cells.z+2)/block_z + ((grid_cells.z+2)%block_z > 0);
-    dim3 grid_pwr(grid_col_x, grid_col_y, grid_z_pwr);
-    dim3 block_pwr(block_col_x, block_col_y, block_z);
+    const int block_pwr_x = 64;
+    const int grid_pwr_x = grid_cells.x/block_pwr_x +  (grid_cells.x%block_pwr_x > 0);
 
-    get_emitted_power<<<grid_pwr, block_3d>>>(
-            grid_cells, grid_d,
+    dim3 grid_pwr(grid_pwr_x, grid_cells.y, grid_cells.z+2);
+    dim3 block_pwr(block_pwr_x, 1, 1);
+
+    get_emitted_power<<<grid_pwr, block_pwr>>>(
+            grid_cells,
             tau_total.ptr(), ssa_total.ptr(), lay_source.ptr(),
             sfc_source.ptr(), emis_sfc.ptr(), tod_inc_flx,
-            power_atm.ptr(), power_sfc.ptr(), power_tod.ptr());
+            emitted_power.ptr());
 
     // Build alias tables for emission source sampling.
-    const int n_atm = grid_cells.x*grid_cells.y*grid_cells.z;
-    const int n_2d = grid_cells.x*grid_cells.y;
+    const int n_alias = grid_cells.x*grid_cells.y*(grid_cells.z+2);
 
-    Array_gpu<double,1> alias_prob_atm({n_atm});
-    Array_gpu<int,1> alias_idx_atm({n_atm});
+    Array_gpu<double,1> alias_prob({n_alias});
+    Array_gpu<int,1> alias_idx({n_alias});
 
-    Array_gpu<double,1> alias_prob_sfc({n_2d});
-    Array_gpu<int,1> alias_idx_sfc({n_2d});
-
-    Array_gpu<double,1> alias_prob_tod({n_2d});
-    Array_gpu<int,1> alias_idx_tod({n_2d});
-
-    double total_power_atm, total_power_sfc, total_power_tod;
-
-    build_alias_table(power_atm.ptr(), n_atm, alias_prob_atm.ptr(), alias_idx_atm.ptr(), total_power_atm);
-    build_alias_table(power_sfc.ptr(), n_2d,  alias_prob_sfc.ptr(), alias_idx_sfc.ptr(), total_power_sfc);
-    build_alias_table(power_tod.ptr(), n_2d,  alias_prob_tod.ptr(), alias_idx_tod.ptr(), total_power_tod);
+    double total_power;
+    build_alias_table(emitted_power.ptr(), n_alias, alias_prob.ptr(), alias_idx.ptr(), total_power);
 
     const int block_kn_x = 8;
     const int block_kn_y = 8;
@@ -295,30 +283,14 @@ void Raytracer_lw::trace_rays(
     Array_gpu<Float,2> surface_up_count({grid_cells.x, grid_cells.y});
     Array_gpu<Float,3> atmos_count({grid_cells.x, grid_cells.y, grid_cells.z});
 
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_dn_count.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_up_count.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_dn_count.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_up_count.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, atmos_count.ptr());
+
     // domain sizes
     const Vector<Float> grid_size = grid_d * grid_cells;
-
-    // // number of photons per thread, this should a power of 2 and nonzero
-    // Float photons_per_thread_tmp = std::max(Float(1), static_cast<Float>(photons_total) / (rt_kernel_grid * rt_kernel_block));
-    // Int photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
-
-    // // with very low number of columns and photons_per_pixel, we may have too many threads firing a single photons, actually exceeding photons_per pixel
-    // // In that case, reduce grid and block size
-    // Int actual_photons_per_pixel = photons_per_thread * rt_kernel_grid * rt_kernel_block / (qrng_grid_x * qrng_grid_y);
-
-    // int rt_kernel_grid_size = rt_kernel_grid;
-    // int rt_kernel_block_size = rt_kernel_block;
-    // while ( (actual_photons_per_pixel > photons_per_pixel) )
-    // {
-    //     if (rt_kernel_grid_size > 1)
-    //         rt_kernel_grid_size /= 2;
-    //     else
-    //         rt_kernel_block_size /= 2;
-
-    //     photons_per_thread_tmp = std::max(Float(1), static_cast<Float>(photons_total) / (rt_kernel_grid_size * rt_kernel_block_size));
-    //     photons_per_thread = pow(Float(2.), std::floor(std::log2(photons_per_thread_tmp)));
-    //     actual_photons_per_pixel = photons_per_thread * rt_kernel_grid_size * rt_kernel_block_size / (qrng_grid_x * qrng_grid_y);
-    // }
 
     Int photons_per_thread;
     Int rt_kernel_grid_size = rt_lw_kernel_grid;
@@ -343,63 +315,44 @@ void Raytracer_lw::trace_rays(
     dim3 grid(rt_kernel_grid_size);
     dim3 block(rt_kernel_block_size);
 
-    const Float rng_offset = igpt*rt_lw_kernel_grid*rt_lw_kernel_block;
+    const Int rng_offset = igpt*rt_lw_kernel_grid*rt_lw_kernel_block;
 
-    auto run_raytracer = [&](
-        const int src_type,
-        const double* alias_prob,
-        const int* alias_idx,
-        const int n_table,
-        const double total_power_src)
-    {
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_dn_count.ptr());
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, tod_up_count.ptr());
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_dn_count.ptr());
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, surface_up_count.ptr());
-        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, atmos_count.ptr());
+    ray_tracer_lw_kernel<<<grid, block>>>(
+            rng_offset,
+            switch_independent_column,
+            photons_per_thread,
+            alias_prob.ptr(),
+            alias_idx.ptr(),
+            n_alias,
+            k_null_grid.ptr(),
+            tod_dn_count.ptr(),
+            tod_up_count.ptr(),
+            surface_dn_count.ptr(),
+            surface_up_count.ptr(),
+            atmos_count.ptr(),
+            k_ext.ptr(), scat_asy.ptr(),
+            emis_sfc.ptr(),
+            grid_size, grid_d, grid_cells, kn_grid);
 
-        ray_tracer_lw_kernel<<<grid, block>>>(
-                rng_offset,
-                src_type,
-                switch_independent_column,
-                photons_per_thread,
-                alias_prob,
-                alias_idx,
-                n_table,
-                k_null_grid.ptr(),
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_dn_count.ptr(),
-                surface_up_count.ptr(),
-                atmos_count.ptr(),
-                k_ext.ptr(), scat_asy.ptr(),
-                emis_sfc.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid);
+    const Float power_per_photon = Float(total_power / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block));
 
-        const Float power_per_photon = Float(total_power_src / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block));
+    count_to_flux_2d<<<grid_2d, block_2d>>>(
+            grid_cells,
+            power_per_photon,
+            tod_dn_count.ptr(),
+            tod_up_count.ptr(),
+            surface_dn_count.ptr(),
+            surface_up_count.ptr(),
+            flux_tod_dn.ptr(),
+            flux_tod_up.ptr(),
+            flux_sfc_dn.ptr(),
+            flux_sfc_up.ptr());
 
-        count_to_flux_2d<<<grid_2d, block_2d>>>(
-                grid_cells,
-                power_per_photon,
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_dn_count.ptr(),
-                surface_up_count.ptr(),
-                flux_tod_dn.ptr(),
-                flux_tod_up.ptr(),
-                flux_sfc_dn.ptr(),
-                flux_sfc_up.ptr());
-
-        count_to_flux_3d<<<grid_3d, block_3d>>>(
-                grid_cells, grid_d,
-                power_per_photon,
-                atmos_count.ptr(),
-                flux_abs.ptr());
-    };
-
-    run_raytracer(0, alias_prob_atm.ptr(), alias_idx_atm.ptr(), n_atm, total_power_atm);
-    run_raytracer(1, alias_prob_sfc.ptr(), alias_idx_sfc.ptr(), n_2d,  total_power_sfc);
-    run_raytracer(2, alias_prob_tod.ptr(), alias_idx_tod.ptr(), n_2d,  total_power_tod);
+    count_to_flux_3d<<<grid_3d, block_3d>>>(
+            grid_cells, grid_d,
+            power_per_photon,
+            atmos_count.ptr(),
+            flux_abs.ptr());
 }
 
 Raytracer_lw::Raytracer_lw()
