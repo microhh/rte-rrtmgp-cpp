@@ -376,7 +376,7 @@ void Raytracer_lw::trace_rays(
                 emis_sfc.ptr(),
                 grid_size, grid_d, grid_cells, kn_grid);
 
-        const Float power_per_photon = Float(total_power_src / photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block);
+        const Float power_per_photon = Float(total_power_src / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block));
 
         count_to_flux_2d<<<grid_2d, block_2d>>>(
                 grid_cells,
