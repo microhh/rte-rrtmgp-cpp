@@ -20,8 +20,7 @@ constexpr Float k_null_gas_min = Float(1.e-3);
 
 __global__
 void ray_tracer_lw_kernel(
-        const Float rng_offset,
-        const int src_type,
+        const Int rng_offset,
         const bool independent_column,
         const Int photons_to_shoot,
         const double* __restrict__ alias_prob,

@@ -24,7 +24,7 @@ class Raytracer_lw
         void trace_rays(
                 const int igpt,
                 const bool switch_independent_column,
-                const Int n_photons,
+                const Int lw_photon_count,
                 const Raytracer_definitions::Vector<int> grid_cells,
                 const Raytracer_definitions::Vector<Float> grid_d,
                 const Raytracer_definitions::Vector<int> kn_grid,

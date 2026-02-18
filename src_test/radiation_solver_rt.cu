@@ -545,6 +545,8 @@ void Radiation_solver_longwave::solve_gpu(
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
     int previous_band = 0;
 
+    int monte_carlo_gpoints = 0;
+
     for (int igpt=1; igpt<=n_gpt; ++igpt)
     {
         int band = 0;
@@ -602,6 +604,8 @@ void Radiation_solver_longwave::solve_gpu(
             gas_optics_subset(col_s, n_col_residual);
         }
 
+
+        // Find maximum gasous optical depth to and compute lowest mean free path on the clearsky atmosphere
 
         // Allocate temporary storage
         void* d_temp_storage = nullptr;
@@ -744,6 +748,8 @@ void Radiation_solver_longwave::solve_gpu(
 
                 if ( (lowest_gas_mean_free_path / grid_d_xy_min) > min_mfp_grid_ratio)
                 {
+                    ++monte_carlo_gpoints;
+
                     raytracer_lw.trace_rays(
                             igpt,
                             switch_independent_column,
@@ -791,11 +797,13 @@ void Radiation_solver_longwave::solve_gpu(
 
                 Gpt_combine_kernels_cuda_rt::add_from_gpoint(
                         n_col, grid_cells.z, rt_flux_abs.ptr(), (*fluxes).get_flux_abs_dif().ptr());
+
             }
 
         }
         Tools_gpu::free_gpu<Float>(max_tau_gas_g);
     }
+    Status::print_message("Solved "+ std::to_string(monte_carlo_gpoints)+" out of "+std::to_string(n_gpt)+" g-points in 3D with Monte Carlo");
 }
 
 Radiation_solver_shortwave::Radiation_solver_shortwave(
