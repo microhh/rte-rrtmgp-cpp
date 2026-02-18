@@ -356,17 +356,4 @@ void Raytracer_lw::trace_rays(
 }
 
 Raytracer_lw::Raytracer_lw()
-{
-//    curandDirectionVectors32_t* qrng_vectors;
-//    curandGetDirectionVectors32(
-//                &qrng_vectors,
-//                CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6);
-//    unsigned int* qrng_constants;
-//    curandGetScrambleConstants32(&qrng_constants);
-//
-//    this->qrng_vectors_gpu = allocate_gpu<curandDirectionVectors32_t>(2);
-//    this->qrng_constants_gpu = allocate_gpu<unsigned int>(2);
-//
-//    copy_to_gpu(qrng_vectors_gpu, qrng_vectors, 2);
-//    copy_to_gpu(qrng_constants_gpu, qrng_constants, 2);
-}
+{}

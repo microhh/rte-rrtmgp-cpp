@@ -11,68 +11,6 @@ namespace
 
     constexpr Float w_thres = 0.5;
 
-    struct Quasi_random_number_generator_2d
-    {
-        __device__ Quasi_random_number_generator_2d(
-                curandDirectionVectors32_t* vectors, unsigned int* constants, unsigned int offset)
-        {
-            curand_init(vectors[0], constants[0], offset, &state_x);
-            curand_init(vectors[1], constants[1], offset, &state_y);
-        }
-
-        __device__ void xy(unsigned int* x, unsigned int* y,
-                           const Vector<int>& grid_cells,
-                           const Int qrng_grid_x, const Int qrng_grid_y,
-                           Int& photons_shot)
-        {
-            *x = curand(&state_x);
-            *y = curand(&state_y);
-
-            while (true)
-            {
-                const int i = *x / static_cast<unsigned int>((1ULL << 32) / qrng_grid_x);
-                const int j = *y / static_cast<unsigned int>((1ULL << 32) / qrng_grid_y);
-
-                ++photons_shot;
-                if (i < grid_cells.x && j < grid_cells.y)
-                {
-                    return;
-                }
-                else
-                {
-                    *x = curand(&state_x);
-                    *y = curand(&state_y);
-                }
-            }
-        }
-
-        curandStateScrambledSobol32_t state_x;
-        curandStateScrambledSobol32_t state_y;
-    };
-
-    __device__
-
-    inline int find_source_index(const Float* weights, int n, const Float r)
-    {
-        int left = 0;
-        int right = n;
-
-        while (left < right)
-        {
-            int mid = left + (right - left) / 2;
-            if (weights[mid] <= r)
-            {
-                left = mid + 1;
-            }
-            else
-            {
-                right = mid;
-            }
-        }
-
-        return min(left, n-1);
-    }
-
     __device__
     inline void write_emission(
             Photon& photon,
@@ -330,10 +268,11 @@ void ray_tracer_lw_kernel(
 
                 const Float mu_surface = sqrt(rng());
                 const Float azimuth_surface = Float(2.*M_PI)*rng();
+                const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
 
-                photon.direction.x = mu_surface*sin(azimuth_surface);
-                photon.direction.y = mu_surface*cos(azimuth_surface);
-                photon.direction.z = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
+                photon.direction.x = sin_theta*sin(azimuth_surface);
+                photon.direction.y = sin_theta*cos(azimuth_surface);
+                photon.direction.z = mu_surface;
             }
 
             // TOD exit
