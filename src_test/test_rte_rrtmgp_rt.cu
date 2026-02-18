@@ -226,7 +226,7 @@ void solve_radiation(int argc, char** argv)
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_switches {
         {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
-        {"longwave"          , { false, "Enable computation of longwave radiation." }},
+        {"longwave"          , { true,  "Enable computation of longwave radiation." }},
         {"fluxes"            , { true,  "Enable computation of fluxes."             }},
         {"two-stream"        , { true, "Run two-stream solver for to obtain 1D fluxes" }},
         {"sw-raytracing"     , { true,  "Use shortwave raytracing for flux computation. '--sw-raytracing 256': use 256 rays per pixel per spectral quadrature point" }},
@@ -276,7 +276,10 @@ void solve_radiation(int argc, char** argv)
 
 
     if (!switch_shortwave)
+    {
         switch_sw_raytracing = false;
+        switch_twostream = false;
+    }
 
     if (!switch_longwave)
         switch_lw_raytracing = false;
