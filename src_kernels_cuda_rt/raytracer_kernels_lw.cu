@@ -53,6 +53,8 @@ namespace
             Float& total_absorbed_weight,
             int& src_type)
     {
+        __syncwarp();
+
         ++photons_shot;
 
         if (photons_shot < photons_to_shoot)
@@ -69,12 +71,13 @@ namespace
 
             const int ij = i + j * grid_cells.x;
 
+            photon.position.x = (i + rng()) * grid_d.x;
+            photon.position.y = (j + rng()) * grid_d.y;
+
             if (k == 0) // surface
             {
                 src_type = 1;
 
-                photon.position.x = (i + rng()) * grid_d.x;
-                photon.position.y = (j + rng()) * grid_d.y;
                 photon.position.z = Float(0.);
 
                 mu = sqrt(rng());
@@ -85,8 +88,6 @@ namespace
             else if (k == grid_cells.z+1) // top-of-domain
             {
                 src_type = 2;
-                photon.position.x = (i + rng()) * grid_d.x;
-                photon.position.y = (j + rng()) * grid_d.y;
                 photon.position.z = grid_size.z - Float_epsilon;
 
                 mu = Float(-1.)*sqrt(rng());
@@ -100,8 +101,6 @@ namespace
                 src_type = 0;
 
                 const int km = k - 1;
-                photon.position.x = (i + rng()) * grid_d.x;
-                photon.position.y = (j + rng()) * grid_d.y;
                 photon.position.z = (km + rng()) * grid_d.z;
 
                 mu = rng()*Float(2.) - Float(1.);
