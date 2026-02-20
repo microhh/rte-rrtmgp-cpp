@@ -98,7 +98,7 @@ namespace
 
     __device__
     inline void reset_photon(
-            Photon& photon, const int src_type,
+            Photon& photon,
             Int& photons_shot, const Int photons_to_shoot,
             const double* __restrict__ alias_prob,
             const int* __restrict__ alias_idx,
@@ -112,7 +112,8 @@ namespace
             Float* __restrict__ const surface_up_count,
             Float* __restrict__ const atmos_count,
             Float& photon_weight,
-            Float& total_absorbed_weight)
+            Float& total_absorbed_weight,
+            int& src_type)
     {
         ++photons_shot;
 
@@ -120,38 +121,19 @@ namespace
         {
             Float mu, azi;
 
-            if (src_type == 0)
+            const int idx = sample_alias_table(
+                    alias_prob, alias_idx, alias_n,
+                    alias_rng(), alias_rng());
+
+            const int i = (idx%(grid_cells.x * grid_cells.y)) % grid_cells.x ;
+            const int j = (idx%(grid_cells.x * grid_cells.y)) / grid_cells.x ;
+            const int k =  idx / (grid_cells.x * grid_cells.y) ;
+
+            const int ij = i + j * grid_cells.x;
+
+            if (k == 0) // surface
             {
-                const int idx = sample_alias_table(
-                        alias_prob, alias_idx, alias_n,
-                        alias_rng(), alias_rng());
-
-                const int i = (idx%(grid_cells.x * grid_cells.y)) % grid_cells.x ;
-                const int j = (idx%(grid_cells.x * grid_cells.y)) / grid_cells.x ;
-                const int k =  idx / (grid_cells.x * grid_cells.y) ;
-
-                const int ij = i + j * grid_cells.x;
-
-                photon.position.x = (i + rng()) * grid_d.x;
-                photon.position.y = (j + rng()) * grid_d.y;
-                photon.position.z = (k + rng()) * grid_d.z;
-
-                mu = rng()*Float(2.) - Float(1.);
-                azi = Float(2.*M_PI)*rng();
-
-                const int ijk = ij + k*grid_cells.x*grid_cells.y;
-                photon.starting_idx = ijk;
-            }
-            if (src_type == 1)
-            {
-                const int idx = sample_alias_table(
-                        alias_prob, alias_idx, alias_n,
-                        Float(rng()), Float(rng()));
-
-                const int i = idx % grid_cells.x ;
-                const int j = idx / grid_cells.x ;
-
-                const int ij = i + j * grid_cells.x;
+                src_type = 1;
 
                 photon.position.x = (i + rng()) * grid_d.x;
                 photon.position.y = (j + rng()) * grid_d.y;
@@ -162,17 +144,9 @@ namespace
 
                 photon.starting_idx = ij;
             }
-            if (src_type == 2)
+            else if (k == grid_cells.z+1) // top-of-domain
             {
-                const int idx = sample_alias_table(
-                        alias_prob, alias_idx, alias_n,
-                        Float(rng()), Float(rng()));
-
-                const int i = idx % grid_cells.x ;
-                const int j = idx / grid_cells.x ;
-
-                const int ij = i + j * grid_cells.x;
-
+                src_type = 2;
                 photon.position.x = (i + rng()) * grid_d.x;
                 photon.position.y = (j + rng()) * grid_d.y;
                 photon.position.z = grid_size.z - Float_epsilon;
@@ -181,6 +155,22 @@ namespace
                 azi = Float(2.*M_PI)*rng();
 
                 photon.starting_idx = ij;
+
+            }
+            else
+            {
+                src_type = 0;
+
+                const int km = k - 1;
+                photon.position.x = (i + rng()) * grid_d.x;
+                photon.position.y = (j + rng()) * grid_d.y;
+                photon.position.z = (km + rng()) * grid_d.z;
+
+                mu = rng()*Float(2.) - Float(1.);
+                azi = Float(2.*M_PI)*rng();
+
+                const int ijk = ij + km*grid_cells.x*grid_cells.y;
+                photon.starting_idx = ijk;
             }
 
             const Float s = sqrt(Float(1.) - mu*mu + Float_epsilon);
@@ -199,8 +189,7 @@ namespace
 
 __global__
 void ray_tracer_lw_kernel(
-        const Float rng_offset,
-        const int src_type,
+        const Int rng_offset,
         const bool independent_column,
         const Int photons_to_shoot,
         const double* __restrict__ alias_prob,
@@ -236,14 +225,14 @@ void ray_tracer_lw_kernel(
     Int photons_shot = Atomic_reduce_const;
     Float photon_weight;
     Float total_absorbed_weight;
+    int src_type;
 
     reset_photon(
-            photon, src_type,
-            photons_shot, photons_to_shoot,
+            photon, photons_shot, photons_to_shoot,
             alias_prob, alias_idx, alias_n, rng, alias_rng,
             grid_size, grid_d, grid_cells,
             toa_down_count, surface_up_count, atmos_count,
-            photon_weight, total_absorbed_weight);
+            photon_weight, total_absorbed_weight, src_type);
 
     Float tau = Float(0.);
     Float d_max = Float(0.);
@@ -323,12 +312,11 @@ void ray_tracer_lw_kernel(
                         write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
 
                         reset_photon(
-                             photon, src_type,
-                             photons_shot, photons_to_shoot,
+                             photon, photons_shot, photons_to_shoot,
                              alias_prob, alias_idx, alias_n, rng, alias_rng,
                              grid_size, grid_d, grid_cells,
                              toa_down_count, surface_up_count, atmos_count,
-                             photon_weight, total_absorbed_weight);
+                             photon_weight, total_absorbed_weight, src_type);
 
                         // Cycle the while loop, this photon is done.
                         continue;
@@ -368,12 +356,12 @@ void ray_tracer_lw_kernel(
                 write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
 
                 reset_photon(
-                       photon, src_type,
+                       photon,
                        photons_shot, photons_to_shoot,
                        alias_prob, alias_idx, alias_n, rng, alias_rng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
-                       photon_weight, total_absorbed_weight);
+                       photon_weight, total_absorbed_weight, src_type);
 
                 // Cycle the while loop, this photon is done.
                 continue;
@@ -505,12 +493,12 @@ void ray_tracer_lw_kernel(
                 write_emission(photon, src_type, total_absorbed_weight, toa_down_count, surface_up_count, atmos_count);
 
                 reset_photon(
-                       photon, src_type,
+                       photon,
                        photons_shot, photons_to_shoot,
                        alias_prob, alias_idx, alias_n, rng, alias_rng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
-                       photon_weight, total_absorbed_weight);
+                       photon_weight, total_absorbed_weight, src_type);
 
             }
         }

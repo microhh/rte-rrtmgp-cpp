@@ -131,7 +131,7 @@ void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbn
 
 bool parse_command_line_options(
         std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        std::map<std::string, std::pair<int, std::string>>& command_line_ints,
+        std::map<std::string, Float>& command_line_numbers,
         int argc, char** argv)
 {
     for (int i=1; i<argc; ++i)
@@ -179,21 +179,21 @@ bool parse_command_line_options(
             command_line_switches.at(argument).first = enable;
         }
 
-        // Check if a is integer is too be expect and if so, supplied
-        if (command_line_ints.find(argument) != command_line_ints.end() && i+1 < argc)
+        // Check if a is number (int of float) and hether that ir is too be expect and if so, supplied
+        if (command_line_numbers.find(argument) != command_line_numbers.end() && i+1 < argc)
         {
-            std::string next_argument(argv[i+1]);
-            boost::trim(next_argument);
-
-            bool arg_is_int = true;
-            for (int j=0; j<next_argument.size(); ++j)
-                arg_is_int *= std::isdigit(next_argument[j]);
-
-            if (arg_is_int)
+            try
             {
-                command_line_ints.at(argument).first = std::stoi(argv[i+1]);
-                ++i;
+                size_t p;
+                Float val = Float(std::stod(argv[i+1], &p));
+                if (p == strlen(argv[i+1]))
+                {
+                    command_line_numbers.at(argument) = Float(std::stod(argv[i+1]));
+                    ++i;
+                }
+
             }
+            catch(...){}
         }
     }
 
@@ -202,15 +202,15 @@ bool parse_command_line_options(
 
 void print_command_line_options(
         const std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        const std::map<std::string, std::pair<int, std::string>>& command_line_ints)
+        const std::map<std::string, Float>& command_line_numbers)
 {
     Status::print_message("Solver settings:");
     for (const auto& option : command_line_switches)
     {
         std::ostringstream ss;
         ss << std::left << std::setw(20) << (option.first);
-        if (command_line_ints.find(option.first) != command_line_ints.end() && option.second.first)
-            ss << " = " << std::boolalpha << command_line_ints.at(option.first).first << std::endl;
+        if (command_line_numbers.find(option.first) != command_line_numbers.end() && option.second.first)
+            ss << " = " << std::boolalpha << command_line_numbers.at(option.first) << std::endl;
         else
             ss << " = " << std::boolalpha << option.second.first << std::endl;
         Status::print_message(ss);
@@ -226,10 +226,11 @@ void solve_radiation(int argc, char** argv)
     // Parse the command line options.
     std::map<std::string, std::pair<bool, std::string>> command_line_switches {
         {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
-        {"longwave"          , { false, "Enable computation of longwave radiation." }},
+        {"longwave"          , { true,  "Enable computation of longwave radiation." }},
         {"fluxes"            , { true,  "Enable computation of fluxes."             }},
-        {"two-stream"        , { true, "Run two-stream solver for to obtain 1D fluxes" }},
-        {"raytracing"        , { true,  "Use raytracing for flux computation. '--raytracing 256': use 256 rays per pixel" }},
+        {"sw-two-stream"     , { false, "Run two-stream solver for to obtain 1D fluxes" }},
+        {"sw-raytracing"     , { true,  "Use shortwave raytracing for flux computation. '--sw-raytracing 256': use 256 rays per pixel per spectral quadrature point" }},
+        {"lw-raytracing"     , { true,  "Use longwave raytracing for flux computation. '--lw-raytracing 22': use a total of 2**22 rays per spectral quadrature point" }},
         {"independent-column", { false, "run raytracer in independent column mode"}},
         {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
         {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
@@ -241,25 +242,30 @@ void solve_radiation(int argc, char** argv)
         {"profiling"         , { false, "Perform additional profiling run."         }},
         {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
         {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
+        {"min-mfp-grid-ratio", { true,  "Lowest ratio between the shortest gasous mean free path and the smallest grid dimension at which we still do ray tracing. Below this ratio, the 1D solution is used. '--min-mfp-grid-ratio 1'" }},
         {"tica"              , { false, "attenuate path when doing an overhead 1D calculation of tilted input"   }}};
 
-    std::map<std::string, std::pair<int, std::string>> command_line_ints {
-        {"raytracing", {32, "Number of rays initialised at TOD per pixel per quadraute."}},
-        {"single-gpt", {1 , "g-point to store optical properties and fluxes of" }}};
+    std::map<std::string, Float> command_line_numbers {
+        {"sw-raytracing", 256},
+        {"lw-raytracing", 22},
+        {"single-gpt", 1},
+        {"min-mfp-grid-ratio", 1}};
 
-    if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
+    if (parse_command_line_options(command_line_switches, command_line_numbers, argc, argv))
         return;
 
     const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
     const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
     const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
-    const bool switch_twostream         = command_line_switches.at("two-stream"        ).first;
-    const bool switch_raytracing        = command_line_switches.at("raytracing"        ).first;
+    bool switch_sw_twostream      = command_line_switches.at("sw-two-stream"        ).first;
+    bool switch_sw_raytracing     = command_line_switches.at("sw-raytracing"        ).first;
+    bool switch_lw_raytracing     = command_line_switches.at("lw-raytracing"        ).first;
     bool switch_independent_column= command_line_switches.at("independent-column").first;
     bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
     bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
     bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
     const bool switch_lw_scattering     = command_line_switches.at("lw-scattering"     ).first;
+    const bool switch_min_mfp_grid_ratio= command_line_switches.at("min-mfp-grid-ratio").first;
     const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
     const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
     const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
@@ -268,17 +274,36 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
     const bool switch_tica              = command_line_switches.at("tica"     ).first;
 
-    Int photons_per_pixel = Int(command_line_ints.at("raytracing").first);
 
-    if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
+    if (!switch_shortwave)
+        switch_sw_raytracing = false;
+
+    if (!switch_longwave)
+        switch_lw_raytracing = false;
+
+    if (switch_shortwave && !switch_sw_twostream && !switch_sw_raytracing)
     {
-        std::string error = "number of photons per pixel should be a power of 2 ";
+        std::string error = "With shortwave enable, need to run either two-stream solver or ray tracer ";
         throw std::runtime_error(error);
     }
 
-    if (!switch_twostream && !switch_raytracing) {
-        std::string error = "cannot disable two-stream for flux calculation without turning ray tracing on";
-        throw std::runtime_error(error);
+    Int sw_photons_per_pixel;
+    if (switch_sw_raytracing)
+    {
+        sw_photons_per_pixel = Int(command_line_numbers.at("sw-raytracing"));
+        if (Float(int(std::log2(Float(sw_photons_per_pixel)))) != std::log2(Float(sw_photons_per_pixel)))
+        {
+            std::string error = "number of photons per pixel should be a power of 2 ";
+            throw std::runtime_error(error);
+        }
+    }
+
+    Int lw_photon_power;
+    Int lw_photon_count;
+    if (switch_lw_raytracing)
+    {
+        lw_photon_power = Int(command_line_numbers.at("lw-raytracing"));
+        lw_photon_count = 1 << lw_photon_power;
     }
 
     if (switch_cloud_optics)
@@ -287,14 +312,10 @@ void solve_radiation(int argc, char** argv)
         switch_ice_cloud_optics = true;
     }
     if (switch_liq_cloud_optics || switch_ice_cloud_optics)
-    {
         switch_cloud_optics = true;
-    }
 
     if (switch_tica)
-    {
         switch_independent_column = true;
-    }
 
     if (switch_cloud_mie && switch_ice_cloud_optics)
     {
@@ -303,11 +324,18 @@ void solve_radiation(int argc, char** argv)
     }
 
     // Print the options to the screen.
-    print_command_line_options(command_line_switches, command_line_ints);
+    print_command_line_options(command_line_switches, command_line_numbers);
 
-    int single_gpt = command_line_ints.at("single-gpt").first;
+    int single_gpt = int(command_line_numbers.at("single-gpt"));
 
-    Status::print_message("Using "+ std::to_string(photons_per_pixel) + " rays per pixel");
+    const Float min_mfp_grid_ratio = switch_min_mfp_grid_ratio ? command_line_numbers.at("min-mfp-grid-ratio") : Float(0.);
+
+    if (switch_sw_raytracing)
+        Status::print_message("Shortwave: using "+ std::to_string(sw_photons_per_pixel) + " rays per pixel per g-point");
+
+    if (switch_lw_raytracing)
+        Status::print_message("Longwave: using 2**"+std::to_string(lw_photon_power) + " ("+std::to_string(lw_photon_count) + ") rays per g-point");
+
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -675,7 +703,7 @@ void solve_radiation(int argc, char** argv)
         Array_gpu<Float,2> rt_flux_sfc_dn;
         Array_gpu<Float,3> rt_flux_abs;
 
-        if (switch_raytracing)
+        if (switch_lw_raytracing)
         {
             rt_flux_tod_up.set_dims({n_col_x, n_col_y});
             rt_flux_tod_dn.set_dims({n_col_x, n_col_y});
@@ -720,14 +748,15 @@ void solve_radiation(int argc, char** argv)
 
             rad_lw.solve_gpu(
                     switch_fluxes,
-                    switch_raytracing,
+                    switch_lw_raytracing,
                     switch_cloud_optics,
                     switch_aerosol_optics,
                     switch_single_gpt,
                     switch_lw_scattering,
                     switch_independent_column,
                     single_gpt,
-                    photons_per_pixel,
+                    min_mfp_grid_ratio,
+                    lw_photon_count,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -874,7 +903,7 @@ void solve_radiation(int argc, char** argv)
                 nc_lw_gpt_flux_net.insert(lw_gpt_flux_net_cpu.v(), {0, 0, 0});
             }
 
-            if (switch_raytracing)
+            if (switch_lw_raytracing)
             {
                 auto rt_flux_tod_up  = output_nc.add_variable<Float>("rt_lw_flux_tod_up" , { "y", "x"});
                 auto rt_flux_tod_dn  = output_nc.add_variable<Float>("rt_lw_flux_tod_dn" , { "y", "x"});
@@ -978,7 +1007,7 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            if(switch_twostream)
+            if(switch_sw_twostream)
             {
                 sw_flux_up    .set_dims({n_col, n_lev});
                 sw_flux_dn    .set_dims({n_col, n_lev});
@@ -986,7 +1015,7 @@ void solve_radiation(int argc, char** argv)
                 sw_flux_net   .set_dims({n_col, n_lev});
             }
 
-            if (switch_raytracing)
+            if (switch_sw_raytracing)
             {
                 rt_flux_tod_up .set_dims({n_col_x, n_col_y});
                 rt_flux_sfc_dir.set_dims({n_col_x, n_col_y});
@@ -1047,8 +1076,8 @@ void solve_radiation(int argc, char** argv)
 
             rad_sw.solve_gpu(
                     switch_fluxes,
-                    switch_twostream,
-                    switch_raytracing,
+                    switch_sw_twostream,
+                    switch_sw_raytracing,
                     switch_independent_column,
                     switch_cloud_optics,
                     switch_cloud_mie,
@@ -1058,7 +1087,7 @@ void solve_radiation(int argc, char** argv)
                     switch_delta_aerosol,
                     switch_tica,
                     single_gpt,
-                    photons_per_pixel,
+                    sw_photons_per_pixel,
                     grid_cells,
                     grid_d,
                     kn_grid,
@@ -1186,7 +1215,7 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_fluxes)
         {
-            if (switch_twostream)
+            if (switch_sw_twostream)
             {
                 auto nc_sw_flux_up     = output_nc.add_variable<Float>("sw_flux_up"    , {"lev", "y", "x"});
                 auto nc_sw_flux_dn     = output_nc.add_variable<Float>("sw_flux_dn"    , {"lev", "y", "x"});
@@ -1212,7 +1241,7 @@ void solve_radiation(int argc, char** argv)
 
             }
 
-            if (switch_raytracing)
+            if (switch_sw_raytracing)
             {
                 auto nc_rt_flux_tod_up  = output_nc.add_variable<Float>("rt_flux_tod_up",  {"y","x"});
                 auto nc_rt_flux_sfc_dir = output_nc.add_variable<Float>("rt_flux_sfc_dir", {"y","x"});
@@ -1252,7 +1281,7 @@ void solve_radiation(int argc, char** argv)
 
             if (switch_single_gpt)
             {
-                if (switch_twostream)
+                if (switch_sw_twostream)
                 {
                     auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});
                     auto nc_sw_gpt_flux_dn     = output_nc.add_variable<Float>("sw_gpt_flux_dn"    , {"lev", "y", "x"});
