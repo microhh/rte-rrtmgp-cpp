@@ -16,11 +16,11 @@
  * along with this software.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/algorithm/string.hpp>
 #include <chrono>
 #include <iomanip>
 #include <cuda_profiler_api.h>
 
+#include "toml.hpp"
 
 #include "status.h"
 #include "netcdf_interface.h"
@@ -35,130 +35,51 @@
 #include "tools_gpu.h"
 
 
-bool parse_command_line_options(
-        std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        std::map<std::string, std::pair<int, std::string>>& command_line_ints,
-        int argc, char** argv)
+template<typename T>
+T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item)
 {
-    for (int i=1; i<argc; ++i)
-    {
-        std::string argument(argv[i]);
-        boost::trim(argument);
-
-        if (argument == "-h" || argument == "--help")
-        {
-            Status::print_message("Possible usage:");
-            for (const auto& clo : command_line_switches)
-            {
-                std::ostringstream ss;
-                ss << std::left << std::setw(30) << ("--" + clo.first);
-                ss << clo.second.second << std::endl;
-                Status::print_message(ss);
-            }
-            return true;
-        }
-
-        // Check if option starts with --
-        if (argument[0] != '-' || argument[1] != '-')
-        {
-            std::string error = argument + " is an illegal command line option.";
-            throw std::runtime_error(error);
-        }
-        else
-            argument.erase(0, 2);
-
-        // Check if option has prefix no-
-        bool enable = true;
-        if (argument[0] == 'n' && argument[1] == 'o' && argument[2] == '-')
-        {
-            enable = false;
-            argument.erase(0, 3);
-        }
-
-        if (command_line_switches.find(argument) == command_line_switches.end())
-        {
-            std::string error = argument + " is an illegal command line option.";
-            throw std::runtime_error(error);
-        }
-        else
-        {
-            command_line_switches.at(argument).first = enable;
-        }
-
-        // Check if a is integer is too be expect and if so, supplied
-        if (command_line_ints.find(argument) != command_line_ints.end() && i+1 < argc)
-        {
-            std::string next_argument(argv[i+1]);
-            boost::trim(next_argument);
-
-            bool arg_is_int = true;
-            for (int j=0; j<next_argument.size(); ++j)
-                arg_is_int *= std::isdigit(next_argument[j]);
-
-            if (arg_is_int)
-            {
-                command_line_ints.at(argument).first = std::stoi(argv[i+1]);
-                ++i;
-            }
-        }
-    }
-
-    return false;
+    const T value = toml::find<T>(ini_file, group, item);
+    std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
+    return value;
 }
 
-void print_command_line_options(
-        const std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        const std::map<std::string, std::pair<int, std::string>>& command_line_ints)
+
+template<typename T>
+T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item, const T default_value)
 {
-    Status::print_message("Solver settings:");
-    for (const auto& option : command_line_switches)
-    {
-        std::ostringstream ss;
-        ss << std::left << std::setw(20) << (option.first);
-        if (command_line_ints.find(option.first) != command_line_ints.end() && option.second.first)
-            ss << " = " << std::boolalpha << command_line_ints.at(option.first).first << std::endl;
-        else
-            ss << " = " << std::boolalpha << option.second.first << std::endl;
-        Status::print_message(ss);
-   }
+    auto ini_group = toml::find(ini_file, group);
+    const T value = toml::find_or(ini_group, item, default_value);
+    std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
+    return value;
 }
+
 
 void solve_radiation(int argc, char** argv)
 {
-    Status::print_message("###### Starting RTE+RRTMGP solver ######");
+    Status::print_message("###### Starting raytracing ######");
 
-    ////// FLOW CONTROL SWITCHES //////
-    // Parse the command line options.
-    std::map<std::string, std::pair<bool, std::string>> command_line_switches {
-        {"raytracing"        , { true,  "Use forward raytracer for irradiances. '--raytracing 256': use 256 rays per pixel" }},
-        {"bw-raytracing"     , { true,  "Use backward raytracer radiances. '--raytracing 256': use 256 rays per pixel" }},
-        {"two-stream"        , { true,  "Perform two-stream computations"}},
-        {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
-        {"independent-column", { false, "run raytracer in independent column mode"}},
-        {"profiling"         , { false, "Perform additional profiling run."         }} };
+    // Read out the case name from the command line parameter.
+    if (argc != 2)
+    {
+        const std::string error = "The raytracer takes exactly one argument, which is the case name";
+        throw std::runtime_error(error);
+    }
+    const std::string case_name(argv[1]);
 
-    std::map<std::string, std::pair<int, std::string>> command_line_ints {
-        {"raytracing", {32, "Number of rays initialised at TOD per pixel."}},
-        {"bw-raytracing", {32, "Number of rays initialised at per camera pixel."}}} ;
+    const auto settings = toml::parse(case_name + ".ini");
 
-    if (parse_command_line_options(command_line_switches, command_line_ints, argc, argv))
-        return;
-
-    const bool switch_raytracing         = command_line_switches.at("raytracing"        ).first;
-    const bool switch_bw_raytracing      = command_line_switches.at("bw-raytracing"     ).first;
-    const bool switch_two_stream         = command_line_switches.at("two-stream"        ).first;
-    const bool switch_cloud_mie          = command_line_switches.at("cloud-mie"         ).first;
-    const bool switch_independent_column = command_line_switches.at("independent-column").first;
-    const bool switch_profiling          = command_line_switches.at("profiling"         ).first;
-
-    // Print the options to the screen.
-    print_command_line_options(command_line_switches, command_line_ints);
+    const bool switch_raytracing         = get_ini_value<bool>(settings, "switches", "raytracing", true);
+    const bool switch_bw_raytracing      = get_ini_value<bool>(settings, "switches", "bw-raytracing", true);
+    const bool switch_two_stream         = get_ini_value<bool>(settings, "switches", "two-stream", true);
+    const bool switch_cloud_mie          = get_ini_value<bool>(settings, "switches", "cloud-mie", false);
+    const bool switch_independent_column = get_ini_value<bool>(settings, "switches", "independent-column", false);
+    const bool switch_profiling          = get_ini_value<bool>(settings, "switches", "profiling", false);
 
     Int photons_per_pixel;
     Int photons_per_pixel_bw;
     if (switch_raytracing)
     {
-        photons_per_pixel = Int(command_line_ints.at("raytracing").first);
+        photons_per_pixel = get_ini_value<Int>(settings, "ints", "raytracing", Int(32));
         if (Float(int(std::log2(Float(photons_per_pixel)))) != std::log2(Float(photons_per_pixel)))
         {
             std::string error = "number of photons per pixel should be a power of 2 ";
@@ -169,7 +90,7 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_bw_raytracing)
     {
-        photons_per_pixel_bw = Int(command_line_ints.at("bw-raytracing").first);
+        photons_per_pixel_bw = get_ini_value<Int>(settings, "ints", "bw-raytracing", Int(32));
         if (Float(int(std::log2(Float(photons_per_pixel_bw)))) != std::log2(Float(photons_per_pixel_bw)))
         {
             std::string error = "number of bw photons per pixel should be a power of 2 ";
@@ -182,7 +103,7 @@ void solve_radiation(int argc, char** argv)
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
 
-    Netcdf_file input_nc("rt_lite_input.nc", Netcdf_mode::Read);
+    Netcdf_file input_nc(case_name + "_input.nc", Netcdf_mode::Read);
     const int nx = input_nc.get_dimension_size("x");
     const int ny = input_nc.get_dimension_size("y");
     const int n_z_in = input_nc.get_dimension_size("z");
@@ -344,7 +265,7 @@ void solve_radiation(int argc, char** argv)
     // Create the general dimensions and arrays.
     Status::print_message("Preparing NetCDF output file.");
 
-    Netcdf_file output_nc("rt_lite_output.nc", Netcdf_mode::Create);
+    Netcdf_file output_nc(case_name + "_output.nc", Netcdf_mode::Create);
     if (switch_raytracing || switch_two_stream)
     {
         output_nc.add_dimension("x", nx);
@@ -489,7 +410,6 @@ void solve_radiation(int argc, char** argv)
         nc_flux_sfc_up   .insert(flux_sfc_up_c  .v(), {0, 0});
         nc_flux_abs_dir  .insert(flux_abs_dir_c .v(), {0, 0, 0});
         nc_flux_abs_dif  .insert(flux_abs_dif_c .v(), {0, 0, 0});
-
     }
 
     if (switch_bw_raytracing)
@@ -566,11 +486,8 @@ void solve_radiation(int argc, char** argv)
         auto nc_radiance = output_nc.add_variable<Float>("radiance" , {"ny", "nx"});
 
         nc_radiance.insert(radiance_c  .v(), {0, 0});
-
-
-
     }
-    Status::print_message("###### Finished RAYTRACING #####");
+    Status::print_message("###### Finished raytracing ######");
 }
 
 
