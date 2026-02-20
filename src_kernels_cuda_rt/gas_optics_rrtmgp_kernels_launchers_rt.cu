@@ -40,6 +40,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
             tunings["reorder123x321_kernel_rt"].first = grid;
             tunings["reorder123x321_kernel_rt"].second = block;
+            Tuner::get().save();
         }
         else
         {
@@ -179,6 +180,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
                     jeta, jpress);
             tunings["interpolation_kernel_rt"].first = grid;
             tunings["interpolation_kernel_rt"].second = block;
+            Tuner::get().save();
         }
         else
         {
@@ -227,7 +229,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
             tunings["combine_abs_and_rayleigh_kernel_rt"].first = grid;
             tunings["combine_abs_and_rayleigh_kernel_rt"].second = block;
-
+            Tuner::get().save();
         }
         else
         {
@@ -277,6 +279,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
             tunings["compute_tau_rayleigh_kernel_rt"].first = grid;
             tunings["compute_tau_rayleigh_kernel_rt"].second = block;
+            Tuner::get().save();
         }
         else
         {
@@ -356,6 +359,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
             tunings["gas_optical_depths_major_kernel_rt"].first = grid_maj;
             tunings["gas_optical_depths_major_kernel_rt"].second = block_maj;
+            Tuner::get().save();
         }
         else
         {
@@ -411,6 +415,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
             tunings["gas_optical_depths_minor_kernel_lower_rt"].first = grid_min_1;
             tunings["gas_optical_depths_minor_kernel_lower_rt"].second = block_min_1;
+            Tuner::get().save();
         }
         else
         {
@@ -472,6 +477,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
             tunings["gas_optical_depths_minor_kernel_upper_rt"].first = grid_min_2;
             tunings["gas_optical_depths_minor_kernel_upper_rt"].second = block_min_2;
+            Tuner::get().save();
         }
         else
         {
@@ -550,6 +556,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda_rt
 
             tunings["Planck_source_kernel_rt"].first = grid;
             tunings["Planck_source_kernel_rt"].second = block;
+            Tuner::get().save();
         }
         else
         {

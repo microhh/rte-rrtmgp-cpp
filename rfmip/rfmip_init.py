@@ -10,7 +10,7 @@ band_sw = 14
 
 for expt in range(expts):
     # Save all the input data to NetCDF
-    nc_file = nc.Dataset('rte_rrtmgp_input_expt_{:02d}.nc'.format(expt), mode='w', datamodel='NETCDF4', clobber=True)
+    nc_file = nc.Dataset('rfmip_input_expt_{:02d}.nc'.format(expt), mode='w', datamodel='NETCDF4', clobber=True)
     nc_file_rfmip = nc.Dataset('multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc', mode='r', datamodel='NETCDF4', clobber=False)
 
     # Create a group for the radiation and set up the values.

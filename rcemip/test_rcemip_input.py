@@ -8,7 +8,7 @@ n_lay = 256
 n_bnd_lw = 16
 n_bnd_sw = 14
 
-nc_file = nc.Dataset("rte_rrtmgp_input.nc", mode="w", datamodel="NETCDF4", clobber=True)
+nc_file = nc.Dataset("rcemip_input.nc", mode="w", datamodel="NETCDF4", clobber=True)
 
 # Radiation profiles.
 z_top = 70.e3

@@ -16,10 +16,11 @@
  * along with this software.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/algorithm/string.hpp>
 #include <chrono>
 #include <iomanip>
 #include <cuda_profiler_api.h>
+
+#include "toml.hpp"
 
 #include "status.h"
 #include "netcdf_interface.h"
@@ -127,143 +128,61 @@ void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbn
     #endif
 }
 
-bool parse_command_line_options(
-        std::map<std::string, std::pair<bool, std::string>>& command_line_options,
-        int& photons_per_pixel,
-        int argc, char** argv)
+
+template<typename T>
+T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item)
 {
-    for (int i=1; i<argc; ++i)
-    {
-        std::string argument(argv[i]);
-        boost::trim(argument);
-
-        if (argument == "-h" || argument == "--help")
-        {
-            Status::print_message("Possible usage:");
-            for (const auto& clo : command_line_options)
-            {
-                std::ostringstream ss;
-                ss << std::left << std::setw(30) << ("--" + clo.first);
-                ss << clo.second.second << std::endl;
-                Status::print_message(ss);
-            }
-            return true;
-        }
-
-        //check if option is integer n
-        if (std::isdigit(argument[0]))
-        {
-            if (argument.size() > 1)
-            {
-                for (int i=1; i<argument.size(); ++i)
-                {
-                    if (!std::isdigit(argument[i]))
-                    {
-                        std::string error = argument + " is an illegal command line option.";
-                        throw std::runtime_error(error);
-                    }
-
-                }
-            }
-            photons_per_pixel = int(std::stoi(argv[i]));
-        }
-        else
-        {
-            // Check if option starts with --
-            if (argument[0] != '-' || argument[1] != '-')
-            {
-                std::string error = argument + " is an illegal command line option.";
-                throw std::runtime_error(error);
-            }
-            else
-                argument.erase(0, 2);
-
-            // Check if option has prefix no-
-            bool enable = true;
-            if (argument[0] == 'n' && argument[1] == 'o' && argument[2] == '-')
-            {
-                enable = false;
-                argument.erase(0, 3);
-            }
-
-            if (command_line_options.find(argument) == command_line_options.end())
-            {
-                std::string error = argument + " is an illegal command line option.";
-                throw std::runtime_error(error);
-            }
-            else
-                command_line_options.at(argument).first = enable;
-        }
-    }
-
-    return false;
+    const T value = toml::find<T>(ini_file, group, item);
+    std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
+    return value;
 }
 
 
-void print_command_line_options(
-        const std::map<std::string, std::pair<bool, std::string>>& command_line_options)
+template<typename T>
+T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item, const T default_value)
 {
-    Status::print_message("Solver settings:");
-    for (const auto& option : command_line_options)
-    {
-        std::ostringstream ss;
-        ss << std::left << std::setw(20) << (option.first);
-        ss << " = " << std::boolalpha << option.second.first << std::endl;
-        Status::print_message(ss);
-    }
+    auto ini_group = toml::find(ini_file, group);
+    const T value = toml::find_or(ini_group, item, default_value);
+    std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
+    return value;
 }
-
 
 
 void solve_radiation(int argc, char** argv)
 {
     Status::print_message("###### Starting RTE+RRTMGP solver ######");
 
+    // Read out the case name from the command line parameter.
+    if (argc != 2)
+    {
+        const std::string error = "The solver takes exactly one argument, which is the case name";
+        throw std::runtime_error(error);
+    }
+    const std::string case_name(argv[1]);
+
+    const auto settings = toml::parse(case_name + ".ini");
+
     ////// FLOW CONTROL SWITCHES //////
-    // Parse the command line options.
-    std::map<std::string, std::pair<bool, std::string>> command_line_options {
-        {"shortwave"        , { true,  "Enable computation of shortwave radiation."  }},
-        {"longwave"         , { false, "Enable computation of longwave radiation."   }},
-        {"fluxes"           , { true,  "Enable computation of fluxes."               }},
-        {"raytracing"       , { true,  "Use raytracing for flux computation."        }},
-        {"cloud-optics"     , { false, "Enable cloud optics (both liquid and ice)."  }},
-        {"liq-cloud-optics" , { false, "liquid only cloud optics."                   }},
-        {"ice-cloud-optics" , { false, "ice only cloud optics."                      }},
-        {"cloud-mie"        , { false, "mie cloud droplet scattering."               }},
-        {"aerosol-optics"   , { false, "Enable aerosol optics."                      }},
-        {"output-optical"   , { false, "Enable output of optical properties."        }},
-        {"output-bnd-fluxes", { false, "Enable output of band fluxes."               }},
-        {"lu-albedo"        , { false, "Compute spectral albedo from land use map"   }},
-        {"image"            , { true,  "Compute XYZ values to generate RGB images"   }},
-        {"broadband"        , { false, "Compute broadband radiances"                 }},
-        {"profiling"        , { false, "Perform additional profiling run."           }},
-        {"delta-cloud"      , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"    , { false, "delta-scaling of aerosol optical properties" }},
-        {"cloud-cam"        , { false, "accumulate cloud water & ice paths for each camera pixel" }}};
-    int photons_per_pixel = 1;
+    const bool switch_shortwave         = get_ini_value<bool>(settings, "switches", "shortwave", true);
+    const bool switch_longwave          = get_ini_value<bool>(settings, "switches", "longwave", false);
+    const bool switch_fluxes            = get_ini_value<bool>(settings, "switches", "fluxes", true);
+    const bool switch_raytracing        = get_ini_value<bool>(settings, "switches", "raytracing", true);
+    bool switch_cloud_optics            = get_ini_value<bool>(settings, "switches", "cloud-optics", false);
+    bool switch_liq_cloud_optics        = get_ini_value<bool>(settings, "switches", "liq-cloud-optics", false);
+    bool switch_ice_cloud_optics        = get_ini_value<bool>(settings, "switches", "ice-cloud-optics", false);
+    const bool switch_cloud_mie         = get_ini_value<bool>(settings, "switches", "cloud-mie", false);
+    const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol-optics", false);
+    const bool switch_output_optical    = get_ini_value<bool>(settings, "switches", "output-optical", false);
+    const bool switch_output_bnd_fluxes = get_ini_value<bool>(settings, "switches", "output-bnd-fluxes", false);
+    const bool switch_lu_albedo         = get_ini_value<bool>(settings, "switches", "lu-albedo", false);
+    const bool switch_image             = get_ini_value<bool>(settings, "switches", "image", true);
+    const bool switch_broadband         = get_ini_value<bool>(settings, "switches", "broadband", false);
+    const bool switch_profiling         = get_ini_value<bool>(settings, "switches", "profiling", false);
+    const bool switch_delta_cloud       = get_ini_value<bool>(settings, "switches", "delta-cloud", false);
+    const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
+    const bool switch_cloud_cam         = get_ini_value<bool>(settings, "switches", "cloud-cam", false);
 
-    if (parse_command_line_options(command_line_options, photons_per_pixel, argc, argv))
-        return;
-
-
-    const bool switch_shortwave         = command_line_options.at("shortwave"        ).first;
-    const bool switch_longwave          = command_line_options.at("longwave"         ).first;
-    const bool switch_fluxes            = command_line_options.at("fluxes"           ).first;
-    bool switch_cloud_optics            = command_line_options.at("cloud-optics"     ).first;
-    bool switch_liq_cloud_optics        = command_line_options.at("liq-cloud-optics" ).first;
-    bool switch_ice_cloud_optics        = command_line_options.at("ice-cloud-optics" ).first;
-    const bool switch_cloud_mie         = command_line_options.at("cloud-mie"        ).first;
-    const bool switch_aerosol_optics    = command_line_options.at("aerosol-optics"   ).first;
-    const bool switch_output_optical    = command_line_options.at("output-optical"   ).first;
-    const bool switch_output_bnd_fluxes = command_line_options.at("output-bnd-fluxes").first;
-    const bool switch_lu_albedo         = command_line_options.at("lu-albedo"        ).first;
-    const bool switch_image             = command_line_options.at("image"            ).first;
-    const bool switch_broadband         = command_line_options.at("broadband"        ).first;
-    const bool switch_profiling         = command_line_options.at("profiling"        ).first;
-    const bool switch_delta_cloud       = command_line_options.at("delta-cloud"      ).first;
-    const bool switch_delta_aerosol     = command_line_options.at("delta-aerosol"    ).first;
-    const bool switch_cloud_cam         = command_line_options.at("cloud-cam"        ).first;
-    const bool switch_raytracing        = command_line_options.at("raytracing"       ).first;
+    int photons_per_pixel = get_ini_value<int>(settings, "ints", "photons-per-pixel", 1);
 
     if (switch_longwave)
     {
@@ -287,15 +206,12 @@ void solve_radiation(int argc, char** argv)
         throw std::runtime_error(error);
     }
 
-    // Print the options to the screen.
-    print_command_line_options(command_line_options);
-
     Status::print_message("Using "+ std::to_string(photons_per_pixel) + " ray(s) per pixel");
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
 
-    Netcdf_file input_nc("rte_rrtmgp_input.nc", Netcdf_mode::Read);
+    Netcdf_file input_nc(case_name + "_input.nc", Netcdf_mode::Read);
 
     const int n_col_x = input_nc.get_dimension_size("x");
     const int n_col_y = input_nc.get_dimension_size("y");
@@ -443,7 +359,7 @@ void solve_radiation(int argc, char** argv)
     // Create the general dimensions and arrays.
     Status::print_message("Preparing NetCDF output file.");
 
-    Netcdf_file output_nc("rte_rrtmgp_output.nc", Netcdf_mode::Create);
+    Netcdf_file output_nc(case_name + "_output.nc", Netcdf_mode::Create);
     output_nc.add_dimension("x", camera.nx);
     output_nc.add_dimension("y", camera.ny);
     output_nc.add_dimension("pair", 2);

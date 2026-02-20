@@ -10,7 +10,7 @@ The original code is found at https://github.com/earth-system-radiation/rte-rrtm
 Contacts: Robert Pincus and Eli Mlawer
 email: rrtmgp@aer.com
 
-This C++ implementation can be downloaded from https://github.com/earth-system-radiation/rte-rrtmgp-cpp
+This C++ implementation can be downloaded from https://github.com/microhh/rte-rrtmgp-cpp
 
 Contacts: Chiel van Heerwaarden and Menno Veerman
 
@@ -25,9 +25,11 @@ The source code of the testing executable in the `src_test` and
 `include_test` directory is released under the GPLv3 license,
 see https://www.gnu.org/licenses/gpl-3.0.en.html
 
+The .ini reader is based on TOML and uses toml11: https://github.com/ToruNiina/toml11.
+
 In order to check out the code including the `rte-rrtmgp` submodule, use:
 
-    git clone --recurse-submodules https://github.com/earth-system-radiation/rte-rrtmgp-cpp
+    git clone --recurse-submodules https://github.com/microhh/rte-rrtmgp-cpp
 
 In case you had already checked out the repository, use:
 

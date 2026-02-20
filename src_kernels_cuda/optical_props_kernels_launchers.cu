@@ -146,6 +146,7 @@ namespace Optical_props_kernels_cuda
 
             tunings["inc_2stream_by_2stream_bybnd_kernel"].first = grid;
             tunings["inc_2stream_by_2stream_bybnd_kernel"].second = block;
+            Tuner::get().save();
         }
         else
         {

@@ -128,6 +128,7 @@ namespace Rte_solver_kernels_cuda
 
             tunings["lw_step_1"].first = grid_1;
             tunings["lw_step_1"].second = block_1;
+            Tuner::get().save();
         }
         else
         {
@@ -172,6 +173,7 @@ namespace Rte_solver_kernels_cuda
 
             tunings["lw_step_2"].first = grid_2;
             tunings["lw_step_2"].second = block_2;
+            Tuner::get().save();
         }
         else
         {
@@ -216,6 +218,7 @@ namespace Rte_solver_kernels_cuda
 
             tunings["lw_step_3"].first = grid_3;
             tunings["lw_step_3"].second = block_3;
+            Tuner::get().save();
         }
         else
         {
@@ -347,6 +350,7 @@ namespace Rte_solver_kernels_cuda
 
             tunings["sw_source_2stream_kernel"].first = grid_source;
             tunings["sw_source_2stream_kernel"].second = block_source;
+            Tuner::get().save();
         }
         else
         {
@@ -410,6 +414,7 @@ namespace Rte_solver_kernels_cuda
 
             tunings["sw_adding"].first = grid_adding;
             tunings["sw_adding"].second = block_adding;
+            Tuner::get().save();
         }
         else
         {

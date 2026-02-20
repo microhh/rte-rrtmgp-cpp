@@ -8,13 +8,13 @@ def remove(filename):
     except OSError:
         pass
 
-remove('rte_rrtmgp_output.nc')
-subprocess.run(['./test_rte_rrtmgp', '--cloud-optics'])
+remove('allsky_output.nc')
+subprocess.run(['./test_rte_rrtmgp', 'allsky'])
 
 remove('rrtmgp-allsky.nc')
 
 
-in_file = nc.Dataset("rte_rrtmgp_output.nc") 
+in_file = nc.Dataset("allsky_output.nc")
 out_file = nc.Dataset("rrtmgp-allsky.nc", "w")
 
 for dim_name in ["band_sw", "band_lw", "gpt_sw", "gpt_lw", "pair", "lay", "lev"]:    

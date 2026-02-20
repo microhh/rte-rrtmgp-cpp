@@ -40,6 +40,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
             tunings["reorder123x321_kernel"].first = grid;
             tunings["reorder123x321_kernel"].second = block;
+            Tuner::get().save();
         }
         else
         {
@@ -150,6 +151,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
             tunings["combine_abs_and_rayleigh_kernel"].first = grid;
             tunings["combine_abs_and_rayleigh_kernel"].second = block;
+            Tuner::get().save();
         }
         else
         {
@@ -200,6 +202,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
             tunings["compute_tau_rayleigh_kernel"].first = grid;
             tunings["compute_tau_rayleigh_kernel"].second = block;
+            Tuner::get().save();
         }
         else
         {
@@ -287,6 +290,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
             tunings["gas_optical_depths_major_kernel"].first = grid_gpu_maj;
             tunings["gas_optical_depths_major_kernel"].second = block_gpu_maj;
+            Tuner::get().save();
         }
         else
         {
@@ -339,6 +343,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
             tunings["gas_optical_depths_minor_kernel_lower"].first = grid_gpu_min_1;
             tunings["gas_optical_depths_minor_kernel_lower"].second = block_gpu_min_1;
+            Tuner::get().save();
         }
         else
         {
@@ -406,6 +411,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
             tunings["gas_optical_depths_minor_kernel_upper"].first = grid_gpu_min_2;
             tunings["gas_optical_depths_minor_kernel_upper"].second = block_gpu_min_2;
+            Tuner::get().save();
         }
         else
         {
@@ -498,6 +504,7 @@ namespace Gas_optics_rrtmgp_kernels_cuda
 
             tunings["Planck_source_kernel"].first = grid_gpu;
             tunings["Planck_source_kernel"].second = block_gpu;
+            Tuner::get().save();
         }
         else
         {
