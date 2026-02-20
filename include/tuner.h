@@ -26,6 +26,11 @@ class Tuner
 
         ~Tuner()
         {
+            save();
+        }
+
+        void save()
+        {
             std::ofstream outfile("rte_rrtmgp_kernel_tuning.txt");
             for (const auto& i : tuner_map)
             {
