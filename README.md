@@ -25,6 +25,8 @@ The source code of the testing executable in the `src_test` and
 `include_test` directory is released under the GPLv3 license,
 see https://www.gnu.org/licenses/gpl-3.0.en.html
 
+The .ini reader is based on TOML and uses toml11: https://github.com/ToruNiina/toml11.
+
 In order to check out the code including the `rte-rrtmgp` submodule, use:
 
     git clone --recurse-submodules https://github.com/microhh/rte-rrtmgp-cpp
