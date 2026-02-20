@@ -593,8 +593,9 @@ void lw_source_2stream_kernel(
                 const Float Zdn_top = -Z + lev_source[idx_lev2];
                 const Float Zdn_bot = -Z + lev_source[idx_lev1];
 
-                source_up[idx_lay] = pi * (Zup_top - r_dif[idx_lay] * Zdn_top - t_dif[idx_lay] * Zup_bot);
-                source_dn[idx_lay] = pi * (Zdn_bot - r_dif[idx_lay] * Zup_bot - t_dif[idx_lay] * Zdn_top);
+                source_up[idx_lay] = max( pi * (Zup_top - r_dif[idx_lay] * Zdn_top - t_dif[idx_lay] * Zup_bot) , Float(0.));
+                source_dn[idx_lay] = max( pi * (Zdn_bot - r_dif[idx_lay] * Zup_bot - t_dif[idx_lay] * Zdn_top) , Float(0.));
+
             }
 
         }
