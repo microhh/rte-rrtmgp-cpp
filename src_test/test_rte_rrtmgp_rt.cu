@@ -16,10 +16,11 @@
  * along with this software.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/algorithm/string.hpp>
 #include <chrono>
 #include <iomanip>
 #include <cuda_profiler_api.h>
+
+#include "toml.hpp"
 
 #include "status.h"
 #include "netcdf_interface.h"
@@ -129,92 +130,23 @@ void configure_memory_pool(int nlays, int ncols, int nchunks, int ngpts, int nbn
     //#endif
 }
 
-bool parse_command_line_options(
-        std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        std::map<std::string, Float>& command_line_numbers,
-        int argc, char** argv)
+
+template<typename T>
+T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item)
 {
-    for (int i=1; i<argc; ++i)
-    {
-        std::string argument(argv[i]);
-        boost::trim(argument);
-
-        if (argument == "-h" || argument == "--help")
-        {
-            Status::print_message("Possible usage:");
-            for (const auto& clo : command_line_switches)
-            {
-                std::ostringstream ss;
-                ss << std::left << std::setw(30) << ("--" + clo.first);
-                ss << clo.second.second << std::endl;
-                Status::print_message(ss);
-            }
-            return true;
-        }
-
-        // Check if option starts with --
-        if (argument[0] != '-' || argument[1] != '-')
-        {
-            std::string error = argument + " is an illegal command line option.";
-            throw std::runtime_error(error);
-        }
-        else
-            argument.erase(0, 2);
-
-        // Check if option has prefix no-
-        bool enable = true;
-        if (argument[0] == 'n' && argument[1] == 'o' && argument[2] == '-')
-        {
-            enable = false;
-            argument.erase(0, 3);
-        }
-
-        if (command_line_switches.find(argument) == command_line_switches.end())
-        {
-            std::string error = argument + " is an illegal command line option.";
-            throw std::runtime_error(error);
-        }
-        else
-        {
-            command_line_switches.at(argument).first = enable;
-        }
-
-        // Check if a is number (int of float) and hether that ir is too be expect and if so, supplied
-        if (command_line_numbers.find(argument) != command_line_numbers.end() && i+1 < argc)
-        {
-            try
-            {
-                size_t p;
-                Float val = Float(std::stod(argv[i+1], &p));
-                if (p == strlen(argv[i+1]))
-                {
-                    command_line_numbers.at(argument) = Float(std::stod(argv[i+1]));
-                    ++i;
-                }
-
-            }
-            catch(...){}
-        }
-    }
-
-    return false;
+    const T value = toml::find<T>(ini_file, group, item);
+    std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
+    return value;
 }
 
-void print_command_line_options(
-        const std::map<std::string, std::pair<bool, std::string>>& command_line_switches,
-        const std::map<std::string, Float>& command_line_numbers)
+
+template<typename T>
+T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item, const T default_value)
 {
-    Status::print_message("Solver settings:");
-    for (const auto& option : command_line_switches)
-    {
-        std::ostringstream ss;
-        ss << std::left << std::setw(20) << (option.first);
-        if (command_line_numbers.find(option.first) != command_line_numbers.end() && option.second.first)
-            ss << " = " << std::boolalpha << command_line_numbers.at(option.first) << std::endl;
-        else
-            ss << " = " << std::boolalpha << option.second.first << std::endl;
-        Status::print_message(ss);
-   }
+    auto ini_group = toml::find(ini_file, group);
+    const T value = toml::find_or(ini_group, item, default_value);
+    std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
+    return value;
 }
 
 
@@ -222,57 +154,36 @@ void solve_radiation(int argc, char** argv)
 {
     Status::print_message("###### Starting RTE+RRTMGP solver ######");
 
+    // Read out the case name from the command line parameter.
+    if (argc != 2)
+    {
+        const std::string error = "The solver takes exactly one argument, which is the case name";
+        throw std::runtime_error(error);
+    }
+    const std::string case_name(argv[1]);
+
+    const auto settings = toml::parse(case_name + ".ini");
+
     ////// FLOW CONTROL SWITCHES //////
-    // Parse the command line options.
-    std::map<std::string, std::pair<bool, std::string>> command_line_switches {
-        {"shortwave"         , { true,  "Enable computation of shortwave radiation."}},
-        {"longwave"          , { true,  "Enable computation of longwave radiation." }},
-        {"fluxes"            , { true,  "Enable computation of fluxes."             }},
-        {"sw-two-stream"     , { false, "Run two-stream solver for to obtain 1D fluxes" }},
-        {"sw-raytracing"     , { true,  "Use shortwave raytracing for flux computation. '--sw-raytracing 256': use 256 rays per pixel per spectral quadrature point" }},
-        {"lw-raytracing"     , { true,  "Use longwave raytracing for flux computation. '--lw-raytracing 22': use a total of 2**22 rays per spectral quadrature point" }},
-        {"independent-column", { false, "run raytracer in independent column mode"}},
-        {"cloud-optics"      , { false, "Enable cloud optics (both liquid and ice)."}},
-        {"liq-cloud-optics"  , { false, "liquid only cloud optics."                 }},
-        {"ice-cloud-optics"  , { false, "ice only cloud optics."                    }},
-        {"lw-scattering"     , { false, "Enabling scattering in longwave "  }},
-        {"cloud-mie"         , { false, "Use Mie tables for cloud scattering in ray tracer"  }},
-        {"aerosol-optics"    , { false, "Enable aerosol optics."                    }},
-        {"single-gpt"        , { false, "Output optical properties and fluxes for a single g-point. '--single-gpt 100': output 100th g-point" }},
-        {"profiling"         , { false, "Perform additional profiling run."         }},
-        {"delta-cloud"       , { false, "delta-scaling of cloud optical properties"   }},
-        {"delta-aerosol"     , { false, "delta-scaling of aerosol optical properties"   }},
-        {"min-mfp-grid-ratio", { true,  "Lowest ratio between the shortest gasous mean free path and the smallest grid dimension at which we still do ray tracing. Below this ratio, the 1D solution is used. '--min-mfp-grid-ratio 1'" }},
-        {"tica"              , { false, "attenuate path when doing an overhead 1D calculation of tilted input"   }}};
-
-    std::map<std::string, Float> command_line_numbers {
-        {"sw-raytracing", 256},
-        {"lw-raytracing", 22},
-        {"single-gpt", 1},
-        {"min-mfp-grid-ratio", 1}};
-
-    if (parse_command_line_options(command_line_switches, command_line_numbers, argc, argv))
-        return;
-
-    const bool switch_shortwave         = command_line_switches.at("shortwave"         ).first;
-    const bool switch_longwave          = command_line_switches.at("longwave"          ).first;
-    const bool switch_fluxes            = command_line_switches.at("fluxes"            ).first;
-    bool switch_sw_twostream      = command_line_switches.at("sw-two-stream"        ).first;
-    bool switch_sw_raytracing     = command_line_switches.at("sw-raytracing"        ).first;
-    bool switch_lw_raytracing     = command_line_switches.at("lw-raytracing"        ).first;
-    bool switch_independent_column= command_line_switches.at("independent-column").first;
-    bool switch_cloud_optics      = command_line_switches.at("cloud-optics"      ).first;
-    bool switch_liq_cloud_optics  = command_line_switches.at("liq-cloud-optics"  ).first;
-    bool switch_ice_cloud_optics  = command_line_switches.at("ice-cloud-optics"  ).first;
-    const bool switch_lw_scattering     = command_line_switches.at("lw-scattering"     ).first;
-    const bool switch_min_mfp_grid_ratio= command_line_switches.at("min-mfp-grid-ratio").first;
-    const bool switch_cloud_mie         = command_line_switches.at("cloud-mie"         ).first;
-    const bool switch_aerosol_optics    = command_line_switches.at("aerosol-optics"    ).first;
-    const bool switch_single_gpt        = command_line_switches.at("single-gpt"        ).first;
-    const bool switch_profiling         = command_line_switches.at("profiling"         ).first;
-    const bool switch_delta_cloud       = command_line_switches.at("delta-cloud"       ).first;
-    const bool switch_delta_aerosol     = command_line_switches.at("delta-aerosol"     ).first;
-    const bool switch_tica              = command_line_switches.at("tica"     ).first;
+    const bool switch_shortwave         = get_ini_value<bool>(settings, "switches", "shortwave", true);
+    const bool switch_longwave          = get_ini_value<bool>(settings, "switches", "longwave", true);
+    const bool switch_fluxes            = get_ini_value<bool>(settings, "switches", "fluxes", true);
+    bool switch_sw_twostream            = get_ini_value<bool>(settings, "switches", "sw-two-stream", false);
+    bool switch_sw_raytracing           = get_ini_value<bool>(settings, "switches", "sw-raytracing", true);
+    bool switch_lw_raytracing           = get_ini_value<bool>(settings, "switches", "lw-raytracing", true);
+    bool switch_independent_column      = get_ini_value<bool>(settings, "switches", "independent-column", false);
+    bool switch_cloud_optics            = get_ini_value<bool>(settings, "switches", "cloud-optics", false);
+    bool switch_liq_cloud_optics        = get_ini_value<bool>(settings, "switches", "liq-cloud-optics", false);
+    bool switch_ice_cloud_optics        = get_ini_value<bool>(settings, "switches", "ice-cloud-optics", false);
+    const bool switch_lw_scattering     = get_ini_value<bool>(settings, "switches", "lw-scattering", false);
+    const bool switch_min_mfp_grid_ratio= get_ini_value<bool>(settings, "switches", "min-mfp-grid-ratio", true);
+    const bool switch_cloud_mie         = get_ini_value<bool>(settings, "switches", "cloud-mie", false);
+    const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol-optics", false);
+    const bool switch_single_gpt        = get_ini_value<bool>(settings, "switches", "single-gpt", false);
+    const bool switch_profiling         = get_ini_value<bool>(settings, "switches", "profiling", false);
+    const bool switch_delta_cloud       = get_ini_value<bool>(settings, "switches", "delta-cloud", false);
+    const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
+    const bool switch_tica              = get_ini_value<bool>(settings, "switches", "tica", false);
 
 
     if (!switch_shortwave)
@@ -290,7 +201,7 @@ void solve_radiation(int argc, char** argv)
     Int sw_photons_per_pixel;
     if (switch_sw_raytracing)
     {
-        sw_photons_per_pixel = Int(command_line_numbers.at("sw-raytracing"));
+        sw_photons_per_pixel = get_ini_value<Int>(settings, "ints", "sw-raytracing", Int(256));
         if (Float(int(std::log2(Float(sw_photons_per_pixel)))) != std::log2(Float(sw_photons_per_pixel)))
         {
             std::string error = "number of photons per pixel should be a power of 2 ";
@@ -302,7 +213,7 @@ void solve_radiation(int argc, char** argv)
     Int lw_photon_count;
     if (switch_lw_raytracing)
     {
-        lw_photon_power = Int(command_line_numbers.at("lw-raytracing"));
+        lw_photon_power = get_ini_value<Int>(settings, "ints", "lw-raytracing", Int(22));
         lw_photon_count = 1 << lw_photon_power;
     }
 
@@ -323,12 +234,9 @@ void solve_radiation(int argc, char** argv)
         throw std::runtime_error(error);
     }
 
-    // Print the options to the screen.
-    print_command_line_options(command_line_switches, command_line_numbers);
+    int single_gpt = get_ini_value<int>(settings, "ints", "single-gpt", 1);
 
-    int single_gpt = int(command_line_numbers.at("single-gpt"));
-
-    const Float min_mfp_grid_ratio = switch_min_mfp_grid_ratio ? command_line_numbers.at("min-mfp-grid-ratio") : Float(0.);
+    const Float min_mfp_grid_ratio = switch_min_mfp_grid_ratio ? get_ini_value<Float>(settings, "floats", "min-mfp-grid-ratio", Float(1.)) : Float(0.);
 
     if (switch_sw_raytracing)
         Status::print_message("Shortwave: using "+ std::to_string(sw_photons_per_pixel) + " rays per pixel per g-point");
@@ -340,7 +248,7 @@ void solve_radiation(int argc, char** argv)
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
 
-    Netcdf_file input_nc("rte_rrtmgp_input.nc", Netcdf_mode::Read);
+    Netcdf_file input_nc(case_name + "_input.nc", Netcdf_mode::Read);
 
     const int n_col_x = input_nc.get_dimension_size("x");
     const int n_col_y = input_nc.get_dimension_size("y");
@@ -588,7 +496,7 @@ void solve_radiation(int argc, char** argv)
     // Create the general dimensions and arrays.
     Status::print_message("Preparing NetCDF output file.");
 
-    Netcdf_file output_nc("rte_rrtmgp_output.nc", Netcdf_mode::Create);
+    Netcdf_file output_nc(case_name + "_output.nc", Netcdf_mode::Create);
     output_nc.add_dimension("col", n_col);
     output_nc.add_dimension("x", n_col_x);
     output_nc.add_dimension("y", n_col_y);
