@@ -182,7 +182,7 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
     const bool switch_cloud_cam         = get_ini_value<bool>(settings, "switches", "cloud-cam", false);
 
-    int photons_per_pixel = get_ini_value<int>(settings, "ints", "photons-per-pixel", 1);
+    int photons_per_pixel = get_ini_value<int>(settings, "ints", "raytracing", 1);
 
     if (switch_longwave)
     {
