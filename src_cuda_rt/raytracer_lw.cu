@@ -317,23 +317,44 @@ void Raytracer_lw::trace_rays(
 
     const Int rng_offset = igpt*rt_lw_kernel_grid*rt_lw_kernel_block;
 
-    ray_tracer_lw_kernel<<<grid, block>>>(
-            rng_offset,
-            switch_independent_column,
-            photons_per_thread,
-            alias_prob.ptr(),
-            alias_idx.ptr(),
-            n_alias,
-            k_null_grid.ptr(),
-            tod_dn_count.ptr(),
-            tod_up_count.ptr(),
-            surface_dn_count.ptr(),
-            surface_up_count.ptr(),
-            atmos_count.ptr(),
-            k_ext.ptr(), scat_asy.ptr(),
-            emis_sfc.ptr(),
-            grid_size, grid_d, grid_cells, kn_grid);
+    if (switch_independent_column)
+    {
+        ray_tracer_lw_kernel<true><<<grid, block>>>(
+                rng_offset,
+                photons_per_thread,
+                alias_prob.ptr(),
+                alias_idx.ptr(),
+                n_alias,
+                k_null_grid.ptr(),
+                tod_dn_count.ptr(),
+                tod_up_count.ptr(),
+                surface_dn_count.ptr(),
+                surface_up_count.ptr(),
+                atmos_count.ptr(),
+                k_ext.ptr(), scat_asy.ptr(),
+                emis_sfc.ptr(),
+                grid_size, grid_d, grid_cells, kn_grid);
+    }
+    else
+    {
+        ray_tracer_lw_kernel<false><<<grid, block>>>(
+                rng_offset,
+                photons_per_thread,
+                alias_prob.ptr(),
+                alias_idx.ptr(),
+                n_alias,
+                k_null_grid.ptr(),
+                tod_dn_count.ptr(),
+                tod_up_count.ptr(),
+                surface_dn_count.ptr(),
+                surface_up_count.ptr(),
+                atmos_count.ptr(),
+                k_ext.ptr(), scat_asy.ptr(),
+                emis_sfc.ptr(),
+                grid_size, grid_d, grid_cells, kn_grid);
 
+
+    }
     const Float power_per_photon = Float(total_power / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block));
 
     count_to_flux_2d<<<grid_2d, block_2d>>>(

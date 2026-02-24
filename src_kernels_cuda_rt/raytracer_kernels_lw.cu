@@ -124,10 +124,9 @@ namespace
 }
 
 
-__global__
-void ray_tracer_lw_kernel(
+template<Bool independent_column>
+__global__ void ray_tracer_lw_kernel(
         const Int rng_offset,
-        const bool independent_column,
         const Int photons_to_shoot,
         const double* __restrict__ alias_prob,
         const int* __restrict__ alias_idx,
@@ -442,3 +441,31 @@ void ray_tracer_lw_kernel(
         }
     }
 }
+
+template __global__ void ray_tracer_lw_kernel<true>(
+    const Int, const Int, const double*, const int*,
+    int, const Float*, Float*, Float*,
+    Float*,
+    Float*,
+    Float*,
+    const Float*,
+    const Optics_scat*,
+    const Float*,
+    const Vector<Float>,
+    const Vector<Float>,
+    const Vector<int>,
+    const Vector<int>);
+
+template __global__ void ray_tracer_lw_kernel<false>(
+    const Int, const Int, const double*, const int*,
+    int, const Float*, Float*, Float*,
+    Float*,
+    Float*,
+    Float*,
+    const Float*,
+    const Optics_scat*,
+    const Float*,
+    const Vector<Float>,
+    const Vector<Float>,
+    const Vector<int>,
+    const Vector<int>);

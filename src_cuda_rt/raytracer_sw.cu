@@ -375,30 +375,58 @@ void Raytracer::trace_rays(
     const int mie_table_size = mie_cdf.size();
 
     const int qrng_gpt_offset = (igpt-1) * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
-    ray_tracer_kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
-            switch_independent_column,
-            photons_per_thread,
-            qrng_grid_x,
-            qrng_grid_y,
-            qrng_gpt_offset,
-            k_null_grid.ptr(),
-            tod_dn_count.ptr(),
-            tod_up_count.ptr(),
-            surface_down_direct_count.ptr(),
-            surface_down_diffuse_count.ptr(),
-            surface_up_count.ptr(),
-            atmos_direct_count.ptr(),
-            atmos_diffuse_count.ptr(),
-            k_ext.ptr(), scat_asy.ptr(),
-            r_eff.ptr(),
-            tod_inc_direct,
-            tod_inc_diffuse,
-            surface_albedo.ptr(),
-            grid_size, grid_d, grid_cells, kn_grid,
-            sun_direction,
-            this->qrng_vectors_gpu, this->qrng_constants_gpu,
-            mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
 
+    if (switch_independent_column)
+    {
+        ray_tracer_kernel<true><<<grid, block,sizeof(Float)*mie_table_size>>>(
+                photons_per_thread,
+                qrng_grid_x,
+                qrng_grid_y,
+                qrng_gpt_offset,
+                k_null_grid.ptr(),
+                tod_dn_count.ptr(),
+                tod_up_count.ptr(),
+                surface_down_direct_count.ptr(),
+                surface_down_diffuse_count.ptr(),
+                surface_up_count.ptr(),
+                atmos_direct_count.ptr(),
+                atmos_diffuse_count.ptr(),
+                k_ext.ptr(), scat_asy.ptr(),
+                r_eff.ptr(),
+                tod_inc_direct,
+                tod_inc_diffuse,
+                surface_albedo.ptr(),
+                grid_size, grid_d, grid_cells, kn_grid,
+                sun_direction,
+                this->qrng_vectors_gpu, this->qrng_constants_gpu,
+                mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
+    }
+    else
+    {
+        ray_tracer_kernel<false><<<grid, block,sizeof(Float)*mie_table_size>>>(
+                photons_per_thread,
+                qrng_grid_x,
+                qrng_grid_y,
+                qrng_gpt_offset,
+                k_null_grid.ptr(),
+                tod_dn_count.ptr(),
+                tod_up_count.ptr(),
+                surface_down_direct_count.ptr(),
+                surface_down_diffuse_count.ptr(),
+                surface_up_count.ptr(),
+                atmos_direct_count.ptr(),
+                atmos_diffuse_count.ptr(),
+                k_ext.ptr(), scat_asy.ptr(),
+                r_eff.ptr(),
+                tod_inc_direct,
+                tod_inc_diffuse,
+                surface_albedo.ptr(),
+                grid_size, grid_d, grid_cells, kn_grid,
+                sun_direction,
+                this->qrng_vectors_gpu, this->qrng_constants_gpu,
+                mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
+
+    }
     // convert counts to fluxes
 
     const Float toa_src = tod_inc_direct + tod_inc_diffuse;
