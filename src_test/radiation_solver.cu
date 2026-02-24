@@ -370,7 +370,7 @@ namespace
         Netcdf_file coef_nc(coef_file, Netcdf_mode::Read);
 
         // Read look-up table coefficient dimensions
-        int n_band     = coef_nc.get_dimension_size("band_sw");
+        int n_band     = coef_nc.get_dimension_size("band");
         int n_hum      = coef_nc.get_dimension_size("relative_humidity");
         int n_philic = coef_nc.get_dimension_size("hydrophilic");
         int n_phobic = coef_nc.get_dimension_size("hydrophobic");
@@ -378,18 +378,18 @@ namespace
         Array<Float,2> band_lims_wvn({2, n_band});
 
         Array<Float,2> mext_phobic(
-                coef_nc.get_variable<Float>("mass_ext_sw_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
+                coef_nc.get_variable<Float>("mass_ext_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
         Array<Float,2> ssa_phobic(
-                coef_nc.get_variable<Float>("ssa_sw_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
+                coef_nc.get_variable<Float>("ssa_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
         Array<Float,2> g_phobic(
-                coef_nc.get_variable<Float>("asymmetry_sw_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
+                coef_nc.get_variable<Float>("asymmetry_hydrophobic", {n_phobic, n_band}), {n_band, n_phobic});
 
         Array<Float,3> mext_philic(
-                coef_nc.get_variable<Float>("mass_ext_sw_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
+                coef_nc.get_variable<Float>("mass_ext_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
         Array<Float,3> ssa_philic(
-                coef_nc.get_variable<Float>("ssa_sw_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
+                coef_nc.get_variable<Float>("ssa_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
         Array<Float,3> g_philic(
-                coef_nc.get_variable<Float>("asymmetry_sw_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
+                coef_nc.get_variable<Float>("asymmetry_hydrophilic", {n_philic, n_hum, n_band}), {n_band, n_hum, n_philic});
 
         Array<Float,1> rh_upper(
                 coef_nc.get_variable<Float>("relative_humidity2", {n_hum}), {n_hum});
