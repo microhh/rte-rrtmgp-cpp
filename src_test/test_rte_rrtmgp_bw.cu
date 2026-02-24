@@ -182,12 +182,11 @@ void solve_radiation(int argc, char** argv)
     const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
     const bool switch_cloud_cam         = get_ini_value<bool>(settings, "switches", "cloud-cam", false);
 
-    int photons_per_pixel = get_ini_value<int>(settings, "ints", "photons-per-pixel", 1);
+    int photons_per_pixel = get_ini_value<int>(settings, "ints", "raytracing", 1);
 
     if (switch_longwave)
     {
-        std::string error = "No longwave radiation implemented in the ray tracer";
-        throw std::runtime_error(error);
+        Status::print_warning("No longwave radiation implemented in the ray tracer");
     }
 
     if (switch_cloud_optics)
@@ -576,7 +575,7 @@ void solve_radiation(int argc, char** argv)
 
 
         Gas_concs_gpu gas_concs_gpu(gas_concs);
-        Radiation_solver_shortwave rad_sw(gas_concs_gpu, "coefficients_sw.nc", "cloud_coefficients_sw.nc","aerosol_optics.nc");
+        Radiation_solver_shortwave rad_sw(gas_concs_gpu, "coefficients_sw.nc", "cloud_coefficients_sw.nc","aerosol_optics_sw.nc");
 
         // Read the boundary conditions.
         const int n_bnd_sw = rad_sw.get_n_bnd_gpu();

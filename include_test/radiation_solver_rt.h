@@ -27,9 +27,9 @@
 #include "aerosol_optics_rt.h"
 #include "rte_lw_rt.h"
 #include "rte_sw_rt.h"
-#include "raytracer.h"
+#include "raytracer_sw.h"
 #include "raytracer_lw.h"
-#include "raytracer_kernels.h"
+#include "raytracer_kernels_sw.h"
 #include "source_functions_rt.h"
 #include <curand_kernel.h>
 

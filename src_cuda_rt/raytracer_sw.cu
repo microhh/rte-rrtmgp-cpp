@@ -1,12 +1,12 @@
 #include <curand_kernel.h>
 
-#include "raytracer.h"
+#include "raytracer_sw.h"
 #include "array.h"
 #include "optical_props_rt.h"
 #include <cub/cub.cuh>
 #include "raytracer_definitions.h"
 #include "raytracer_functions.h"
-#include "raytracer_kernels.h"
+#include "raytracer_kernels_sw.h"
 
 #include "gas_optics_rrtmgp_kernels_cuda_rt.h"
 
