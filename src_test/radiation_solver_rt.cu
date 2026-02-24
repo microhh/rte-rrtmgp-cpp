@@ -99,7 +99,7 @@ namespace
         const int grid_col = ncol/block_col + (ncol%block_col > 0);
 
         convert_1d_to_rt_flx_kernels<<<grid_col, block_col>>>(ncol, 0, flux_dn.ptr(), flux_up.ptr(), flux_sfc_dn.ptr(), flux_sfc_up.ptr());
-        convert_1d_to_rt_flx_kernels<<<grid_col, block_col>>>(ncol, nz+1, flux_dn.ptr(), flux_up.ptr(), flux_tod_dn.ptr(), flux_tod_up.ptr());
+        convert_1d_to_rt_flx_kernels<<<grid_col, block_col>>>(ncol, nz, flux_dn.ptr(), flux_up.ptr(), flux_tod_dn.ptr(), flux_tod_up.ptr());
 
         const dim3 block_2d(block_col, 1, 1);
         const dim3 grid_2d(grid_col, nz, 1);
