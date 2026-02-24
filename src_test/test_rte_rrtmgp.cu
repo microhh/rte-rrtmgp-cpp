@@ -492,7 +492,7 @@ void solve_radiation(int argc, char** argv)
 
 
         Gas_concs_gpu gas_concs_gpu(gas_concs);
-        Radiation_solver_shortwave rad_sw(gas_concs_gpu, switch_cloud_optics, switch_aerosol_optics, "coefficients_sw.nc", "cloud_coefficients_sw.nc", "aerosol_optics.nc");
+        Radiation_solver_shortwave rad_sw(gas_concs_gpu, switch_cloud_optics, switch_aerosol_optics, "coefficients_sw.nc", "cloud_coefficients_sw.nc", "aerosol_optics_sw.nc");
 
         // Read the boundary conditions.
         const int n_bnd_sw = rad_sw.get_n_bnd_gpu();
