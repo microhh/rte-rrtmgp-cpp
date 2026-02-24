@@ -172,8 +172,6 @@ void solve_radiation(int argc, char** argv)
     bool switch_ice_cloud_optics        = get_ini_value<bool>(settings, "switches", "ice-cloud-optics", false);
     const bool switch_cloud_mie         = get_ini_value<bool>(settings, "switches", "cloud-mie", false);
     const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol-optics", false);
-    const bool switch_output_optical    = get_ini_value<bool>(settings, "switches", "output-optical", false);
-    const bool switch_output_bnd_fluxes = get_ini_value<bool>(settings, "switches", "output-bnd-fluxes", false);
     const bool switch_lu_albedo         = get_ini_value<bool>(settings, "switches", "lu-albedo", false);
     const bool switch_image             = get_ini_value<bool>(settings, "switches", "image", true);
     const bool switch_broadband         = get_ini_value<bool>(settings, "switches", "broadband", false);
