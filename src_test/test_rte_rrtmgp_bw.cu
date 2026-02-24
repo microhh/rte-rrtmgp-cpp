@@ -584,7 +584,7 @@ void solve_radiation(int argc, char** argv)
         if (input_sza < 0)
             mu0.fill(cos(input_sza / Float(180.0) * M_PI));
 
-        if (input_sza < 0)
+        if (input_azi < 0)
             azi.fill(input_azi / Float(180.0) * M_PI);
 
         Array<Float,2> sfc_alb(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});

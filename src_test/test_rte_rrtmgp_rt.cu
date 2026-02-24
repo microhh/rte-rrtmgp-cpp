@@ -245,6 +245,9 @@ void solve_radiation(int argc, char** argv)
         Status::print_message("Longwave: using 2**"+std::to_string(lw_photon_power) + " ("+std::to_string(lw_photon_count) + ") rays per g-point");
 
 
+    const Float input_sza = get_ini_value<Float>(settings, "floats", "sza", -1.0);
+    const Float input_azi = get_ini_value<Float>(settings, "floats", "azi", -1.0);
+
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
 
@@ -385,6 +388,12 @@ void solve_radiation(int argc, char** argv)
 
     mu0 = input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x});
     azi = input_nc.get_variable<Float>("azi", {n_col_y, n_col_x});
+
+    if (input_sza < 0)
+        mu0.fill(cos(input_sza / Float(180.0) * M_PI));
+
+    if (input_azi < 0)
+        azi.fill(input_azi / Float(180.0) * M_PI);
 
 
     if (switch_tica)
