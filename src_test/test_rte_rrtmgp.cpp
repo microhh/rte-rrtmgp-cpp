@@ -383,8 +383,6 @@ void solve_radiation(int argc, char** argv)
                 switch_fluxes,
                 switch_cloud_optics,
                 switch_aerosol_optics,
-                switch_output_optical,
-                switch_output_bnd_fluxes,
                 switch_delta_cloud,
                 switch_delta_aerosol,
                 gas_concs,
