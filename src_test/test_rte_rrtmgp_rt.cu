@@ -182,7 +182,6 @@ void solve_radiation(int argc, char** argv)
     const bool switch_cloud_mie         = get_ini_value<bool>(settings, "switches", "cloud-mie", false);
     const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol-optics", false);
     const bool switch_single_gpt        = get_ini_value<bool>(settings, "switches", "single-gpt", false);
-    const bool switch_profiling         = get_ini_value<bool>(settings, "switches", "profiling", false);
     const bool switch_delta_cloud       = get_ini_value<bool>(settings, "switches", "delta-cloud", false);
     const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
     const bool switch_tica              = get_ini_value<bool>(settings, "switches", "tica", false);
@@ -779,14 +778,6 @@ void solve_radiation(int argc, char** argv)
         // Tuning step;
         run_solver();
 
-        // Profiling step;
-        if (switch_profiling)
-        {
-            cudaProfilerStart();
-            run_solver();
-            cudaProfilerStop();
-        }
-
         //// Store the output.
         Status::print_message("Storing the longwave output.");
         Array<Float,2> lw_tau_tot_cpu(lw_tau_tot);
@@ -1112,14 +1103,6 @@ void solve_radiation(int argc, char** argv)
 
         // Tuning step;
         run_solver();
-
-        // Profiling step;
-        if (switch_profiling)
-        {
-            cudaProfilerStart();
-            run_solver();
-            cudaProfilerStop();
-        }
 
         // Store the output.
         Status::print_message("Storing the shortwave output.");

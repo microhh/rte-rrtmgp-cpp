@@ -46,8 +46,6 @@ class Radiation_solver_longwave
         void solve(
                 const bool switch_fluxes,
                 const bool switch_cloud_optics,
-                const bool switch_output_optical,
-                const bool switch_output_bnd_fluxes,
                 const Gas_concs& gas_concs,
                 const Array<Float,2>& p_lay, const Array<Float,2>& p_lev,
                 const Array<Float,2>& t_lay, const Array<Float,2>& t_lev,
@@ -55,10 +53,7 @@ class Radiation_solver_longwave
                 const Array<Float,1>& t_sfc, const Array<Float,2>& emis_sfc,
                 const Array<Float,2>& lwp, const Array<Float,2>& iwp,
                 const Array<Float,2>& rel, const Array<Float,2>& dei,
-                Array<Float,3>& tau, Array<Float,3>& lay_source,
-                Array<Float,3>& lev_source, Array<Float,2>& sfc_source,
-                Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net,
-                Array<Float,3>& lw_bnd_flux_up, Array<Float,3>& lw_bnd_flux_dn, Array<Float,3>& lw_bnd_flux_net) const;
+                Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net) const;
 
         int get_n_gpt() const { return this->kdist->get_ngpt(); };
         int get_n_bnd() const { return this->kdist->get_nband(); };
@@ -73,8 +68,6 @@ class Radiation_solver_longwave
         void solve_gpu(
                 const bool switch_fluxes,
                 const bool switch_cloud_optics,
-                const bool switch_output_optical,
-                const bool switch_output_bnd_fluxes,
                 const Gas_concs_gpu& gas_concs,
                 const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
                 const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
@@ -82,10 +75,7 @@ class Radiation_solver_longwave
                 const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
                 const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
                 const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
-                Array_gpu<Float,3>& tau, Array_gpu<Float,3>& lay_source,
-                Array_gpu<Float,3>& lev_source, Array_gpu<Float,2>& sfc_source,
-                Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-                Array_gpu<Float,3>& lw_bnd_flux_up, Array_gpu<Float,3>& lw_bnd_flux_dn, Array_gpu<Float,3>& lw_bnd_flux_net);
+                Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net);
 
         int get_n_gpt_gpu() const { return this->kdist_gpu->get_ngpt(); };
         int get_n_bnd_gpu() const { return this->kdist_gpu->get_nband(); };
@@ -140,8 +130,6 @@ class Radiation_solver_shortwave
                 const bool switch_fluxes,
                 const bool switch_cloud_optics,
                 const bool switch_aerosol_optics,
-                const bool switch_output_optical,
-                const bool switch_output_bnd_fluxes,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
                 const Gas_concs& gas_concs,
@@ -154,12 +142,8 @@ class Radiation_solver_shortwave
                 const Array<Float,2>& rel, const Array<Float,2>& dei,
                 const Array<Float,2>& rh,
                 const Aerosol_concs& aerosol_concs,
-                Array<Float,3>& tau, Array<Float,3>& ssa, Array<Float,3>& g,
-                Array<Float,2>& toa_src,
                 Array<Float,2>& sw_flux_up, Array<Float,2>& sw_flux_dn,
-                Array<Float,2>& sw_flux_dn_dir, Array<Float,2>& sw_flux_net,
-                Array<Float,3>& sw_bnd_flux_up, Array<Float,3>& sw_bnd_flux_dn,
-                Array<Float,3>& sw_bnd_flux_dn_dir, Array<Float,3>& sw_bnd_flux_net) const;
+                Array<Float,2>& sw_flux_dn_dir, Array<Float,2>& sw_flux_net) const;
 
         int get_n_gpt() const { return this->kdist->get_ngpt(); };
         int get_n_bnd() const { return this->kdist->get_nband(); };
@@ -177,8 +161,6 @@ class Radiation_solver_shortwave
                 const bool switch_fluxes,
                 const bool switch_cloud_optics,
                 const bool switch_aerosol_optics,
-                const bool switch_output_optical,
-                const bool switch_output_bnd_fluxes,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
                 const Gas_concs_gpu& gas_concs,
@@ -191,12 +173,8 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
                 const Array_gpu<Float,2>& rh,
                 const Aerosol_concs_gpu& aerosol_concs,
-                Array_gpu<Float,3>& tau, Array_gpu<Float,3>& ssa, Array_gpu<Float,3>& g,
-                Array_gpu<Float,2>& toa_src,
                 Array_gpu<Float,2>& sw_flux_up, Array_gpu<Float,2>& sw_flux_dn,
-                Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net,
-                Array_gpu<Float,3>& sw_bnd_flux_up, Array_gpu<Float,3>& sw_bnd_flux_dn,
-                Array_gpu<Float,3>& sw_bnd_flux_dn_dir, Array_gpu<Float,3>& sw_bnd_flux_net);
+                Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net);
 
         int get_n_gpt_gpu() const { return this->kdist_gpu->get_ngpt(); };
         int get_n_bnd_gpu() const { return this->kdist_gpu->get_nband(); };

@@ -142,8 +142,6 @@ void solve_radiation(int argc, char** argv)
     const bool switch_fluxes            = get_ini_value<bool>(settings, "switches", "fluxes", true);
     const bool switch_cloud_optics      = get_ini_value<bool>(settings, "switches", "cloud-optics", false);
     const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol-optics", false);
-    const bool switch_output_optical    = get_ini_value<bool>(settings, "switches", "output-optical", false);
-    const bool switch_output_bnd_fluxes = get_ini_value<bool>(settings, "switches", "output-bnd-fluxes", false);
     const bool switch_delta_cloud       = get_ini_value<bool>(settings, "switches", "delta-cloud", true);
     const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
 
@@ -270,20 +268,6 @@ void solve_radiation(int argc, char** argv)
         Array<Float,2> emis_sfc(input_nc.get_variable<Float>("emis_sfc", {n_col_y, n_col_x, n_bnd_lw}), {n_bnd_lw, n_col});
         Array<Float,1> t_sfc(input_nc.get_variable<Float>("t_sfc", {n_col_y, n_col_x}), {n_col});
 
-        // Create output arrays.
-        Array<Float,3> lw_tau;
-        Array<Float,3> lay_source;
-        Array<Float,3> lev_source;
-        Array<Float,2> sfc_source;
-
-        if (switch_output_optical)
-        {
-            lw_tau    .set_dims({n_col, n_lay, n_gpt_lw});
-            lay_source.set_dims({n_col, n_lay, n_gpt_lw});
-            lev_source.set_dims({n_col, n_lev, n_gpt_lw});
-            sfc_source.set_dims({n_col, n_gpt_lw});
-        }
-
         Array<Float,2> lw_flux_up;
         Array<Float,2> lw_flux_dn;
         Array<Float,2> lw_flux_net;
@@ -295,18 +279,6 @@ void solve_radiation(int argc, char** argv)
             lw_flux_net.set_dims({n_col, n_lev});
         }
 
-        Array<Float,3> lw_bnd_flux_up;
-        Array<Float,3> lw_bnd_flux_dn;
-        Array<Float,3> lw_bnd_flux_net;
-
-        if (switch_output_bnd_fluxes)
-        {
-            lw_bnd_flux_up .set_dims({n_col, n_lev, n_bnd_lw});
-            lw_bnd_flux_dn .set_dims({n_col, n_lev, n_bnd_lw});
-            lw_bnd_flux_net.set_dims({n_col, n_lev, n_bnd_lw});
-        }
-
-
         // Solve the radiation.
         Status::print_message("Solving the longwave radiation.");
 
@@ -315,8 +287,6 @@ void solve_radiation(int argc, char** argv)
         rad_lw.solve(
                 switch_fluxes,
                 switch_cloud_optics,
-                switch_output_optical,
-                switch_output_bnd_fluxes,
                 gas_concs,
                 p_lay, p_lev,
                 t_lay, t_lev,
@@ -324,9 +294,7 @@ void solve_radiation(int argc, char** argv)
                 t_sfc, emis_sfc,
                 lwp, iwp,
                 rel, dei,
-                lw_tau, lay_source, lev_source, sfc_source,
-                lw_flux_up, lw_flux_dn, lw_flux_net,
-                lw_bnd_flux_up, lw_bnd_flux_dn, lw_bnd_flux_net);
+                lw_flux_up, lw_flux_dn, lw_flux_net);
 
         auto time_end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
@@ -343,25 +311,6 @@ void solve_radiation(int argc, char** argv)
         auto nc_lw_band_lims_wvn = output_nc.add_variable<Float>("lw_band_lims_wvn", {"band_lw", "pair"});
         nc_lw_band_lims_wvn.insert(rad_lw.get_band_lims_wavenumber().v(), {0, 0});
 
-        if (switch_output_optical)
-        {
-            auto nc_lw_band_lims_gpt = output_nc.add_variable<int>("lw_band_lims_gpt", {"band_lw", "pair"});
-            nc_lw_band_lims_gpt.insert(rad_lw.get_band_lims_gpoint().v(), {0, 0});
-
-            auto nc_lw_tau = output_nc.add_variable<Float>("lw_tau", {"gpt_lw", "lay", "y", "x"});
-            nc_lw_tau.insert(lw_tau.v(), {0, 0, 0, 0});
-
-            auto nc_lay_source = output_nc.add_variable<Float>("lay_source", {"gpt_lw", "lay", "y", "x"});
-            auto nc_lev_source = output_nc.add_variable<Float>("lev_source", {"gpt_lw", "lev", "y", "x"});
-
-            auto nc_sfc_source = output_nc.add_variable<Float>("sfc_source", {"gpt_lw", "y", "x"});
-
-            nc_lay_source.insert(lay_source.v(), {0, 0, 0, 0});
-            nc_lev_source.insert(lev_source.v(), {0, 0, 0, 0});
-
-            nc_sfc_source.insert(sfc_source.v(), {0, 0, 0});
-        }
-
         if (switch_fluxes)
         {
             auto nc_lw_flux_up  = output_nc.add_variable<Float>("lw_flux_up" , {"lev", "y", "x"});
@@ -372,16 +321,6 @@ void solve_radiation(int argc, char** argv)
             nc_lw_flux_dn .insert(lw_flux_dn .v(), {0, 0, 0});
             nc_lw_flux_net.insert(lw_flux_net.v(), {0, 0, 0});
 
-            if (switch_output_bnd_fluxes)
-            {
-                auto nc_lw_bnd_flux_up  = output_nc.add_variable<Float>("lw_bnd_flux_up" , {"band_lw", "lev", "y", "x"});
-                auto nc_lw_bnd_flux_dn  = output_nc.add_variable<Float>("lw_bnd_flux_dn" , {"band_lw", "lev", "y", "x"});
-                auto nc_lw_bnd_flux_net = output_nc.add_variable<Float>("lw_bnd_flux_net", {"band_lw", "lev", "y", "x"});
-
-                nc_lw_bnd_flux_up .insert(lw_bnd_flux_up .v(), {0, 0, 0, 0});
-                nc_lw_bnd_flux_dn .insert(lw_bnd_flux_dn .v(), {0, 0, 0, 0});
-                nc_lw_bnd_flux_net.insert(lw_bnd_flux_net.v(), {0, 0, 0, 0});
-            }
         }
     }
 
@@ -422,20 +361,6 @@ void solve_radiation(int argc, char** argv)
                 tsi_scaling({icol}) = Float(1.);
         }
 
-        // Create output arrays.
-        Array<Float,3> sw_tau;
-        Array<Float,3> ssa;
-        Array<Float,3> g;
-        Array<Float,2> toa_source;
-
-        if (switch_output_optical)
-        {
-            sw_tau    .set_dims({n_col, n_lay, n_gpt_sw});
-            ssa       .set_dims({n_col, n_lay, n_gpt_sw});
-            g         .set_dims({n_col, n_lay, n_gpt_sw});
-            toa_source.set_dims({n_col, n_gpt_sw});
-        }
-
         Array<Float,2> sw_flux_up;
         Array<Float,2> sw_flux_dn;
         Array<Float,2> sw_flux_dn_dir;
@@ -448,20 +373,6 @@ void solve_radiation(int argc, char** argv)
             sw_flux_dn_dir.set_dims({n_col, n_lev});
             sw_flux_net   .set_dims({n_col, n_lev});
         }
-
-        Array<Float,3> sw_bnd_flux_up;
-        Array<Float,3> sw_bnd_flux_dn;
-        Array<Float,3> sw_bnd_flux_dn_dir;
-        Array<Float,3> sw_bnd_flux_net;
-
-        if (switch_output_bnd_fluxes)
-        {
-            sw_bnd_flux_up    .set_dims({n_col, n_lev, n_bnd_sw});
-            sw_bnd_flux_dn    .set_dims({n_col, n_lev, n_bnd_sw});
-            sw_bnd_flux_dn_dir.set_dims({n_col, n_lev, n_bnd_sw});
-            sw_bnd_flux_net   .set_dims({n_col, n_lev, n_bnd_sw});
-        }
-
 
         // Solve the radiation.
         Status::print_message("Solving the shortwave radiation.");
@@ -486,12 +397,8 @@ void solve_radiation(int argc, char** argv)
                 rel, dei,
                 rh,
                 aerosol_concs,
-                sw_tau, ssa, g,
-                toa_source,
                 sw_flux_up, sw_flux_dn,
-                sw_flux_dn_dir, sw_flux_net,
-                sw_bnd_flux_up, sw_bnd_flux_dn,
-                sw_bnd_flux_dn_dir, sw_bnd_flux_net);
+                sw_flux_dn_dir, sw_flux_net);
 
         auto time_end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration<double, std::milli>(time_end-time_start).count();
@@ -507,23 +414,6 @@ void solve_radiation(int argc, char** argv)
 
         auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
         nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber().v(), {0, 0});
-
-        if (switch_output_optical)
-        {
-            auto nc_sw_band_lims_gpt = output_nc.add_variable<int>("sw_band_lims_gpt", {"band_sw", "pair"});
-            nc_sw_band_lims_gpt.insert(rad_sw.get_band_lims_gpoint().v(), {0, 0});
-
-            auto nc_sw_tau = output_nc.add_variable<Float>("sw_tau", {"gpt_sw", "lay", "y", "x"});
-            auto nc_ssa    = output_nc.add_variable<Float>("ssa"   , {"gpt_sw", "lay", "y", "x"});
-            auto nc_g      = output_nc.add_variable<Float>("g"     , {"gpt_sw", "lay", "y", "x"});
-
-            nc_sw_tau.insert(sw_tau.v(), {0, 0, 0, 0});
-            nc_ssa   .insert(ssa   .v(), {0, 0, 0, 0});
-            nc_g     .insert(g     .v(), {0, 0, 0, 0});
-
-            auto nc_toa_source = output_nc.add_variable<Float>("toa_source", {"gpt_sw", "y", "x"});
-            nc_toa_source.insert(toa_source.v(), {0, 0, 0});
-        }
 
         if (switch_fluxes)
         {
@@ -548,31 +438,6 @@ void solve_radiation(int argc, char** argv)
 
             nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
             nc_sw_flux_net.add_attribute("units","W m-2");
-
-            if (switch_output_bnd_fluxes)
-            {
-                auto nc_sw_bnd_flux_up     = output_nc.add_variable<Float>("sw_bnd_flux_up"    , {"band_sw", "lev", "y", "x"});
-                auto nc_sw_bnd_flux_dn     = output_nc.add_variable<Float>("sw_bnd_flux_dn"    , {"band_sw", "lev", "y", "x"});
-                auto nc_sw_bnd_flux_dn_dir = output_nc.add_variable<Float>("sw_bnd_flux_dn_dir", {"band_sw", "lev", "y", "x"});
-                auto nc_sw_bnd_flux_net    = output_nc.add_variable<Float>("sw_bnd_flux_net"   , {"band_sw", "lev", "y", "x"});
-
-                nc_sw_bnd_flux_up    .insert(sw_bnd_flux_up    .v(), {0, 0, 0, 0});
-                nc_sw_bnd_flux_dn    .insert(sw_bnd_flux_dn    .v(), {0, 0, 0, 0});
-                nc_sw_bnd_flux_dn_dir.insert(sw_bnd_flux_dn_dir.v(), {0, 0, 0, 0});
-                nc_sw_bnd_flux_net   .insert(sw_bnd_flux_net   .v(), {0, 0, 0, 0});
-
-                nc_sw_bnd_flux_up.add_attribute("long_name","Upwelling shortwave fluxes per spectral band (TwoStream solver)");
-                nc_sw_bnd_flux_up.add_attribute("units","W m-2");
-
-                nc_sw_bnd_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes per spectral band (TwoStream solver)");
-                nc_sw_bnd_flux_dn.add_attribute("units","W m-2");
-
-                nc_sw_bnd_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes per spectral band (TwoStream solver)");
-                nc_sw_bnd_flux_dn_dir.add_attribute("units","W m-2");
-
-                nc_sw_bnd_flux_net.add_attribute("long_name","Net shortwave fluxes per spectral band (TwoStream solver)");
-                nc_sw_bnd_flux_net.add_attribute("units","W m-2");
-            }
         }
     }
 
