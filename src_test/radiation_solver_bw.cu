@@ -477,7 +477,7 @@ namespace
 }
 
 
-Radiation_solver_longwave::Radiation_solver_longwave(
+Radiation_solver_bw_longwave::Radiation_solver_bw_longwave(
         const Gas_concs_gpu& gas_concs,
         const std::string& file_name_gas,
         const std::string& file_name_cloud)
@@ -491,7 +491,7 @@ Radiation_solver_longwave::Radiation_solver_longwave(
 }
 
 
-void Radiation_solver_longwave::solve_gpu(
+void Radiation_solver_bw_longwave::solve_gpu(
         const bool switch_fluxes,
         const bool switch_cloud_optics,
         const bool switch_output_optical,
@@ -508,7 +508,7 @@ void Radiation_solver_longwave::solve_gpu(
         Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
         Array_gpu<Float,3>& lw_bnd_flux_up, Array_gpu<Float,3>& lw_bnd_flux_dn, Array_gpu<Float,3>& lw_bnd_flux_net)
 {
-    throw std::runtime_error("Longwave raytracing is not implemented");
+    throw std::runtime_error("Longwave backward raytracing is not implemented");
 
     /*
     const int n_col = p_lay.dim(1);
@@ -720,7 +720,7 @@ Float xyz_irradiance(
 }
 
 
-Radiation_solver_shortwave::Radiation_solver_shortwave(
+Radiation_solver_bw_shortwave::Radiation_solver_bw_shortwave(
         const Gas_concs_gpu& gas_concs,
         const std::string& file_name_gas,
         const std::string& file_name_cloud,
@@ -737,7 +737,7 @@ Radiation_solver_shortwave::Radiation_solver_shortwave(
             load_and_init_aerosol_optics(file_name_aerosol));
 }
 
-void Radiation_solver_shortwave::load_mie_tables(
+void Radiation_solver_bw_shortwave::load_mie_tables(
         const std::string& file_name_mie_bb,
         const std::string& file_name_mie_im,
         const bool switch_broadband,
@@ -790,8 +790,7 @@ void Radiation_solver_shortwave::load_mie_tables(
 }
 
 
-void Radiation_solver_shortwave::solve_gpu(
-        const bool tune_step,
+void Radiation_solver_bw_shortwave::solve_gpu(
         const bool switch_cloud_optics,
         const bool switch_cloud_mie,
         const bool switch_aerosol_optics,
@@ -886,7 +885,7 @@ void Radiation_solver_shortwave::solve_gpu(
             Array_gpu<Float,2> albedo;
             if (!switch_lu_albedo) albedo = sfc_alb.subset({{ {band, band}, {1, n_col}}});
 
-            if (!tune_step && (! (band == 10 || band == 11 || band ==12))) continue;
+            if (! (band == 10 || band == 11 || band ==12)) continue;
 
             const Float solar_source_band = kdist_gpu->band_source(band_limits_gpt({1,band}), band_limits_gpt({2,band}));
 
@@ -928,8 +927,6 @@ void Radiation_solver_shortwave::solve_gpu(
                 const int col_s = n_blocks*n_col_block;
                 gas_optics_subset(col_s, n_col_residual);
             }
-
-            if (tune_step) return;
 
             constexpr bool do_scattering = true;
 
@@ -1112,7 +1109,7 @@ void Radiation_solver_shortwave::solve_gpu(
     }
 }
 
-void Radiation_solver_shortwave::solve_gpu_bb(
+void Radiation_solver_bw_shortwave::solve_gpu_bb(
         const bool switch_cloud_optics,
         const bool switch_cloud_mie,
         const bool switch_aerosol_optics,

@@ -34,35 +34,14 @@
 
 
 
-class Radiation_solver_longwave
+class Radiation_solver_bw_longwave
 {
     public:
-        Radiation_solver_longwave(
-                const Gas_concs& gas_concs,
-                const std::string& file_name_gas,
-                const std::string& file_name_cloud);
-
-        Radiation_solver_longwave(
+        Radiation_solver_bw_longwave(
                 const Gas_concs_gpu& gas_concs,
                 const std::string& file_name_gas,
                 const std::string& file_name_cloud);
 
-        void solve(
-                const bool switch_fluxes,
-                const bool switch_cloud_optics,
-                const bool switch_output_optical,
-                const bool switch_output_bnd_fluxes,
-                const Gas_concs& gas_concs,
-                const Array<Float,2>& p_lay, const Array<Float,2>& p_lev,
-                const Array<Float,2>& t_lay, const Array<Float,2>& t_lev,
-                const Array<Float,2>& col_dry,
-                const Array<Float,1>& t_sfc, const Array<Float,2>& emis_sfc,
-                const Array<Float,2>& lwp, const Array<Float,2>& iwp,
-                const Array<Float,2>& rel, const Array<Float,2>& dei,
-                Array<Float,3>& tau, Array<Float,3>& lay_source,
-                Array<Float,3>& lev_source_inc, Array<Float,3>& lev_source_dec, Array<Float,2>& sfc_source,
-                Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net,
-                Array<Float,3>& lw_bnd_flux_up, Array<Float,3>& lw_bnd_flux_dn, Array<Float,3>& lw_bnd_flux_net) const;
 
         #ifdef __CUDACC__
         void solve_gpu(
@@ -108,41 +87,14 @@ class Radiation_solver_longwave
 };
 
 
-class Radiation_solver_shortwave
+class Radiation_solver_bw_shortwave
 {
     public:
-        Radiation_solver_shortwave(
-                const Gas_concs& gas_concs,
-                const std::string& file_name_gas,
-                const std::string& file_name_cloud,
-                const std::string& file_name_aerosol);
-        Radiation_solver_shortwave(
+        Radiation_solver_bw_shortwave(
                 const Gas_concs_gpu& gas_concs,
                 const std::string& file_name_gas,
                 const std::string& file_name_cloud,
                 const std::string& file_name_aerosol);
-
-        void solve(
-                const bool switch_fluxes,
-                const bool switch_cloud_optics,
-                const bool switch_output_optical,
-                const bool switch_output_bnd_fluxes,
-                const bool switch_delta_cloud,
-                const bool switch_delta_aerosol,
-                const Gas_concs& gas_concs,
-                const Array<Float,2>& p_lay, const Array<Float,2>& p_lev,
-                const Array<Float,2>& t_lay, const Array<Float,2>& t_lev,
-                const Array<Float,2>& col_dry,
-                const Array<Float,2>& sfc_alb,
-                const Array<Float,1>& tsi_scaling, const Array<Float,1>& mu0,
-                const Array<Float,2>& lwp, const Array<Float,2>& iwp,
-                const Array<Float,2>& rel, const Array<Float,2>& dei,
-                Array<Float,3>& tau, Array<Float,3>& ssa, Array<Float,3>& g,
-                Array<Float,2>& toa_src,
-                Array<Float,2>& sw_flux_up, Array<Float,2>& sw_flux_dn,
-                Array<Float,2>& sw_flux_dn_dir, Array<Float,2>& sw_flux_net,
-                Array<Float,3>& sw_bnd_flux_up, Array<Float,3>& sw_bnd_flux_dn,
-                Array<Float,3>& sw_bnd_flux_dn_dir, Array<Float,3>& sw_bnd_flux_net) const;
 
         void load_mie_tables(
                 const std::string& file_name_mie_bb,
@@ -152,7 +104,6 @@ class Radiation_solver_shortwave
 
         #ifdef __CUDACC__
         void solve_gpu(
-                const bool tune_step,
                 const bool switch_cloud_optics,
                 const bool switch_cloud_mie,
                 const bool switch_aerosol_optics,
