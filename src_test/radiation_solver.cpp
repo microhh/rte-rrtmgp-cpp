@@ -473,8 +473,6 @@ void Radiation_solver_longwave::solve(
                     dei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     *cloud_optical_props_subset_in);
 
-            // cloud->delta_scale();
-
             // Add the cloud optical props to the gas optical properties.
             add_to(
                     dynamic_cast<Optical_props_1scl&>(*optical_props_subset_in),

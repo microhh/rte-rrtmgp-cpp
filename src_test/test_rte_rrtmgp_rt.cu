@@ -738,6 +738,8 @@ void solve_radiation(int argc, char** argv)
                     switch_lw_raytracing,
                     switch_cloud_optics,
                     switch_aerosol_optics,
+                    switch_delta_cloud,
+                    switch_delta_aerosol,
                     switch_single_gpt,
                     switch_lw_scattering,
                     switch_independent_column,
@@ -1497,12 +1499,10 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_broadband)
         {
-           // Profiling step;
            run_solver_bb();
         }
         if (switch_image)
         {
-            // actual solve
             run_solver();
         }
 

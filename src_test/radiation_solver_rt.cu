@@ -483,6 +483,8 @@ void Radiation_solver_longwave::solve_gpu(
         const bool switch_raytracing,
         const bool switch_cloud_optics,
         const bool switch_aerosol_optics,
+        const bool switch_delta_cloud,
+        const bool switch_delta_aerosol,
         const bool switch_single_gpt,
         const bool switch_lw_scattering,
         const bool switch_independent_column,
@@ -643,7 +645,9 @@ void Radiation_solver_longwave::solve_gpu(
                         dei,
                         switch_lw_scattering,
                         *cloud_optical_props);
-                // cloud->delta_scale();
+
+                if (switch_lw_scattering && switch_delta_cloud)
+                    cloud_optical_props->delta_scale();
 
             }
 
@@ -670,7 +674,9 @@ void Radiation_solver_longwave::solve_gpu(
                         rh, p_lev,
                         switch_lw_scattering,
                         *aerosol_optical_props);
-                // aerosol->delta_scale();
+
+                if (switch_lw_scattering && switch_delta_aerosol)
+                    aerosol_optical_props->delta_scale();
 
             }
             // Add the cloud optical props to the gas optical properties.
