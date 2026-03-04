@@ -227,12 +227,12 @@ void restore_bkg_profile_bundle(const int n_col_x, const int n_col_y,
     Array<Float,2>* lwp, Array<Float,2>* iwp, Array<Float,2>* rel, Array<Float,2>* dei, Array<Float,2>* rh,
     Gas_concs& gas_concs, Aerosol_concs& aerosol_concs,
     std::vector<std::string> gas_names, std::vector<std::string> aerosol_names,
-    bool switch_liq_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
+    bool switch_liquid_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
 )
 {
     const int n_col = n_col_x*n_col_y;
 
-    if (switch_liq_cloud_optics)
+    if (switch_liquid_cloud_optics)
     {
         restore_bkg_profile(n_col_x, n_col_y, n_lay, n_z_in, bkg_start_z, lwp_copy->v(), lwp->v());
         lwp_copy->expand_dims({n_col, n_lay_tot});
@@ -333,7 +333,7 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
                          Array<Float,2>* iwp_out,
                          Array<Float,2>* rel_out,
                          Array<Float,2>* dei_out,
-                         const bool switch_liq_cloud_optics,
+                         const bool switch_liquid_cloud_optics,
                          const bool switch_ice_cloud_optics)
 {
     const int total_cols = n_col_x * n_col_y;
@@ -343,7 +343,7 @@ void post_process_output(const std::vector<ColumnResult>& col_results,
             const ColumnResult& col = col_results[col_idx];
             for (int j = 0; j < n_z; ++j) {
                 int out_idx = col_idx + j * total_cols;
-                if (switch_liq_cloud_optics) {
+                if (switch_liquid_cloud_optics) {
                     lwp_out->v()[out_idx] = col.lwp.v()[j];
                     rel_out->v()[out_idx] = col.rel.v()[j];
                 }
@@ -822,7 +822,7 @@ void tica_tilt(
     Array<Float,2>& lwp_out, Array<Float,2>& iwp_out, Array<Float,2>& rel_out, Array<Float,2>& dei_out, Array<Float,2>& rh_out,
     Gas_concs& gas_concs_out, Aerosol_concs& aerosol_concs_out,
     std::vector<std::string> gas_names, std::vector<std::string> aerosol_names,
-    bool switch_cloud_optics, bool switch_liq_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
+    bool switch_liquid_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
 )
 {
        // if t lev all 0, interpolate from t lay
@@ -869,7 +869,7 @@ void tica_tilt(
                    gas_concs_out, gas_names, aerosol_concs_out, aerosol_names, switch_aerosol_optics);
 
        ////// SETUP FOR RANDOM START POINT TILTING //////
-       if (switch_cloud_optics)
+       if (switch_liquid_cloud_optics || switch_ice_cloud_optics)
        {
            std::vector<std::pair<Float, Float>> x_y_start_arr(n_col);
            std::vector<Array<ijk,1>> by_col_paths(n_col);
@@ -954,7 +954,7 @@ void tica_tilt(
                for (int ilay = 1; ilay <= n_zh_in; ++ilay)
                {
                    Float dz = zh({ilay + 1}) - zh({ilay});
-                   if (switch_liq_cloud_optics)
+                   if (switch_liquid_cloud_optics)
                    {
                        (lwp_norm_reshaped)({ilay, icol}) = (lwp)({icol, ilay})/dz;
                        (rel_reshaped)({ilay, icol}) = (rel)({icol, ilay});
@@ -967,7 +967,7 @@ void tica_tilt(
                }
            }
 
-           if (switch_liq_cloud_optics){
+           if (switch_liquid_cloud_optics){
                Array<Float,1> lwp_compress;
                lwp_compress.set_dims({n_z_in});
                Array<Float,1> rel_compress;
@@ -1151,7 +1151,7 @@ void tica_tilt(
 
            post_process_output(col_results, n_col_x, n_col_y, n_z_in, n_zh_in,
                &lwp_out, &iwp_out, &rel_out, &dei_out,
-               switch_liq_cloud_optics, switch_ice_cloud_optics);
+               switch_liquid_cloud_optics, switch_ice_cloud_optics);
 
        }
 
@@ -1165,7 +1165,7 @@ void tica_tilt(
            &lwp, &iwp, &rel, &dei, &rh,
            gas_concs, aerosol_concs,
            gas_names, aerosol_names,
-           switch_liq_cloud_optics, switch_ice_cloud_optics, switch_aerosol_optics
+           switch_liquid_cloud_optics, switch_ice_cloud_optics, switch_aerosol_optics
        );
 }
 

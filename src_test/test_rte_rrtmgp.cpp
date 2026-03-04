@@ -137,13 +137,14 @@ void solve_radiation(int argc, char** argv)
     const auto settings = toml::parse(case_name + ".ini");
 
     ////// FLOW CONTROL SWITCHES //////
-    const bool switch_shortwave         = get_ini_value<bool>(settings, "switches", "shortwave", true);
-    const bool switch_longwave          = get_ini_value<bool>(settings, "switches", "longwave", true);
-    const bool switch_fluxes            = get_ini_value<bool>(settings, "switches", "fluxes", true);
-    const bool switch_cloud_optics      = get_ini_value<bool>(settings, "switches", "cloud-optics", false);
-    const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol-optics", false);
-    const bool switch_delta_cloud       = get_ini_value<bool>(settings, "switches", "delta-cloud", true);
-    const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
+    const bool switch_shortwave           = get_ini_value<bool>(settings, "switches", "shortwave", true);
+    const bool switch_longwave            = get_ini_value<bool>(settings, "switches", "longwave", true);
+    const bool switch_fluxes              = get_ini_value<bool>(settings, "switches", "fluxes", true);
+    const bool switch_liquid_cloud_optics = get_ini_value<bool>(settings, "switches", "liquid_cloud_optics", false);
+    const bool switch_ice_cloud_optics    = get_ini_value<bool>(settings, "switches", "ice_cloud_optics", false);
+    const bool switch_aerosol_optics      = get_ini_value<bool>(settings, "switches", "aerosol_optics", false);
+    const bool switch_delta_cloud         = get_ini_value<bool>(settings, "switches", "delta_cloud", true);
+    const bool switch_delta_aerosol       = get_ini_value<bool>(settings, "switches", "delta_aerosol", false);
 
 
     ////// READ THE ATMOSPHERIC DATA //////
@@ -200,19 +201,35 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> rel;
     Array<Float,2> dei;
 
+    const bool switch_cloud_optics = switch_liquid_cloud_optics || switch_ice_cloud_optics;
     if (switch_cloud_optics)
     {
         lwp.set_dims({n_col, n_lay});
-        lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
-
-        iwp.set_dims({n_col, n_lay});
-        iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
-
         rel.set_dims({n_col, n_lay});
-        rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
-
+        iwp.set_dims({n_col, n_lay});
         dei.set_dims({n_col, n_lay});
-        dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
+
+        if (switch_liquid_cloud_optics)
+        {
+            lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
+            rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+        }
+        else
+        {
+            lwp.fill(Float(0.));
+            rel.fill(Float(0.));
+        }
+
+        if (switch_ice_cloud_optics)
+        {
+            iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
+            dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
+        }
+        else
+        {
+            iwp.fill(Float(0.));
+            dei.fill(Float(0.));
+        }
     }
 
     Array<Float,2> rh;

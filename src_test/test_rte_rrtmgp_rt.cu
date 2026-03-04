@@ -170,29 +170,28 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave         = get_ini_value<bool>(settings, "switches", "shortwave", true);
     const bool switch_longwave          = get_ini_value<bool>(settings, "switches", "longwave", true);
     const bool switch_fluxes            = get_ini_value<bool>(settings, "switches", "fluxes", true);
-    bool switch_sw_twostream            = get_ini_value<bool>(settings, "switches", "sw-two-stream", false);
-    bool switch_sw_raytracing           = get_ini_value<bool>(settings, "switches", "sw-raytracing", true);
-    bool switch_lw_raytracing           = get_ini_value<bool>(settings, "switches", "lw-raytracing", true);
-    bool switch_independent_column      = get_ini_value<bool>(settings, "switches", "independent-column", false);
-    bool switch_cloud_optics            = get_ini_value<bool>(settings, "switches", "cloud-optics", false);
-    bool switch_liq_cloud_optics        = get_ini_value<bool>(settings, "switches", "liq-cloud-optics", false);
-    bool switch_ice_cloud_optics        = get_ini_value<bool>(settings, "switches", "ice-cloud-optics", false);
-    const bool switch_lw_scattering     = get_ini_value<bool>(settings, "switches", "lw-scattering", false);
-    const bool switch_min_mfp_grid_ratio= get_ini_value<bool>(settings, "switches", "min-mfp-grid-ratio", true);
-    const bool switch_cloud_mie         = get_ini_value<bool>(settings, "switches", "cloud-mie", false);
-    const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol-optics", false);
-    const bool switch_single_gpt        = get_ini_value<bool>(settings, "switches", "single-gpt", false);
-    const bool switch_delta_cloud       = get_ini_value<bool>(settings, "switches", "delta-cloud", false);
-    const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta-aerosol", false);
+    bool switch_sw_twostream            = get_ini_value<bool>(settings, "switches", "sw_two_stream", false);
+    bool switch_sw_raytracing           = get_ini_value<bool>(settings, "switches", "sw_raytracing", true);
+    bool switch_lw_raytracing           = get_ini_value<bool>(settings, "switches", "lw_raytracing", true);
+    bool switch_independent_column      = get_ini_value<bool>(settings, "switches", "independent_column", false);
+    bool switch_liquid_cloud_optics     = get_ini_value<bool>(settings, "switches", "liquid_cloud_optics", false);
+    bool switch_ice_cloud_optics        = get_ini_value<bool>(settings, "switches", "ice_cloud_optics", false);
+    const bool switch_lw_scattering     = get_ini_value<bool>(settings, "switches", "lw_scattering", false);
+    const bool switch_min_mfp_grid_ratio= get_ini_value<bool>(settings, "switches", "min_mfp_grid_ratio", true);
+    const bool switch_cloud_mie         = get_ini_value<bool>(settings, "switches", "cloud_mie", false);
+    const bool switch_aerosol_optics    = get_ini_value<bool>(settings, "switches", "aerosol_optics", false);
+    const bool switch_single_gpt        = get_ini_value<bool>(settings, "switches", "single_gpt", false);
+    const bool switch_delta_cloud       = get_ini_value<bool>(settings, "switches", "delta_cloud", false);
+    const bool switch_delta_aerosol     = get_ini_value<bool>(settings, "switches", "delta_aerosol", false);
     const bool switch_tica              = get_ini_value<bool>(settings, "switches", "tica", false);
 
-    const bool switch_bw_raytracing     = get_ini_value<bool>(settings, "switches", "bw-raytracing", true);
-    const bool switch_lu_albedo         = get_ini_value<bool>(settings, "switches", "lu-albedo", false);
+    const bool switch_bw_raytracing     = get_ini_value<bool>(settings, "switches", "bw_raytracing", true);
+    const bool switch_lu_albedo         = get_ini_value<bool>(settings, "switches", "lu_albedo", false);
     const bool switch_image             = get_ini_value<bool>(settings, "switches", "image", true);
     const bool switch_broadband         = get_ini_value<bool>(settings, "switches", "broadband", false);
-    const bool switch_cloud_cam         = get_ini_value<bool>(settings, "switches", "cloud-cam", false);
+    const bool switch_cloud_cam         = get_ini_value<bool>(settings, "switches", "cloud_cam", false);
 
-    const int photons_per_pixel = get_ini_value<int>(settings, "ints", "bw-raytracing", 1);
+    const int photons_per_pixel = get_ini_value<int>(settings, "ints", "bw_raytracing", 1);
 
     if (!switch_shortwave)
         switch_sw_raytracing = false;
@@ -209,7 +208,7 @@ void solve_radiation(int argc, char** argv)
     Int sw_photons_per_pixel;
     if (switch_sw_raytracing)
     {
-        sw_photons_per_pixel = get_ini_value<Int>(settings, "ints", "sw-raytracing", Int(256));
+        sw_photons_per_pixel = get_ini_value<Int>(settings, "ints", "sw_raytracing", Int(256));
         if (Float(int(std::log2(Float(sw_photons_per_pixel)))) != std::log2(Float(sw_photons_per_pixel)))
         {
             std::string error = "number of photons per pixel should be a power of 2 ";
@@ -222,7 +221,7 @@ void solve_radiation(int argc, char** argv)
     Int lw_photon_count;
     if (switch_lw_raytracing)
     {
-        lw_photon_power = get_ini_value<Int>(settings, "ints", "lw-raytracing", Int(22));
+        lw_photon_power = get_ini_value<Int>(settings, "ints", "lw_raytracing", Int(22));
         lw_photon_count = 1 << lw_photon_power;
     }
 
@@ -231,18 +230,10 @@ void solve_radiation(int argc, char** argv)
         Status::print_warning("No longwave radiation implemented in the backward ray tracer");
     }
 
-    if (switch_cloud_optics)
-    {
-        switch_liq_cloud_optics = true;
-        switch_ice_cloud_optics = true;
-    }
-    if (switch_liq_cloud_optics || switch_ice_cloud_optics)
-        switch_cloud_optics = true;
-
     if (switch_tica)
         switch_independent_column = true;
 
-    if (switch_cloud_cam && !(switch_cloud_optics))
+    if (switch_cloud_cam && !(switch_liquid_cloud_optics || switch_ice_cloud_optics))
         throw std::runtime_error("Enable cloud optics (liquid and/or ice) when cloud-cam is switch on!");
 
     if (switch_cloud_mie && switch_ice_cloud_optics)
@@ -253,7 +244,7 @@ void solve_radiation(int argc, char** argv)
 
     int single_gpt = get_ini_value<int>(settings, "ints", "single-gpt", 1);
 
-    const Float min_mfp_grid_ratio = switch_min_mfp_grid_ratio ? get_ini_value<Float>(settings, "floats", "min-mfp-grid-ratio", Float(1.)) : Float(0.);
+    const Float min_mfp_grid_ratio = switch_min_mfp_grid_ratio ? get_ini_value<Float>(settings, "floats", "min_mfp_grid_ratio", Float(1.)) : Float(0.);
 
     if (switch_sw_raytracing)
         Status::print_message("Shortwave: using "+ std::to_string(sw_photons_per_pixel) + " rays per pixel per g-point");
@@ -387,31 +378,24 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> rel;
     Array<Float,2> dei;
 
-    if (switch_cloud_optics)
+    const bool switch_cloud_optics = switch_liquid_cloud_optics || switch_ice_cloud_optics;
+
+    if (switch_liquid_cloud_optics)
     {
+        lwp.set_dims({n_col, n_lay});
+        lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
 
-        if (switch_liq_cloud_optics)
-        {
-            lwp.set_dims({n_col, n_lay});
-            lwp = std::move(input_nc.get_variable<Float>("lwp", {n_lay, n_col_y, n_col_x}));
-
-            rel.set_dims({n_col, n_lay});
-            rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
-        }
-
-        if (switch_ice_cloud_optics)
-        {
-            iwp.set_dims({n_col, n_lay});
-            iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
-
-            dei.set_dims({n_col, n_lay});
-            dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
-        }
-    }
-    else
-    {
         rel.set_dims({n_col, n_lay});
-        rel.fill(Float(0.));
+        rel = std::move(input_nc.get_variable<Float>("rel", {n_lay, n_col_y, n_col_x}));
+    }
+
+    if (switch_ice_cloud_optics)
+    {
+        iwp.set_dims({n_col, n_lay});
+        iwp = std::move(input_nc.get_variable<Float>("iwp", {n_lay, n_col_y, n_col_x}));
+
+        dei.set_dims({n_col, n_lay});
+        dei = std::move(input_nc.get_variable<Float>("dei", {n_lay, n_col_y, n_col_x}));
     }
 
     Array<Float,2> rh;
@@ -527,7 +511,7 @@ void solve_radiation(int argc, char** argv)
             lwp_out, iwp_out, rel_out, dei_out, rh_out,
             gas_concs_out, aerosol_concs_out,
             gas_names, aerosol_names,
-            switch_cloud_optics, switch_liq_cloud_optics, switch_ice_cloud_optics, switch_aerosol_optics
+            switch_liquid_cloud_optics, switch_ice_cloud_optics, switch_aerosol_optics
         );
 
         lwp_out.expand_dims({n_col, n_lay});
