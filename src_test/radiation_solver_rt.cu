@@ -479,13 +479,12 @@ Radiation_solver_longwave::Radiation_solver_longwave(
 
 
 void Radiation_solver_longwave::solve_gpu(
-        const bool switch_fluxes,
+        const bool switch_plane_parallel,
         const bool switch_raytracing,
         const bool switch_cloud_optics,
         const bool switch_aerosol_optics,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
-        const bool switch_single_gpt,
         const bool switch_lw_scattering,
         const bool switch_independent_column,
         const int single_gpt,
@@ -533,15 +532,13 @@ void Radiation_solver_longwave::solve_gpu(
         Gas_optics_rrtmgp_rt::get_col_dry(col_dry, gas_concs.get_vmr("h2o"), p_lev);
     }
 
-    if (switch_fluxes)
+    if (switch_plane_parallel)
     {
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, n_col, lw_flux_up.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, n_col, lw_flux_dn.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, n_col, lw_flux_net.ptr());
 
         if (switch_raytracing)  { }
-
-
     }
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
@@ -692,7 +689,7 @@ void Radiation_solver_longwave::solve_gpu(
         }
 
         // Store the optical properties, if desired.
-        if (switch_single_gpt && igpt == single_gpt)
+        if (igpt == single_gpt)
         {
             lay_source = (*sources).get_lay_source();
             lev_source = (*sources).get_lev_source();
@@ -713,13 +710,15 @@ void Radiation_solver_longwave::solve_gpu(
         }
 
 
-        if (switch_fluxes)
+        constexpr int n_ang = 1;
+
+        const bool use_raytracer = switch_raytracing && (lowest_gas_mean_free_path / grid_d_xy_min) > min_mfp_grid_ratio;
+
+        std::unique_ptr<Fluxes_broadband_rt> fluxes =
+                std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
+
+        if (switch_plane_parallel || !use_raytracer)
         {
-            constexpr int n_ang = 1;
-
-            std::unique_ptr<Fluxes_broadband_rt> fluxes =
-                    std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
-
             rte_lw.rte_lw(
                     optical_props,
                     top_at_1,
@@ -733,78 +732,80 @@ void Radiation_solver_longwave::solve_gpu(
             (*fluxes).net_flux();
 
             // Copy the data to the output.
-            Gpt_combine_kernels_cuda_rt::add_from_gpoint(
+            if (switch_plane_parallel)
+            {
+                Gpt_combine_kernels_cuda_rt::add_from_gpoint(
                     n_col, n_lev, lw_flux_up.ptr(), lw_flux_dn.ptr(), lw_flux_net.ptr(),
                     (*fluxes).get_flux_up().ptr(), (*fluxes).get_flux_dn().ptr(), (*fluxes).get_flux_net().ptr());
+            }
 
-            if (switch_single_gpt && igpt == single_gpt)
+            if (igpt == single_gpt)
             {
                 lw_gpt_flux_up = (*fluxes).get_flux_up();
                 lw_gpt_flux_dn = (*fluxes).get_flux_dn();
                 lw_gpt_flux_net = (*fluxes).get_flux_net();
             }
+        }
 
-            if (switch_raytracing)
+        if (switch_raytracing)
+        {
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_dn().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_up().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_dif().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_up().ptr());
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, (*fluxes).get_flux_abs_dif().ptr());
+
+            if (use_raytracer)
             {
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_dn().ptr());
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_tod_up().ptr());
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_dif().ptr());
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, (*fluxes).get_flux_sfc_up().ptr());
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, (*fluxes).get_flux_abs_dif().ptr());
+                ++monte_carlo_gpoints;
 
-                if ( (lowest_gas_mean_free_path / grid_d_xy_min) > min_mfp_grid_ratio)
-                {
-                    ++monte_carlo_gpoints;
-
-                    raytracer_lw.trace_rays(
-                            igpt,
-                            switch_independent_column,
-                            ray_count,
-                            grid_cells,
-                            grid_d,
-                            kn_grid,
-                            dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
-                            dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
-                            dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
-                            dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
-                            dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
-                            dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
-                            dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
-                            dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
-                            (*sources).get_lay_source(),
-                            (*sources).get_sfc_source(),
-                            emis_sfc,
-                            (*fluxes).get_flux_dn()({1, grid_cells.z}),
-                            (*fluxes).get_flux_tod_dn(),
-                            (*fluxes).get_flux_tod_up(),
-                            (*fluxes).get_flux_sfc_dif(),
-                            (*fluxes).get_flux_sfc_up(),
-                            (*fluxes).get_flux_abs_dif());
-                }
-                else
-                {
-                    convert_1d_to_rt_output(
-                        n_col, n_lay, grid_cells.z, grid_d.z,
-                        (*fluxes).get_flux_up(),
-                        (*fluxes).get_flux_dn(),
-                        (*fluxes).get_flux_net(),
+                raytracer_lw.trace_rays(
+                        igpt,
+                        switch_independent_column,
+                        ray_count,
+                        grid_cells,
+                        grid_d,
+                        kn_grid,
+                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
+                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
+                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
+                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
+                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
+                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
+                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
+                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
+                        (*sources).get_lay_source(),
+                        (*sources).get_sfc_source(),
+                        emis_sfc,
+                        (*fluxes).get_flux_dn()({1, grid_cells.z}),
                         (*fluxes).get_flux_tod_dn(),
                         (*fluxes).get_flux_tod_up(),
                         (*fluxes).get_flux_sfc_dif(),
                         (*fluxes).get_flux_sfc_up(),
                         (*fluxes).get_flux_abs_dif());
-
-                }
-
-                Gpt_combine_kernels_cuda_rt::add_from_gpoint(
-                        grid_cells.x, grid_cells.y,
-                        rt_flux_tod_dn.ptr(), rt_flux_tod_up.ptr(), rt_flux_sfc_dn.ptr(), rt_flux_sfc_up.ptr(),
-                        (*fluxes).get_flux_tod_dn().ptr(), (*fluxes).get_flux_tod_up().ptr(), (*fluxes).get_flux_sfc_dif().ptr(), (*fluxes).get_flux_sfc_up().ptr());
-
-                Gpt_combine_kernels_cuda_rt::add_from_gpoint(
-                        n_col, grid_cells.z, rt_flux_abs.ptr(), (*fluxes).get_flux_abs_dif().ptr());
+            }
+            else
+            {
+                convert_1d_to_rt_output(
+                    n_col, n_lay, grid_cells.z, grid_d.z,
+                    (*fluxes).get_flux_up(),
+                    (*fluxes).get_flux_dn(),
+                    (*fluxes).get_flux_net(),
+                    (*fluxes).get_flux_tod_dn(),
+                    (*fluxes).get_flux_tod_up(),
+                    (*fluxes).get_flux_sfc_dif(),
+                    (*fluxes).get_flux_sfc_up(),
+                    (*fluxes).get_flux_abs_dif());
 
             }
+
+            Gpt_combine_kernels_cuda_rt::add_from_gpoint(
+                    grid_cells.x, grid_cells.y,
+                    rt_flux_tod_dn.ptr(), rt_flux_tod_up.ptr(), rt_flux_sfc_dn.ptr(), rt_flux_sfc_up.ptr(),
+                    (*fluxes).get_flux_tod_dn().ptr(), (*fluxes).get_flux_tod_up().ptr(), (*fluxes).get_flux_sfc_dif().ptr(), (*fluxes).get_flux_sfc_up().ptr());
+
+            Gpt_combine_kernels_cuda_rt::add_from_gpoint(
+                    n_col, grid_cells.z, rt_flux_abs.ptr(), (*fluxes).get_flux_abs_dif().ptr());
 
         }
         Tools_gpu::free_gpu<Float>(max_tau_gas_g);
@@ -846,14 +847,12 @@ void Radiation_solver_shortwave::load_mie_tables(
 }
 
 void Radiation_solver_shortwave::solve_gpu(
-        const bool switch_fluxes,
-        const bool switch_twostream,
+        const bool switch_plane_parallel,
         const bool switch_raytracing,
         const bool switch_independent_column,
         const bool switch_cloud_optics,
         const bool switch_cloud_mie,
         const bool switch_aerosol_optics,
-        const bool switch_single_gpt,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
         const bool switch_attenuate_tica,
@@ -914,24 +913,22 @@ void Radiation_solver_shortwave::solve_gpu(
     Array_gpu<Float,2> mie_cdfs_sub;
     Array_gpu<Float,3> mie_angs_sub;
 
-    if (switch_fluxes)
+    if (switch_plane_parallel)
     {
-        if (switch_twostream)
-        {
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_up.ptr());
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn.ptr());
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn_dir.ptr());
-                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_net.ptr());
-        }
-        if (switch_raytracing)
-        {
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_tod_up.ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_sfc_dir.ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_sfc_dif.ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_sfc_up.ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.z, grid_cells.y, grid_cells.x, rt_flux_abs_dir.ptr());
-            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.z, grid_cells.y, grid_cells.x, rt_flux_abs_dif.ptr());
-        }
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_up.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_dn_dir.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, grid_cells.y, grid_cells.x, sw_flux_net.ptr());
+    }
+
+    if (switch_raytracing)
+    {
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_tod_up.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_sfc_dir.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_sfc_dif.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.y, grid_cells.x, rt_flux_sfc_up.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.z, grid_cells.y, grid_cells.x, rt_flux_abs_dir.ptr());
+        Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.z, grid_cells.y, grid_cells.x, rt_flux_abs_dif.ptr());
     }
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
@@ -1064,7 +1061,7 @@ void Radiation_solver_shortwave::solve_gpu(
         }
 
         // Store the optical properties, if desired
-        if (switch_single_gpt && igpt == single_gpt)
+        if (igpt == single_gpt)
         {
             tot_tau_out = optical_props->get_tau();
             tot_ssa_out = optical_props->get_ssa();
@@ -1076,77 +1073,75 @@ void Radiation_solver_shortwave::solve_gpu(
             aer_asy_out = aerosol_optical_props->get_g();
         }
 
-        if (switch_fluxes)
+        std::unique_ptr<Fluxes_broadband_rt> fluxes =
+                std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
+
+        if (switch_plane_parallel)
         {
-            std::unique_ptr<Fluxes_broadband_rt> fluxes =
-                    std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
 
-            if (switch_twostream)
+            rte_sw.rte_sw(
+                    optical_props,
+                    top_at_1,
+                    mu0,
+                    toa_src,
+                    sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
+                    sfc_alb_dif.subset({{ {band, band}, {1, n_col}}}),
+                    Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
+                    (*fluxes).get_flux_up(),
+                    (*fluxes).get_flux_dn(),
+                    (*fluxes).get_flux_dn_dir());
+        }
+
+        if (switch_raytracing)
+        {
+            Float zenith_angle = std::acos(mu0({1}));
+            Float azimuth_angle = azi({1}); // sun approximately from south
+
+            if (switch_cloud_mie)
             {
-
-                rte_sw.rte_sw(
-                        optical_props,
-                        top_at_1,
-                        mu0,
-                        toa_src,
-                        sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
-                        sfc_alb_dif.subset({{ {band, band}, {1, n_col}}}),
-                        Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
-                        (*fluxes).get_flux_up(),
-                        (*fluxes).get_flux_dn(),
-                        (*fluxes).get_flux_dn_dir());
+                mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {band, band} }});
+                mie_angs_sub = mie_angs.subset({{ {1, n_mie}, {1, n_re}, {band, band} }});
             }
 
-            if (switch_raytracing)
-            {
-                Float zenith_angle = std::acos(mu0({1}));
-                Float azimuth_angle = azi({1}); // sun approximately from south
+            raytracer.trace_rays(
+                    igpt,
+                    switch_independent_column,
+                    ray_count,
+                    grid_cells,
+                    grid_d,
+                    kn_grid,
+                    mie_cdfs_sub,
+                    mie_angs_sub,
+                    dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
+                    dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
+                    dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
+                    dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
+                    dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
+                    rel,
+                    sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
+                    zenith_angle,
+                    azimuth_angle,
+                    toa_src({1}) * mu0({1}),
+                    Float(0.),
+                    (*fluxes).get_flux_tod_dn(),
+                    (*fluxes).get_flux_tod_up(),
+                    (*fluxes).get_flux_sfc_dir(),
+                    (*fluxes).get_flux_sfc_dif(),
+                    (*fluxes).get_flux_sfc_up(),
+                    (*fluxes).get_flux_abs_dir(),
+                    (*fluxes).get_flux_abs_dif());
+        }
 
-                if (switch_cloud_mie)
-                {
-                    mie_cdfs_sub = mie_cdfs.subset({{ {1, n_mie}, {band, band} }});
-                    mie_angs_sub = mie_angs.subset({{ {1, n_mie}, {1, n_re}, {band, band} }});
-                }
-
-                raytracer.trace_rays(
-                        igpt,
-                        switch_independent_column,
-                        ray_count,
-                        grid_cells,
-                        grid_d,
-                        kn_grid,
-                        mie_cdfs_sub,
-                        mie_angs_sub,
-                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
-                        dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
-                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
-                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
-                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
-                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
-                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
-                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
-                        rel,
-                        sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
-                        zenith_angle,
-                        azimuth_angle,
-                        toa_src({1}) * mu0({1}),
-                        Float(0.),
-                        (*fluxes).get_flux_tod_dn(),
-                        (*fluxes).get_flux_tod_up(),
-                        (*fluxes).get_flux_sfc_dir(),
-                        (*fluxes).get_flux_sfc_dif(),
-                        (*fluxes).get_flux_sfc_up(),
-                        (*fluxes).get_flux_abs_dir(),
-                        (*fluxes).get_flux_abs_dif());
-            }
-
-            (*fluxes).net_flux();
-            if (switch_twostream)
-            {
-                Gpt_combine_kernels_cuda_rt::add_from_gpoint(
-                        n_col, n_lev, sw_flux_up.ptr(), sw_flux_dn.ptr(), sw_flux_dn_dir.ptr(), sw_flux_net.ptr(),
-                        (*fluxes).get_flux_up().ptr(), (*fluxes).get_flux_dn().ptr(), (*fluxes).get_flux_dn_dir().ptr(), (*fluxes).get_flux_net().ptr());
-            }
+        (*fluxes).net_flux();
+        if (switch_plane_parallel)
+        {
+            Gpt_combine_kernels_cuda_rt::add_from_gpoint(
+                    n_col, n_lev, sw_flux_up.ptr(), sw_flux_dn.ptr(), sw_flux_dn_dir.ptr(), sw_flux_net.ptr(),
+                    (*fluxes).get_flux_up().ptr(), (*fluxes).get_flux_dn().ptr(), (*fluxes).get_flux_dn_dir().ptr(), (*fluxes).get_flux_net().ptr());
+        }
 
             if (switch_raytracing)
             {
@@ -1159,14 +1154,13 @@ void Radiation_solver_shortwave::solve_gpu(
                         (*fluxes).get_flux_abs_dir().ptr(), (*fluxes).get_flux_abs_dif().ptr());
             }
 
-            if (switch_single_gpt && igpt == single_gpt)
+            if (igpt == single_gpt)
             {
                 sw_gpt_flux_up = (*fluxes).get_flux_up();
                 sw_gpt_flux_dn = (*fluxes).get_flux_dn();
                 sw_gpt_flux_dn_dir = (*fluxes).get_flux_dn_dir();
                 sw_gpt_flux_net = (*fluxes).get_flux_net();
             }
-        }
         previous_band = band;
     }
 }

@@ -46,13 +46,12 @@ class Radiation_solver_longwave
 
         #ifdef __CUDACC__
         void solve_gpu(
-                const bool switch_fluxes,
                 const bool switch_raytracing,
+                const bool switch_plane_parallel,
                 const bool switch_cloud_optics,
                 const bool switch_aerosol_optics,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
-                const bool switch_single_gpt,
                 const bool switch_lw_scattering,
                 const bool switch_independent_column,
                 const int single_gpt,
@@ -122,14 +121,12 @@ class Radiation_solver_shortwave
 
         #ifdef __CUDACC__
         void solve_gpu(
-                const bool switch_fluxes,
-                const bool switch_twostream,
                 const bool switch_raytracing,
+                const bool switch_plane_parallel,
                 const bool switch_independent_column,
                 const bool switch_cloud_optics,
                 const bool switch_cloud_mie,
                 const bool switch_aerosol_optics,
-                const bool switch_single_gpt,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
                 const bool switch_attenuate_tica,
