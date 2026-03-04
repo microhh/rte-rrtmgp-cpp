@@ -275,7 +275,8 @@ namespace
             const Float sun_solid_angle, const Float g,
             const Float* __restrict__ mie_phase_ang,
             const Float* __restrict__ mie_phase,
-            const Float r_eff,
+            const Float* __restrict__ r_eff,
+            const int ijk,
             const int mie_table_size,
             const Vector<Float>& normal,
             const Phase_kind kind)
@@ -289,7 +290,7 @@ namespace
         else if (kind == Phase_kind::Mie)
         {
             // return interpolate_mie_phase_table(mie_phase_ang, mie_phase, max(0.05, acos(cos_angle)), r_eff, mie_table_size) * sun_solid_angle;
-            return mie_interpolate_phase_table(mie_phase_ang, mie_phase, acos(cos_angle), r_eff, mie_table_size) * sun_solid_angle;
+            return mie_interpolate_phase_table(mie_phase_ang, mie_phase, acos(cos_angle), r_eff, ijk, mie_table_size) * sun_solid_angle;
         }
         else if (kind == Phase_kind::Rayleigh)
         {
@@ -497,7 +498,7 @@ void ray_tracer_kernel_bw(
 
                         // direct contribution
                         const Phase_kind kind = (scatter_type==0) ? Phase_kind::Rayleigh : Phase_kind::HG;
-                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, Float(0.), 0, surface_normal, kind);
+                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
                         const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
                                                     bg_tau_cum, z_lev_bg, bg_idx,
@@ -585,7 +586,7 @@ void ray_tracer_kernel_bw(
                                                                                 : Phase_kind::Lambertian;
 
                         // SUN SCATTERING GOES HERE
-                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, Float(0.), 0,
+                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, r_eff, 0, 0,
                                                                  surface_normal, surface_kind);
                         const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
@@ -714,7 +715,7 @@ void ray_tracer_kernel_bw(
                             }
                             const Float cos_scat = scatter_type == 0 ? rayleigh(rng()) : // gases -> rayleigh,
                                                                    1 ? ( (mie_cdf_table_size > 0) //clouds: Mie or HG
-                                                                            ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff[ijk], mie_cdf_table_size) )
+                                                                            ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff, ijk, mie_cdf_table_size) )
                                                                             :  henyey(g, rng()))
                                                                    : henyey(g, rng()); //aerosols
                             const Float sin_scat = max(Float(0.), sqrt(Float(1.) - cos_scat*cos_scat + Float_epsilon));
@@ -725,8 +726,7 @@ void ray_tracer_kernel_bw(
                                                                         ? Phase_kind::Mie
                                                                         : Phase_kind::HG
                                                                 : Phase_kind::HG;
-                            const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff[ijk], mie_phase_table_size,
-                                                                     surface_normal, kind);
+                            const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, ijk, mie_phase_table_size, surface_normal, kind);
                             const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                         k_null_grid,k_ext,
                                                         bg_tau_cum, z_lev_bg, bg_idx,

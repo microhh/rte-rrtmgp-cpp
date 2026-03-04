@@ -410,7 +410,7 @@ void ray_tracer_kernel(
                     // 0 (gas): rayleigh, 1 (cloud): mie if mie_table_size>0 else HG, 2 (aerosols) HG
                     const Float cos_scat = scatter_type == 0 ? rayleigh(rng()) : // gases -> rayleigh,
                                                            1 ? ( (mie_table_size > 0) //clouds: Mie or HG
-                                                                    ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff[ijk], mie_table_size) )
+                                                                    ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff, ijk, mie_table_size) )
                                                                     :  henyey(g, rng()))
                                                            : henyey(g, rng()); //aerosols
                     const Float sin_scat = max(Float(0.), sqrt(Float(1.) - cos_scat*cos_scat + Float_epsilon));
