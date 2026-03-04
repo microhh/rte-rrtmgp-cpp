@@ -179,14 +179,14 @@ void solve_radiation(int argc, char** argv)
     const bool switch_shortwave           = get_ini_value<bool>(settings, "shortwave", "shortwave", true);
     const bool switch_sw_raytracing       = get_ini_value<bool>(settings, "shortwave", "raytracing", true); // compute and output ray tracer fluxes
     const bool switch_sw_plane_parallel   = get_ini_value<bool>(settings, "shortwave", "plane_parallel", true); // compute and output plane parallel 1D fluxes (two-stream)
-    bool switch_sw_independent_column     = get_ini_value<bool>(settings, "shortwave", "independent_column", false); // solve ray tracer in independent column mode
+    bool switch_sw_independent_column     = get_ini_value<bool>(settings, "shortwave", "rt_independent_column", false); // solve ray tracer in independent column mode
     const int sw_single_gpt               = get_ini_value<int>(settings, "shortwave", "single_gpt", -1); // only solve a single g-point and also output optical properties for that g-point. Defaults to -1 (broadband)
 
     const bool switch_longwave            = get_ini_value<bool>(settings, "longwave", "longwave", true);
     const bool switch_lw_raytracing       = get_ini_value<bool>(settings, "longwave", "raytracing", true); // compute and output ray tracer fluxes
     const bool switch_lw_plane_parallel   = get_ini_value<bool>(settings, "longwave", "plane_parallel", true); // compute and output plane parallel 1D fluxes (two-stream or no-scattering solution)
     const bool switch_lw_scattering       = get_ini_value<bool>(settings, "longwave", "scattering", false); // enable scattering in longwave solver (only possible in ray tracer executable)
-    bool switch_lw_independent_column     = get_ini_value<bool>(settings, "longwave", "independent_column", false); // solve ray tracer in independent column mode
+    bool switch_lw_independent_column     = get_ini_value<bool>(settings, "longwave", "rt_independent_column", false); // solve ray tracer in independent column mode
     const int lw_single_gpt               = get_ini_value<int>(settings, "longwave", "single_gpt", -1); // only solve a single g-point and also output optical properties for that g-point. Defaults to -1 (broadband)
     const Float min_mfp_grid_ratio        = get_ini_value<Float>(settings, "longwave", "min_mfp_grid_ratio", Float(1.0)); // minimum ratio between the lowest gasous mean fee path and the horizontal grid spacing at which ray tracer is still used. Set to 0. to use ray tracer for all g-points
 
