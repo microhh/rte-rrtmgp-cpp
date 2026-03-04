@@ -507,7 +507,6 @@ void Radiation_solver_longwave::solve_gpu(
         Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
         Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
         Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-        Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net,
         Array_gpu<Float,2>& rt_flux_tod_up, Array_gpu<Float,2>& rt_flux_tod_dn, Array_gpu<Float,2>& rt_flux_sfc_up,
         Array_gpu<Float,2>& rt_flux_sfc_dn, Array_gpu<Float,3>& rt_flux_abs)
 {
@@ -548,6 +547,8 @@ void Radiation_solver_longwave::solve_gpu(
 
     for (int igpt=1; igpt<=n_gpt; ++igpt)
     {
+        if ((single_gpt > 0) && (igpt != single_gpt)) continue;
+
         int band = 0;
         for (int ibnd=1; ibnd<=n_bnd; ++ibnd)
         {
@@ -688,8 +689,8 @@ void Radiation_solver_longwave::solve_gpu(
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_g().ptr());
         }
 
-        // Store the optical properties, if desired.
-        if (igpt == single_gpt)
+        // Store the optical properties, only in single_gpt mode
+        if (single_gpt > 0)
         {
             lay_source = (*sources).get_lay_source();
             lev_source = (*sources).get_lev_source();
@@ -737,13 +738,6 @@ void Radiation_solver_longwave::solve_gpu(
                 Gpt_combine_kernels_cuda_rt::add_from_gpoint(
                     n_col, n_lev, lw_flux_up.ptr(), lw_flux_dn.ptr(), lw_flux_net.ptr(),
                     (*fluxes).get_flux_up().ptr(), (*fluxes).get_flux_dn().ptr(), (*fluxes).get_flux_net().ptr());
-            }
-
-            if (igpt == single_gpt)
-            {
-                lw_gpt_flux_up = (*fluxes).get_flux_up();
-                lw_gpt_flux_dn = (*fluxes).get_flux_dn();
-                lw_gpt_flux_net = (*fluxes).get_flux_net();
             }
         }
 
@@ -877,8 +871,6 @@ void Radiation_solver_shortwave::solve_gpu(
         Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
         Array_gpu<Float,2>& sw_flux_up, Array_gpu<Float,2>& sw_flux_dn,
         Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net,
-        Array_gpu<Float,2>& sw_gpt_flux_up, Array_gpu<Float,2>& sw_gpt_flux_dn,
-        Array_gpu<Float,2>& sw_gpt_flux_dn_dir, Array_gpu<Float,2>& sw_gpt_flux_net,
         Array_gpu<Float,2>& rt_flux_tod_up,
         Array_gpu<Float,2>& rt_flux_sfc_dir,
         Array_gpu<Float,2>& rt_flux_sfc_dif,
@@ -937,6 +929,8 @@ void Radiation_solver_shortwave::solve_gpu(
 
     for (int igpt=1; igpt<=n_gpt; ++igpt)
     {
+        if ((single_gpt > 0) && (igpt != single_gpt)) continue;
+
         int band = 0;
         for (int ibnd=1; ibnd<=n_bnd; ++ibnd)
         {
@@ -1060,8 +1054,8 @@ void Radiation_solver_shortwave::solve_gpu(
             Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_g().ptr());
         }
 
-        // Store the optical properties, if desired
-        if (igpt == single_gpt)
+        // Store the optical properties, only in single_gpt mode
+        if (single_gpt > 0)
         {
             tot_tau_out = optical_props->get_tau();
             tot_ssa_out = optical_props->get_ssa();
@@ -1078,7 +1072,6 @@ void Radiation_solver_shortwave::solve_gpu(
 
         if (switch_plane_parallel)
         {
-
             rte_sw.rte_sw(
                     optical_props,
                     top_at_1,
@@ -1154,13 +1147,6 @@ void Radiation_solver_shortwave::solve_gpu(
                         (*fluxes).get_flux_abs_dir().ptr(), (*fluxes).get_flux_abs_dif().ptr());
             }
 
-            if (igpt == single_gpt)
-            {
-                sw_gpt_flux_up = (*fluxes).get_flux_up();
-                sw_gpt_flux_dn = (*fluxes).get_flux_dn();
-                sw_gpt_flux_dn_dir = (*fluxes).get_flux_dn_dir();
-                sw_gpt_flux_net = (*fluxes).get_flux_net();
-            }
         previous_band = band;
     }
 }

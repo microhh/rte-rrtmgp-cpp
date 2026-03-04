@@ -662,17 +662,6 @@ void solve_radiation(int argc, char** argv)
             lw_flux_net.set_dims({n_col, n_lev});
         }
 
-        Array_gpu<Float,2> lw_gpt_flux_up;
-        Array_gpu<Float,2> lw_gpt_flux_dn;
-        Array_gpu<Float,2> lw_gpt_flux_net;
-
-        if (lw_single_gpt > 0)
-        {
-            lw_gpt_flux_up .set_dims({n_col, n_lev});
-            lw_gpt_flux_dn .set_dims({n_col, n_lev});
-            lw_gpt_flux_net.set_dims({n_col, n_lev});
-        }
-
         Array_gpu<Float,2> rt_flux_tod_up;
         Array_gpu<Float,2> rt_flux_tod_dn;
         Array_gpu<Float,2> rt_flux_sfc_up;
@@ -750,7 +739,6 @@ void solve_radiation(int argc, char** argv)
                     lw_tau_aer, lw_ssa_aer, lw_asy_aer,
                     lay_source, lev_source, sfc_source,
                     lw_flux_up, lw_flux_dn, lw_flux_net,
-                    lw_gpt_flux_up, lw_gpt_flux_dn, lw_gpt_flux_net,
                     rt_flux_tod_up, rt_flux_tod_dn, rt_flux_sfc_up,
                     rt_flux_sfc_dn, rt_flux_abs);
 
@@ -792,9 +780,6 @@ void solve_radiation(int argc, char** argv)
         Array<Float,2> lw_flux_up_cpu(lw_flux_up);
         Array<Float,2> lw_flux_dn_cpu(lw_flux_dn);
         Array<Float,2> lw_flux_net_cpu(lw_flux_net);
-        Array<Float,2> lw_gpt_flux_up_cpu(lw_gpt_flux_up);
-        Array<Float,2> lw_gpt_flux_dn_cpu(lw_gpt_flux_dn);
-        Array<Float,2> lw_gpt_flux_net_cpu(lw_gpt_flux_net);
 
         Array<Float,2> rt_flux_tod_up_cpu(rt_flux_tod_up);
         Array<Float,2> rt_flux_tod_dn_cpu(rt_flux_tod_dn);
@@ -857,17 +842,6 @@ void solve_radiation(int argc, char** argv)
             nc_lw_flux_up .insert(lw_flux_up_cpu .v(), {0, 0, 0});
             nc_lw_flux_dn .insert(lw_flux_dn_cpu .v(), {0, 0, 0});
             nc_lw_flux_net.insert(lw_flux_net_cpu.v(), {0, 0, 0});
-
-            if (lw_single_gpt > 0)
-            {
-                auto nc_lw_gpt_flux_up  = output_nc.add_variable<Float>("lw_gpt_flux_up" , {"lev", "y", "x"});
-                auto nc_lw_gpt_flux_dn  = output_nc.add_variable<Float>("lw_gpt_flux_dn" , {"lev", "y", "x"});
-                auto nc_lw_gpt_flux_net = output_nc.add_variable<Float>("lw_gpt_flux_net", {"lev", "y", "x"});
-
-                nc_lw_gpt_flux_up .insert(lw_gpt_flux_up_cpu.v(), {0, 0, 0});
-                nc_lw_gpt_flux_dn .insert(lw_gpt_flux_dn_cpu.v(), {0, 0, 0});
-                nc_lw_gpt_flux_net.insert(lw_gpt_flux_net_cpu.v(), {0, 0, 0});
-            }
         }
 
         if (switch_lw_raytracing)
@@ -988,20 +962,6 @@ void solve_radiation(int argc, char** argv)
             rt_flux_abs_dif.set_dims({n_col_x, n_col_y, n_z});
         }
 
-        Array_gpu<Float,2> sw_gpt_flux_up;
-        Array_gpu<Float,2> sw_gpt_flux_dn;
-        Array_gpu<Float,2> sw_gpt_flux_dn_dir;
-        Array_gpu<Float,2> sw_gpt_flux_net;
-
-        if (sw_single_gpt > 0)
-        {
-            sw_gpt_flux_up    .set_dims({n_col, n_lev});
-            sw_gpt_flux_dn    .set_dims({n_col, n_lev});
-            sw_gpt_flux_dn_dir.set_dims({n_col, n_lev});
-            sw_gpt_flux_net   .set_dims({n_col, n_lev});
-        }
-
-
         // Solve the radiation.
         Status::print_message("Solving the shortwave radiation.");
 
@@ -1065,8 +1025,6 @@ void solve_radiation(int argc, char** argv)
                     sw_aer_tau, sw_aer_ssa, sw_aer_asy,
                     sw_flux_up, sw_flux_dn,
                     sw_flux_dn_dir, sw_flux_net,
-                    sw_gpt_flux_up, sw_gpt_flux_dn,
-                    sw_gpt_flux_dn_dir, sw_gpt_flux_net,
                     rt_flux_tod_up,
                     rt_flux_sfc_dir,
                     rt_flux_sfc_dif,
@@ -1103,10 +1061,6 @@ void solve_radiation(int argc, char** argv)
         Array<Float,2> sw_flux_dn_cpu(sw_flux_dn);
         Array<Float,2> sw_flux_dn_dir_cpu(sw_flux_dn_dir);
         Array<Float,2> sw_flux_net_cpu(sw_flux_net);
-        Array<Float,2> sw_gpt_flux_up_cpu(sw_gpt_flux_up);
-        Array<Float,2> sw_gpt_flux_dn_cpu(sw_gpt_flux_dn);
-        Array<Float,2> sw_gpt_flux_dn_dir_cpu(sw_gpt_flux_dn_dir);
-        Array<Float,2> sw_gpt_flux_net_cpu(sw_gpt_flux_net);
 
         Array<Float,2> rt_flux_tod_up_cpu(rt_flux_tod_up);
         Array<Float,2> rt_flux_sfc_dir_cpu(rt_flux_sfc_dir);
@@ -1184,33 +1138,6 @@ void solve_radiation(int argc, char** argv)
 
             nc_sw_flux_net.add_attribute("long_name","Net shortwave fluxes (TwoStream solver)");
             nc_sw_flux_net.add_attribute("units","W m-2");
-
-            if (sw_single_gpt > 0)
-            {
-                auto nc_sw_gpt_flux_up     = output_nc.add_variable<Float>("sw_gpt_flux_up"    , {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_dn     = output_nc.add_variable<Float>("sw_gpt_flux_dn"    , {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_dn_dir = output_nc.add_variable<Float>("sw_gpt_flux_dn_dir", {"lev", "y", "x"});
-                auto nc_sw_gpt_flux_net    = output_nc.add_variable<Float>("sw_gpt_flux_net"   , {"lev", "y", "x"});
-
-                nc_sw_gpt_flux_up    .insert(sw_gpt_flux_up_cpu    .v(), {0, 0, 0});
-                nc_sw_gpt_flux_dn    .insert(sw_gpt_flux_dn_cpu    .v(), {0, 0, 0});
-                nc_sw_gpt_flux_dn_dir.insert(sw_gpt_flux_dn_dir_cpu.v(), {0, 0, 0});
-                nc_sw_gpt_flux_net   .insert(sw_gpt_flux_net_cpu   .v(), {0, 0, 0});
-
-                nc_sw_gpt_flux_up.add_attribute("long_name","Upwelling shortwave fluxes for g-point "+std::to_string(sw_single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_up.add_attribute("units","W m-2");
-
-                nc_sw_gpt_flux_dn.add_attribute("long_name","Downwelling shortwave fluxes for g-point "+std::to_string(sw_single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_dn.add_attribute("units","W m-2");
-
-                nc_sw_gpt_flux_dn_dir.add_attribute("long_name","Downwelling direct shortwave fluxes for g-point "+std::to_string(sw_single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_dn_dir.add_attribute("units","W m-2");
-
-                nc_sw_gpt_flux_net.add_attribute("long_name","Net shortwave fluxes for g-point "+std::to_string(sw_single_gpt)+" (TwoStream solver)");
-                nc_sw_gpt_flux_net.add_attribute("units","W m-2");
-
-            }
-
         }
 
         if (switch_sw_raytracing)

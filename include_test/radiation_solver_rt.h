@@ -74,7 +74,6 @@ class Radiation_solver_longwave
                 Array_gpu<Float,2>& aer_tau_out,Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
                 Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
                 Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-                Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net,
                 Array_gpu<Float,2>& rt_flux_tod_up, Array_gpu<Float,2>& rt_flux_tod_dn, Array_gpu<Float,2>& rt_flux_sfc_up,
                 Array_gpu<Float,2>& rt_flux_sfc_dn, Array_gpu<Float,3>& rt_flux_abs);
 
@@ -151,8 +150,6 @@ class Radiation_solver_shortwave
                 Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
                 Array_gpu<Float,2>& sw_flux_up, Array_gpu<Float,2>& sw_flux_dn,
                 Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net,
-                Array_gpu<Float,2>& sw_gpt_flux_up, Array_gpu<Float,2>& sw_gpt_flux_dn,
-                Array_gpu<Float,2>& sw_gpt_flux_dn_dir, Array_gpu<Float,2>& sw_gpt_flux_net,
                 Array_gpu<Float,2>& rt_flux_tod_up,
                 Array_gpu<Float,2>& rt_flux_sfc_dir,
                 Array_gpu<Float,2>& rt_flux_sfc_dif,
