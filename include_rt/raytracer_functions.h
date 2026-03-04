@@ -106,11 +106,11 @@ namespace Raytracer_functions
     }
 
     __device__
-    inline Float mie_sample_angle(const Float* mie_cdf, const Float* mie_lut, const Float random_number, const Float r_eff, const int n_mie)
+    inline Float mie_sample_angle(const Float* mie_cdf, const Float* mie_lut, const Float random_number, const Float* r_eff, const int ijk, const int n_mie)
     {
         // interpolation over effective radius. Currently, r_eff should range between 2.5 and 21.5 (similar to RRTMGP)
-        const int r_idx = min(max(int(r_eff-2.5), 0), 18);
-        const Float r_rest = fmod(r_eff-Float(2.5),Float(1.));
+        const int r_idx = min(max(int(r_eff[ijk]-2.5), 0), 18);
+        const Float r_rest = fmod(r_eff[ijk]-Float(2.5),Float(1.));
 
         const int i = min(max(0, find_index(mie_cdf, n_mie, random_number)), n_mie - 2);
 
@@ -125,11 +125,11 @@ namespace Raytracer_functions
     }
 
     __device__
-    inline Float mie_interpolate_phase_table(const Float* mie_phase, const Float* mie_lut, const Float scat_ang, const Float r_eff, const int n_mie)
+    inline Float mie_interpolate_phase_table(const Float* mie_phase, const Float* mie_lut, const Float scat_ang, const Float* r_eff, const int ijk, const int n_mie)
     {
         // interpolation over effective radius. Currently, r_eff should range between 2.5 and 21.5 (similar to RRTMGP)
-        const int r_idx = min(max(int(r_eff-2.5), 0), 18);
-        const Float r_rest = fmod(r_eff-Float(2.5),Float(1.));
+        const int r_idx = min(max(int(r_eff[ijk]-2.5), 0), 18);
+        const Float r_rest = fmod(r_eff[ijk]-Float(2.5),Float(1.));
 
         // interpolation between 1800 equally spaced scattering angles between 0 and PI (both inclusive).
         constexpr Float d_pi = Float(1.74629942e-03);

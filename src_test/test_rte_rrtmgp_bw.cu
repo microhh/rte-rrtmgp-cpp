@@ -228,24 +228,23 @@ void solve_radiation(int argc, char** argv)
     const Vector<int> kn_grid = {input_nc.get_variable<int>("ngrid_x"),
                                  input_nc.get_variable<int>("ngrid_y"),
                                  input_nc.get_variable<int>("ngrid_z")};
-
-    // Reading camera data
-    Netcdf_group cam_in = input_nc.get_group("camera-settings");
     Camera camera;
-    camera.fov    = cam_in.get_variable<Float>("fov");
-    camera.cam_type = int(cam_in.get_variable<Float>("cam_type"));
-    camera.position = {cam_in.get_variable<Float>("px"),
-                       cam_in.get_variable<Float>("py"),
-                       cam_in.get_variable<Float>("pz")};
+    camera.fov = get_ini_value<Float>(settings, "bw_camera", "field-of-view", 80.);
+    camera.cam_type = get_ini_value<int>(settings, "bw_camera", "cam-type", 0);
+    camera.position = {get_ini_value<Float>(settings, "bw_camera", "px", 0.),
+                       get_ini_value<Float>(settings, "bw_camera", "py", 0.),
+                       get_ini_value<Float>(settings, "bw_camera", "pz", 100.)};
+    camera.nx = get_ini_value<int>(settings, "bw_camera", "nx", 0);
+    camera.ny = get_ini_value<int>(settings, "bw_camera", "ny", 0);
+    camera.setup_rotation_matrix(get_ini_value<Float>(settings, "bw_camera", "yaw", 0.),
+                                 get_ini_value<Float>(settings, "bw_camera", "pitch", 0.),
+                                 get_ini_value<Float>(settings, "bw_camera", "roll", 0.));
+    camera.setup_normal_camera(camera);
 
-    camera.nx  = int(cam_in.get_variable<Float>("nx"));
-    camera.ny  = int(cam_in.get_variable<Float>("ny"));
     camera.npix = Int(camera.nx * camera.ny);
 
-    camera.setup_rotation_matrix(cam_in.get_variable<Float>("yaw"),
-                                 cam_in.get_variable<Float>("pitch"),
-                                 cam_in.get_variable<Float>("roll"));
-    camera.setup_normal_camera(camera);
+    const Float input_sza = get_ini_value<Float>(settings, "floats", "sza", -1.0);
+    const Float input_azi = get_ini_value<Float>(settings, "floats", "azi", -1.0);
 
     // Read the atmospheric fields.
     Array<Float,2> p_lay(input_nc.get_variable<Float>("p_lay", {n_lay, n_col_y, n_col_x}), {n_col, n_lay});
@@ -386,7 +385,7 @@ void solve_radiation(int argc, char** argv)
 
         Gas_concs_gpu gas_concs_gpu(gas_concs);
 
-        Radiation_solver_longwave rad_lw(gas_concs_gpu, "coefficients_lw.nc", "cloud_coefficients_lw.nc");
+        Radiation_solver_bw_longwave rad_lw(gas_concs_gpu, "coefficients_lw.nc", "cloud_coefficients_lw.nc");
 
         // Read the boundary conditions.
         const int n_bnd_lw = rad_lw.get_n_bnd_gpu();
@@ -573,7 +572,7 @@ void solve_radiation(int argc, char** argv)
 
 
         Gas_concs_gpu gas_concs_gpu(gas_concs);
-        Radiation_solver_shortwave rad_sw(gas_concs_gpu, "coefficients_sw.nc", "cloud_coefficients_sw.nc","aerosol_optics_sw.nc");
+        Radiation_solver_bw_shortwave rad_sw(gas_concs_gpu, "coefficients_sw.nc", "cloud_coefficients_sw.nc","aerosol_optics_sw.nc");
 
         // Read the boundary conditions.
         const int n_bnd_sw = rad_sw.get_n_bnd_gpu();
@@ -581,6 +580,12 @@ void solve_radiation(int argc, char** argv)
 
         Array<Float,1> mu0(input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x}), {n_col});
         Array<Float,1> azi(input_nc.get_variable<Float>("azi", {n_col_y, n_col_x}), {n_col});
+
+        if (input_sza < 0)
+            mu0.fill(cos(input_sza / Float(180.0) * M_PI));
+
+        if (input_azi < 0)
+            azi.fill(input_azi / Float(180.0) * M_PI);
 
         Array<Float,2> sfc_alb(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
 
@@ -877,14 +882,14 @@ void solve_radiation(int argc, char** argv)
         nc_azi.insert(azi({1})/M_PI * Float(180.), {0});
 
         // camera position and direction
-        Netcdf_group output_cam = output_nc.add_group("camera-settings");
+        // Netcdf_group output_cam = output_nc.add_group("camera-settings");
 
-        std::string cam_vars[] = {"yaw","pitch","roll","px","py","pz"};
-        for (auto &&cam_var : cam_vars)
-        {
-            auto nc_cam_out = output_cam.add_variable<Float>(cam_var);
-            nc_cam_out.insert(cam_in.get_variable<Float>(cam_var), {0});
-        }
+        // std::string cam_vars[] = {"yaw","pitch","roll","px","py","pz"};
+        // for (auto &&cam_var : cam_vars)
+        // {
+        //     auto nc_cam_out = output_cam.add_variable<Float>(cam_var);
+        //     nc_cam_out.insert(cam_in.get_variable<Float>(cam_var), {0});
+        // }
     }
 
     Status::print_message("###### Finished RTE+RRTMGP solver ######");

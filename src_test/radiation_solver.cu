@@ -419,8 +419,6 @@ Radiation_solver_longwave::Radiation_solver_longwave(
 void Radiation_solver_longwave::solve_gpu(
         const bool switch_fluxes,
         const bool switch_cloud_optics,
-        const bool switch_output_optical,
-        const bool switch_output_bnd_fluxes,
         const Gas_concs_gpu& gas_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
@@ -428,10 +426,7 @@ void Radiation_solver_longwave::solve_gpu(
         const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
-        Array_gpu<Float,3>& tau, Array_gpu<Float,3>& lay_source,
-        Array_gpu<Float,3>& lev_source, Array_gpu<Float,2>& sfc_source,
-        Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-        Array_gpu<Float,3>& lw_bnd_flux_up, Array_gpu<Float,3>& lw_bnd_flux_dn, Array_gpu<Float,3>& lw_bnd_flux_net)
+        Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net)
 {
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
@@ -472,8 +467,7 @@ void Radiation_solver_longwave::solve_gpu(
             std::unique_ptr<Optical_props_1scl_gpu>& cloud_optical_props_subset_in,
             Source_func_lw_gpu& sources_subset_in,
             const Array_gpu<Float,2>& emis_sfc_subset_in,
-            Fluxes_broadband_gpu& fluxes,
-            Fluxes_broadband_gpu& bnd_fluxes)
+            Fluxes_broadband_gpu& fluxes)
     {
         const int n_col_in = col_e_in - col_s_in + 1;
         Gas_concs_gpu gas_concs_subset(gas_concs, col_s_in, n_col_in);
@@ -506,24 +500,10 @@ void Radiation_solver_longwave::solve_gpu(
                     dei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     *cloud_optical_props_subset_in);
 
-            //cloud->delta_scale();
-
             // Add the cloud optical props to the gas optical properties.
             add_to(
                     dynamic_cast<Optical_props_1scl_gpu&>(*optical_props_subset_in),
                     dynamic_cast<Optical_props_1scl_gpu&>(*cloud_optical_props_subset_in));
-        }
-
-        // Store the optical properties, if desired.
-        if (switch_output_optical)
-        {
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lay, n_gpt, n_col_in, col_s_in, tau.ptr(), lay_source.ptr(), lev_source.ptr(),
-                    optical_props_subset_in->get_tau().ptr(), sources_subset_in.get_lay_source().ptr(),
-                    sources_subset_in.get_lev_source().ptr());
-
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_gpt, n_col_in, col_s_in, sfc_source.ptr(), sources_subset_in.get_sfc_source().ptr());
         }
 
         if (!switch_fluxes)
@@ -531,25 +511,6 @@ void Radiation_solver_longwave::solve_gpu(
 
         Array_gpu<Float,3> gpt_flux_up({n_col_in, n_lev, n_gpt});
         Array_gpu<Float,3> gpt_flux_dn({n_col_in, n_lev, n_gpt});
-
-
-        // CvH The structure below is valid if broadband flux solvers are implemented
-        /*
-        Array_gpu<Float,3> gpt_flux_up;
-        Array_gpu<Float,3> gpt_flux_dn;
-
-        // Save the output per gpt if postprocessing is desired.
-        if (switch_output_bnd_fluxes)
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, n_gpt});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, n_gpt});
-        }
-        else
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, 1});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, 1});
-        }
-        */
 
         constexpr int n_ang = 1;
 
@@ -570,47 +531,6 @@ void Radiation_solver_longwave::solve_gpu(
                 fluxes.get_flux_up().ptr(), fluxes.get_flux_dn().ptr(), fluxes.get_flux_net().ptr());
 
 
-        if (switch_output_bnd_fluxes)
-        {
-            bnd_fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props_subset_in, top_at_1);
-
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lev, n_bnd, n_col_in, col_s_in, lw_bnd_flux_up.ptr(), lw_bnd_flux_dn.ptr(), lw_bnd_flux_net.ptr(),
-                    bnd_fluxes.get_bnd_flux_up().ptr(), bnd_fluxes.get_bnd_flux_dn().ptr(), bnd_fluxes.get_bnd_flux_net().ptr());
-
-        }
-
-        // CvH The structure below is valid if broadband flux solvers are implemented
-        /*
-        if (switch_output_bnd_fluxes)
-        {
-            // Aggegated fluxes.
-            fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props_subset_in, top_at_1);
-
-            // Copy the data to the output.
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lev, n_col_in, col_s_in, lw_flux_up.ptr(), lw_flux_dn.ptr(), lw_flux_net.ptr(),
-                    fluxes.get_flux_up().ptr(), fluxes.get_flux_dn().ptr(), fluxes.get_flux_net().ptr());
-
-            // Aggegated fluxes per band
-            bnd_fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props_subset_in, top_at_1);
-
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lev, n_bnd, n_col_in, col_s_in, lw_bnd_flux_up.ptr(), lw_bnd_flux_dn.ptr(), lw_bnd_flux_net.ptr(),
-                    bnd_fluxes.get_bnd_flux_up().ptr(), bnd_fluxes.get_bnd_flux_dn().ptr(), bnd_fluxes.get_bnd_flux_net().ptr());
-        }
-        else
-        {
-            // Copy the data to the output.
-            for (int ilev=1; ilev<=n_lev; ++ilev)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                {
-                    lw_flux_up ({icol+col_s_in-1, ilev}) = gpt_flux_up({icol, ilev, 1});
-                    lw_flux_dn ({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1});
-                    lw_flux_net({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1}) - gpt_flux_up({icol, ilev, 1});
-                }
-        }
-        */
     };
 
     for (int b=1; b<=n_blocks; ++b)
@@ -622,8 +542,6 @@ void Radiation_solver_longwave::solve_gpu(
 
         std::unique_ptr<Fluxes_broadband_gpu> fluxes_subset =
                 std::make_unique<Fluxes_broadband_gpu>(n_col_block, n_lev);
-        std::unique_ptr<Fluxes_broadband_gpu> bnd_fluxes_subset =
-                std::make_unique<Fluxes_byband_gpu>(n_col_block, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
@@ -631,8 +549,7 @@ void Radiation_solver_longwave::solve_gpu(
                 cloud_optical_props_subset,
                 *sources_subset,
                 emis_sfc_subset,
-                *fluxes_subset,
-                *bnd_fluxes_subset);
+                *fluxes_subset);
     }
 
     if (n_col_block_residual > 0)
@@ -643,8 +560,6 @@ void Radiation_solver_longwave::solve_gpu(
         Array_gpu<Float,2> emis_sfc_residual = emis_sfc.subset({{ {1, n_bnd}, {col_s, col_e} }});
         std::unique_ptr<Fluxes_broadband_gpu> fluxes_residual =
                 std::make_unique<Fluxes_broadband_gpu>(n_col_block_residual, n_lev);
-        std::unique_ptr<Fluxes_broadband_gpu> bnd_fluxes_residual =
-                std::make_unique<Fluxes_byband_gpu>(n_col_block_residual, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
@@ -652,8 +567,7 @@ void Radiation_solver_longwave::solve_gpu(
                 cloud_optical_props_residual,
                 *sources_residual,
                 emis_sfc_residual,
-                *fluxes_residual,
-                *bnd_fluxes_residual);
+                *fluxes_residual);
     }
 }
 
@@ -684,8 +598,6 @@ void Radiation_solver_shortwave::solve_gpu(
         const bool switch_fluxes,
         const bool switch_cloud_optics,
         const bool switch_aerosol_optics,
-        const bool switch_output_optical,
-        const bool switch_output_bnd_fluxes,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
         const Gas_concs_gpu& gas_concs,
@@ -698,12 +610,8 @@ void Radiation_solver_shortwave::solve_gpu(
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         const Array_gpu<Float,2>& rh,
         const Aerosol_concs_gpu& aerosol_concs,
-        Array_gpu<Float,3>& tau, Array_gpu<Float,3>& ssa, Array_gpu<Float,3>& g,
-        Array_gpu<Float,2>& toa_src,
         Array_gpu<Float,2>& sw_flux_up, Array_gpu<Float,2>& sw_flux_dn,
-        Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net,
-        Array_gpu<Float,3>& sw_bnd_flux_up, Array_gpu<Float,3>& sw_bnd_flux_dn,
-        Array_gpu<Float,3>& sw_bnd_flux_dn_dir, Array_gpu<Float,3>& sw_bnd_flux_net)
+        Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net)
 {
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
@@ -745,8 +653,7 @@ void Radiation_solver_shortwave::solve_gpu(
             std::unique_ptr<Optical_props_arry_gpu>& optical_props_subset_in,
             std::unique_ptr<Optical_props_2str_gpu>& cloud_optical_props_subset_in,
             std::unique_ptr<Optical_props_2str_gpu>& aerosol_optical_props_subset_in,
-            Fluxes_broadband_gpu& fluxes,
-            Fluxes_broadband_gpu& bnd_fluxes)
+            Fluxes_broadband_gpu& fluxes)
     {
         const int n_col_in = col_e_in - col_s_in + 1;
         Gas_concs_gpu gas_concs_subset(gas_concs, col_s_in, n_col_in);
@@ -768,8 +675,10 @@ void Radiation_solver_shortwave::solve_gpu(
                   optical_props_subset_in,
                   toa_src_subset,
                   col_dry_subset);
+
         auto tsi_scaling_subset = tsi_scaling.subset({{ {col_s_in, col_e_in} }});
         scaling_to_subset(n_col_in, n_gpt, toa_src_subset, tsi_scaling_subset);
+
         if (switch_cloud_optics)
         {
             Array<int,2> cld_mask_liq({n_col_in, n_lay});
@@ -809,16 +718,6 @@ void Radiation_solver_shortwave::solve_gpu(
                     dynamic_cast<Optical_props_2str_gpu&>(*aerosol_optical_props_subset_in));
         }
 
-        // Store the optical properties, if desired.
-        if (switch_output_optical)
-        {
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lay, n_gpt, n_col_in, col_s_in, tau.ptr(), ssa.ptr(), g.ptr(), optical_props_subset_in->get_tau().ptr(),
-                     optical_props_subset_in->get_ssa().ptr(),  optical_props_subset_in->get_g().ptr());
-
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_gpt, n_col_in, col_s_in, toa_src.ptr(), toa_src_subset.ptr());
-        }
         if (!switch_fluxes)
             return;
 
@@ -826,26 +725,6 @@ void Radiation_solver_shortwave::solve_gpu(
         Array_gpu<Float,3> gpt_flux_up({n_col_in, n_lev, n_gpt});
         Array_gpu<Float,3> gpt_flux_dn({n_col_in, n_lev, n_gpt});
         Array_gpu<Float,3> gpt_flux_dn_dir({n_col_in, n_lev, n_gpt});
-
-        // CvH The structure below is valid if broadband flux solvers are implemented
-        /*
-        Array_gpu<Float,3> gpt_flux_up;
-        Array_gpu<Float,3> gpt_flux_dn;
-        Array_gpu<Float,3> gpt_flux_dn_dir;
-
-        if (switch_output_bnd_fluxes)
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, n_gpt});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, n_gpt});
-            gpt_flux_dn_dir.set_dims({n_col_in, n_lev, n_gpt});
-        }
-        else
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, 1});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, 1});
-            gpt_flux_dn_dir.set_dims({n_col_in, n_lev, 1});
-        }
-        */
 
         rte_sw.rte_sw(
                 optical_props_subset_in,
@@ -866,49 +745,7 @@ void Radiation_solver_shortwave::solve_gpu(
                 n_col, n_lev, n_col_in, col_s_in, sw_flux_up.ptr(), sw_flux_dn.ptr(), sw_flux_dn_dir.ptr(), sw_flux_net.ptr(),
                 fluxes.get_flux_up().ptr(), fluxes.get_flux_dn().ptr(), fluxes.get_flux_dn_dir().ptr(), fluxes.get_flux_net().ptr());
 
-        if (switch_output_bnd_fluxes)
-        {
-            bnd_fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props_subset_in, top_at_1);
-
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lev, n_bnd, n_col_in, col_s_in, sw_bnd_flux_up.ptr(), sw_bnd_flux_dn.ptr(), sw_bnd_flux_dn_dir.ptr(), sw_bnd_flux_net.ptr(),
-                    bnd_fluxes.get_bnd_flux_up().ptr(), bnd_fluxes.get_bnd_flux_dn().ptr(), bnd_fluxes.get_bnd_flux_dn_dir().ptr(), bnd_fluxes.get_bnd_flux_net().ptr());
-        }
-
-        // CvH The structure below is valid if broadband flux solvers are implemented
-        /*
-        if (switch_output_bnd_fluxes)
-        {
-            // Aggegated fluxes.
-            fluxes.reduce(gpt_flux_up, gpt_flux_dn, gpt_flux_dn_dir, optical_props_subset_in, top_at_1);
-
-            // Copy the data to the output.
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lev, n_col_in, col_s_in, sw_flux_up, sw_flux_dn, sw_flux_dn_dir, sw_flux_net,
-                    fluxes.get_flux_up(), fluxes.get_flux_dn(), fluxes.get_flux_dn_dir(), fluxes.get_flux_net());
-
-            // Aggegated fluxes per band
-            bnd_fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props_subset_in, top_at_1);
-
-            Subset_kernels_cuda::get_from_subset(
-                    n_col, n_lev, n_bnd, n_col_in, col_s_in, sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dn_dir, sw_bnd_flux_net,
-                    bnd_fluxes.get_bnd_flux_up(), bnd_fluxes.get_bnd_flux_dn(), bnd_fluxes.get_bnd_flux_dn_dir(), bnd_fluxes.get_bnd_flux_net());
-        }
-        else
-        {
-            // Copy the data to the output.
-            for (int ilev=1; ilev<=n_lev; ++ilev)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                {
-                    sw_flux_up    ({icol+col_s_in-1, ilev}) = gpt_flux_up    ({icol, ilev, 1});
-                    sw_flux_dn    ({icol+col_s_in-1, ilev}) = gpt_flux_dn    ({icol, ilev, 1});
-                    sw_flux_dn_dir({icol+col_s_in-1, ilev}) = gpt_flux_dn_dir({icol, ilev, 1});
-                    sw_flux_net   ({icol+col_s_in-1, ilev}) = gpt_flux_dn    ({icol, ilev, 1}) - gpt_flux_up({icol, ilev, 1});
-                }
-        }
-        */
     };
-
 
     for (int b=1; b<=n_blocks; ++b)
     {
@@ -917,16 +754,13 @@ void Radiation_solver_shortwave::solve_gpu(
 
         std::unique_ptr<Fluxes_broadband_gpu> fluxes_subset =
                 std::make_unique<Fluxes_broadband_gpu>(n_col_block, n_lev);
-        std::unique_ptr<Fluxes_broadband_gpu> bnd_fluxes_subset =
-                std::make_unique<Fluxes_byband_gpu>(n_col_block, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
                 optical_props_subset,
                 cloud_optical_props_subset,
                 aerosol_optical_props_subset,
-                *fluxes_subset,
-                *bnd_fluxes_subset);
+                *fluxes_subset);
     }
 
     if (n_col_block_residual > 0)
@@ -936,15 +770,12 @@ void Radiation_solver_shortwave::solve_gpu(
 
         std::unique_ptr<Fluxes_broadband_gpu> fluxes_residual =
                 std::make_unique<Fluxes_broadband_gpu>(n_col_block_residual, n_lev);
-        std::unique_ptr<Fluxes_broadband_gpu> bnd_fluxes_residual =
-                std::make_unique<Fluxes_byband_gpu>(n_col_block_residual, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
                 optical_props_residual,
                 cloud_optical_props_residual,
                 aerosol_optical_props_residual,
-                *fluxes_residual,
-                *bnd_fluxes_residual);
+                *fluxes_residual);
     }
 }

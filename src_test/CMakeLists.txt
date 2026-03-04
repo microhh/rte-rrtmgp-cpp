@@ -28,11 +28,11 @@ if(USECUDA)
   add_executable(test_rte_rrtmgp radiation_solver.cu test_rte_rrtmgp.cu)
   target_link_libraries(test_rte_rrtmgp rte_rrtmgp rte_rrtmgp_cuda ${LIBS} m)
 
-  add_executable(test_rte_rrtmgp_rt radiation_solver_rt.cu test_rte_rrtmgp_rt.cu ../src_tilt/tilt_utils.cpp)
+  add_executable(test_rte_rrtmgp_rt radiation_solver_rt.cu test_rte_rrtmgp_rt.cu radiation_solver_bw.cu ../src_tilt/tilt_utils.cpp)
   target_link_libraries(test_rte_rrtmgp_rt rte_rrtmgp rte_rrtmgp_cuda rte_rrtmgp_cuda_rt curand ${LIBS} m)
 
-  add_executable(test_rte_rrtmgp_bw radiation_solver_bw.cu test_rte_rrtmgp_bw.cu)
-  target_link_libraries(test_rte_rrtmgp_bw rte_rrtmgp rte_rrtmgp_cuda rte_rrtmgp_cuda_rt curand ${LIBS} m)
+  #add_executable(test_rte_rrtmgp_bw radiation_solver_bw.cu test_rte_rrtmgp_bw.cu)
+  #target_link_libraries(test_rte_rrtmgp_bw rte_rrtmgp rte_rrtmgp_cuda rte_rrtmgp_cuda_rt curand ${LIBS} m)
 
   add_executable(test_rt_lite test_rt_lite.cu)
   target_link_libraries(test_rt_lite rte_rrtmgp_cuda rte_rrtmgp_cuda_rt curand ${LIBS} m)

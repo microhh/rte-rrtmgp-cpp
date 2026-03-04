@@ -384,8 +384,6 @@ Radiation_solver_longwave::Radiation_solver_longwave(
 void Radiation_solver_longwave::solve(
         const bool switch_fluxes,
         const bool switch_cloud_optics,
-        const bool switch_output_optical,
-        const bool switch_output_bnd_fluxes,
         const Gas_concs& gas_concs,
         const Array<Float,2>& p_lay, const Array<Float,2>& p_lev,
         const Array<Float,2>& t_lay, const Array<Float,2>& t_lev,
@@ -393,10 +391,7 @@ void Radiation_solver_longwave::solve(
         const Array<Float,1>& t_sfc, const Array<Float,2>& emis_sfc,
         const Array<Float,2>& lwp, const Array<Float,2>& iwp,
         const Array<Float,2>& rel, const Array<Float,2>& dei,
-        Array<Float,3>& tau, Array<Float,3>& lay_source,
-        Array<Float,3>& lev_source, Array<Float,2>& sfc_source,
-        Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net,
-        Array<Float,3>& lw_bnd_flux_up, Array<Float,3>& lw_bnd_flux_dn, Array<Float,3>& lw_bnd_flux_net) const
+        Array<Float,2>& lw_flux_up, Array<Float,2>& lw_flux_dn, Array<Float,2>& lw_flux_net) const
 {
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
@@ -445,8 +440,7 @@ void Radiation_solver_longwave::solve(
             std::unique_ptr<Optical_props_1scl>& cloud_optical_props_subset_in,
             Source_func_lw& sources_subset_in,
             const Array<Float,2>& emis_sfc_subset_in,
-            Fluxes_broadband& fluxes,
-            Fluxes_broadband& bnd_fluxes)
+            Fluxes_broadband& fluxes)
     {
         const int n_col_in = col_e_in - col_s_in + 1;
         Gas_concs gas_concs_subset(gas_concs, col_s_in, n_col_in);
@@ -479,33 +473,10 @@ void Radiation_solver_longwave::solve(
                     dei.subset({{ {col_s_in, col_e_in}, {1, n_lay} }}),
                     *cloud_optical_props_subset_in);
 
-            // cloud->delta_scale();
-
             // Add the cloud optical props to the gas optical properties.
             add_to(
                     dynamic_cast<Optical_props_1scl&>(*optical_props_subset_in),
                     dynamic_cast<Optical_props_1scl&>(*cloud_optical_props_subset_in));
-        }
-
-        // Store the optical properties, if desired.
-        if (switch_output_optical)
-        {
-            for (int igpt=1; igpt<=n_gpt; ++igpt)
-                for (int ilay=1; ilay<=n_lay; ++ilay)
-                    for (int icol=1; icol<=n_col_in; ++icol)
-                    {
-                        tau       ({icol+col_s_in-1, ilay, igpt}) = optical_props_subset_in->get_tau()({icol, ilay, igpt});
-                        lay_source({icol+col_s_in-1, ilay, igpt}) = sources_subset_in.get_lay_source()({icol, ilay, igpt});
-                        lev_source({icol+col_s_in-1, ilay, igpt}) = sources_subset_in.get_lev_source()({icol, ilay, igpt});
-                    }
-
-            for (int igpt=1; igpt<=n_gpt; ++igpt)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                    lev_source({icol+col_s_in-1, n_lev, igpt}) = sources_subset_in.get_lev_source()({icol, n_lev, igpt});
-
-            for (int igpt=1; igpt<=n_gpt; ++igpt)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                    sfc_source({icol+col_s_in-1, igpt}) = sources_subset_in.get_sfc_source()({icol, igpt});
         }
 
         if (!switch_fluxes)
@@ -514,17 +485,8 @@ void Radiation_solver_longwave::solve(
         Array<Float,3> gpt_flux_up;
         Array<Float,3> gpt_flux_dn;
 
-        // Save the output per gpt if postprocessing is desired.
-        if (switch_output_bnd_fluxes)
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, n_gpt});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, n_gpt});
-        }
-        else
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, 1});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, 1});
-        }
+        gpt_flux_up.set_dims({n_col_in, n_lev, 1});
+        gpt_flux_dn.set_dims({n_col_in, n_lev, 1});
 
         constexpr int n_ang = 1;
 
@@ -537,42 +499,14 @@ void Radiation_solver_longwave::solve(
                 gpt_flux_up, gpt_flux_dn,
                 n_ang);
 
-        if (switch_output_bnd_fluxes)
-        {
-            // Aggegated fluxes.
-            fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props_subset_in, top_at_1);
-
-            for (int ilev=1; ilev<=n_lev; ++ilev)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                {
-                    lw_flux_up ({icol+col_s_in-1, ilev}) = fluxes.get_flux_up ()({icol, ilev});
-                    lw_flux_dn ({icol+col_s_in-1, ilev}) = fluxes.get_flux_dn ()({icol, ilev});
-                    lw_flux_net({icol+col_s_in-1, ilev}) = fluxes.get_flux_net()({icol, ilev});
-                }
-
-            // Aggegated fluxes per band
-            bnd_fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props_subset_in, top_at_1);
-
-            for (int ibnd=1; ibnd<=n_bnd; ++ibnd)
-                for (int ilev=1; ilev<=n_lev; ++ilev)
-                    for (int icol=1; icol<=n_col_in; ++icol)
-                    {
-                        lw_bnd_flux_up ({icol+col_s_in-1, ilev, ibnd}) = bnd_fluxes.get_bnd_flux_up ()({icol, ilev, ibnd});
-                        lw_bnd_flux_dn ({icol+col_s_in-1, ilev, ibnd}) = bnd_fluxes.get_bnd_flux_dn ()({icol, ilev, ibnd});
-                        lw_bnd_flux_net({icol+col_s_in-1, ilev, ibnd}) = bnd_fluxes.get_bnd_flux_net()({icol, ilev, ibnd});
-                    }
-        }
-        else
-        {
-            // Copy the data to the output.
-            for (int ilev=1; ilev<=n_lev; ++ilev)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                {
-                    lw_flux_up ({icol+col_s_in-1, ilev}) = gpt_flux_up({icol, ilev, 1});
-                    lw_flux_dn ({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1});
-                    lw_flux_net({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1}) - gpt_flux_up({icol, ilev, 1});
-                }
-        }
+        // Copy the data to the output.
+        for (int ilev=1; ilev<=n_lev; ++ilev)
+            for (int icol=1; icol<=n_col_in; ++icol)
+            {
+                lw_flux_up ({icol+col_s_in-1, ilev}) = gpt_flux_up({icol, ilev, 1});
+                lw_flux_dn ({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1});
+                lw_flux_net({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1}) - gpt_flux_up({icol, ilev, 1});
+            }
     };
 
     for (int b=1; b<=n_blocks; ++b)
@@ -584,8 +518,6 @@ void Radiation_solver_longwave::solve(
 
         std::unique_ptr<Fluxes_broadband> fluxes_subset =
                 std::make_unique<Fluxes_broadband>(n_col_block, n_lev);
-        std::unique_ptr<Fluxes_broadband> bnd_fluxes_subset =
-                std::make_unique<Fluxes_byband>(n_col_block, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
@@ -593,8 +525,7 @@ void Radiation_solver_longwave::solve(
                 cloud_optical_props_subset,
                 *sources_subset,
                 emis_sfc_subset,
-                *fluxes_subset,
-                *bnd_fluxes_subset);
+                *fluxes_subset);
     }
 
     if (n_col_block_residual > 0)
@@ -605,8 +536,6 @@ void Radiation_solver_longwave::solve(
         Array<Float,2> emis_sfc_residual = emis_sfc.subset({{ {1, n_bnd}, {col_s, col_e} }});
         std::unique_ptr<Fluxes_broadband> fluxes_residual =
                 std::make_unique<Fluxes_broadband>(n_col_block_residual, n_lev);
-        std::unique_ptr<Fluxes_broadband> bnd_fluxes_residual =
-                std::make_unique<Fluxes_byband>(n_col_block_residual, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
@@ -614,8 +543,7 @@ void Radiation_solver_longwave::solve(
                 cloud_optical_props_residual,
                 *sources_residual,
                 emis_sfc_residual,
-                *fluxes_residual,
-                *bnd_fluxes_residual);
+                *fluxes_residual);
     }
 }
 
@@ -646,8 +574,6 @@ void Radiation_solver_shortwave::solve(
         const bool switch_fluxes,
         const bool switch_cloud_optics,
         const bool switch_aerosol_optics,
-        const bool switch_output_optical,
-        const bool switch_output_bnd_fluxes,
         const bool switch_delta_cloud,
         const bool switch_delta_aerosol,
         const Gas_concs& gas_concs,
@@ -660,12 +586,8 @@ void Radiation_solver_shortwave::solve(
         const Array<Float,2>& rel, const Array<Float,2>& dei,
         const Array<Float,2>& rh,
         const Aerosol_concs& aerosol_concs,
-        Array<Float,3>& tau, Array<Float,3>& ssa, Array<Float,3>& g,
-        Array<Float,2>& toa_src,
         Array<Float,2>& sw_flux_up, Array<Float,2>& sw_flux_dn,
-        Array<Float,2>& sw_flux_dn_dir, Array<Float,2>& sw_flux_net,
-        Array<Float,3>& sw_bnd_flux_up, Array<Float,3>& sw_bnd_flux_dn,
-        Array<Float,3>& sw_bnd_flux_dn_dir, Array<Float,3>& sw_bnd_flux_net) const
+        Array<Float,2>& sw_flux_dn_dir, Array<Float,2>& sw_flux_net) const
 {
     const int n_col = p_lay.dim(1);
     const int n_lay = p_lay.dim(2);
@@ -714,8 +636,7 @@ void Radiation_solver_shortwave::solve(
             std::unique_ptr<Optical_props_arry>& optical_props_subset_in,
             std::unique_ptr<Optical_props_2str>& cloud_optical_props_subset_in,
             std::unique_ptr<Optical_props_2str>& aerosol_optical_props_subset_in,
-            Fluxes_broadband& fluxes,
-            Fluxes_broadband& bnd_fluxes)
+            Fluxes_broadband& fluxes)
     {
         const int n_col_in = col_e_in - col_s_in + 1;
         Gas_concs gas_concs_subset(gas_concs, col_s_in, n_col_in);
@@ -786,23 +707,6 @@ void Radiation_solver_shortwave::solve(
         }
 
 
-        // Store the optical properties, if desired.
-        if (switch_output_optical)
-        {
-            for (int igpt=1; igpt<=n_gpt; ++igpt)
-                for (int ilay=1; ilay<=n_lay; ++ilay)
-                    for (int icol=1; icol<=n_col_in; ++icol)
-                    {
-                        tau({icol+col_s_in-1, ilay, igpt}) = optical_props_subset_in->get_tau()({icol, ilay, igpt});
-                        ssa({icol+col_s_in-1, ilay, igpt}) = optical_props_subset_in->get_ssa()({icol, ilay, igpt});
-                        g  ({icol+col_s_in-1, ilay, igpt}) = optical_props_subset_in->get_g  ()({icol, ilay, igpt});
-                    }
-
-            for (int igpt=1; igpt<=n_gpt; ++igpt)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                    toa_src({icol+col_s_in-1, igpt}) = toa_src_subset({icol, igpt});
-        }
-
         if (!switch_fluxes)
             return;
 
@@ -810,19 +714,9 @@ void Radiation_solver_shortwave::solve(
         Array<Float,3> gpt_flux_dn;
         Array<Float,3> gpt_flux_dn_dir;
 
-        // Save the output per gpt if postprocessing is desired.
-        if (switch_output_bnd_fluxes)
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, n_gpt});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, n_gpt});
-            gpt_flux_dn_dir.set_dims({n_col_in, n_lev, n_gpt});
-        }
-        else
-        {
-            gpt_flux_up.set_dims({n_col_in, n_lev, 1});
-            gpt_flux_dn.set_dims({n_col_in, n_lev, 1});
-            gpt_flux_dn_dir.set_dims({n_col_in, n_lev, 1});
-        }
+        gpt_flux_up.set_dims({n_col_in, n_lev, 1});
+        gpt_flux_dn.set_dims({n_col_in, n_lev, 1});
+        gpt_flux_dn_dir.set_dims({n_col_in, n_lev, 1});
 
         Rte_sw::rte_sw(
                 optical_props_subset_in,
@@ -836,44 +730,16 @@ void Radiation_solver_shortwave::solve(
                 gpt_flux_dn,
                 gpt_flux_dn_dir);
 
-        if (switch_output_bnd_fluxes)
-        {
-            // Aggegated fluxes.
-            fluxes.reduce(gpt_flux_up, gpt_flux_dn, gpt_flux_dn_dir, optical_props_subset_in, top_at_1);
-            for (int ilev=1; ilev<=n_lev; ++ilev)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                {
-                    sw_flux_up    ({icol+col_s_in-1, ilev}) = fluxes.get_flux_up    ()({icol, ilev});
-                    sw_flux_dn    ({icol+col_s_in-1, ilev}) = fluxes.get_flux_dn    ()({icol, ilev});
-                    sw_flux_dn_dir({icol+col_s_in-1, ilev}) = fluxes.get_flux_dn_dir()({icol, ilev});
-                    sw_flux_net   ({icol+col_s_in-1, ilev}) = fluxes.get_flux_net   ()({icol, ilev});
-                }
+        // Copy the data to the output.
+        for (int ilev=1; ilev<=n_lev; ++ilev)
+            for (int icol=1; icol<=n_col_in; ++icol)
+            {
+                sw_flux_up    ({icol+col_s_in-1, ilev}) = gpt_flux_up    ({icol, ilev, 1});
+                sw_flux_dn    ({icol+col_s_in-1, ilev}) = gpt_flux_dn    ({icol, ilev, 1});
+                sw_flux_dn_dir({icol+col_s_in-1, ilev}) = gpt_flux_dn_dir({icol, ilev, 1});
+                sw_flux_net   ({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1}) - gpt_flux_up({icol, ilev, 1});
+            }
 
-            // Aggegated fluxes per band
-            bnd_fluxes.reduce(gpt_flux_up, gpt_flux_dn, gpt_flux_dn_dir, optical_props_subset_in, top_at_1);
-
-            for (int ibnd=1; ibnd<=n_bnd; ++ibnd)
-                for (int ilev=1; ilev<=n_lev; ++ilev)
-                    for (int icol=1; icol<=n_col_in; ++icol)
-                    {
-                        sw_bnd_flux_up    ({icol+col_s_in-1, ilev, ibnd}) = bnd_fluxes.get_bnd_flux_up    ()({icol, ilev, ibnd});
-                        sw_bnd_flux_dn    ({icol+col_s_in-1, ilev, ibnd}) = bnd_fluxes.get_bnd_flux_dn    ()({icol, ilev, ibnd});
-                        sw_bnd_flux_dn_dir({icol+col_s_in-1, ilev, ibnd}) = bnd_fluxes.get_bnd_flux_dn_dir()({icol, ilev, ibnd});
-                        sw_bnd_flux_net   ({icol+col_s_in-1, ilev, ibnd}) = bnd_fluxes.get_bnd_flux_net   ()({icol, ilev, ibnd});
-                    }
-        }
-        else
-        {
-            // Copy the data to the output.
-            for (int ilev=1; ilev<=n_lev; ++ilev)
-                for (int icol=1; icol<=n_col_in; ++icol)
-                {
-                    sw_flux_up    ({icol+col_s_in-1, ilev}) = gpt_flux_up    ({icol, ilev, 1});
-                    sw_flux_dn    ({icol+col_s_in-1, ilev}) = gpt_flux_dn    ({icol, ilev, 1});
-                    sw_flux_dn_dir({icol+col_s_in-1, ilev}) = gpt_flux_dn_dir({icol, ilev, 1});
-                    sw_flux_net   ({icol+col_s_in-1, ilev}) = gpt_flux_dn({icol, ilev, 1}) - gpt_flux_up({icol, ilev, 1});
-                }
-        }
     };
 
     for (int b=1; b<=n_blocks; ++b)
@@ -883,16 +749,13 @@ void Radiation_solver_shortwave::solve(
 
         std::unique_ptr<Fluxes_broadband> fluxes_subset =
                 std::make_unique<Fluxes_broadband>(n_col_block, n_lev);
-        std::unique_ptr<Fluxes_broadband> bnd_fluxes_subset =
-                std::make_unique<Fluxes_byband>(n_col_block, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
                 optical_props_subset,
                 cloud_optical_props_subset,
                 aerosol_optical_props_subset,
-                *fluxes_subset,
-                *bnd_fluxes_subset);
+                *fluxes_subset);
     }
 
     if (n_col_block_residual > 0)
@@ -902,15 +765,12 @@ void Radiation_solver_shortwave::solve(
 
         std::unique_ptr<Fluxes_broadband> fluxes_residual =
                 std::make_unique<Fluxes_broadband>(n_col_block_residual, n_lev);
-        std::unique_ptr<Fluxes_broadband> bnd_fluxes_residual =
-                std::make_unique<Fluxes_byband>(n_col_block_residual, n_lev, n_bnd);
 
         call_kernels(
                 col_s, col_e,
                 optical_props_residual,
                 cloud_optical_props_residual,
                 aerosol_optical_props_residual,
-                *fluxes_residual,
-                *bnd_fluxes_residual);
+                *fluxes_residual);
     }
 }

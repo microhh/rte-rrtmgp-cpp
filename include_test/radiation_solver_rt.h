@@ -50,6 +50,8 @@ class Radiation_solver_longwave
                 const bool switch_raytracing,
                 const bool switch_cloud_optics,
                 const bool switch_aerosol_optics,
+                const bool switch_delta_cloud,
+                const bool switch_delta_aerosol,
                 const bool switch_single_gpt,
                 const bool switch_lw_scattering,
                 const bool switch_independent_column,
