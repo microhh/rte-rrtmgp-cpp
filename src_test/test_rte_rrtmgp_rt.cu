@@ -246,13 +246,13 @@ void solve_radiation(int argc, char** argv)
 
     if (switch_shortwave && !(switch_sw_plane_parallel || switch_sw_raytracing))
     {
-        std::string error = "With shortwave enabled, need to run either shortwave plane parallel solver or ray tracer ";
+        std::string error = "With shortwave enabled, need to run shortwave plane parallel solver and/or ray tracer ";
         throw std::runtime_error(error);
     }
 
     if (switch_longwave && !(switch_lw_plane_parallel || switch_lw_raytracing))
     {
-        std::string error = "With longwave enabled, need to run either longwave plane parallel solver or ray tracer ";
+        std::string error = "With longwave enabled, need to run longwave plane parallel solver and/or ray tracer ";
         throw std::runtime_error(error);
     }
 
@@ -306,6 +306,8 @@ void solve_radiation(int argc, char** argv)
     if (switch_lw_raytracing)
         Status::print_message("Longwave: using 2**"+std::to_string(lw_photon_power) + " ("+std::to_string(lw_photon_count) + ") rays per g-point");
 
+    if (switch_bw_raytracing)
+        Status::print_message("Backward: using "+ std::to_string(bw_photons_per_pixel) + " rays per pixel per g-point");
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
