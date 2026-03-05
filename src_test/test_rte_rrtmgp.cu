@@ -163,15 +163,18 @@ void solve_radiation(int argc, char** argv)
     const auto settings = toml::parse(case_name + ".ini");
 
     ////// FLOW CONTROL SWITCHES //////
-    const bool switch_shortwave           = get_ini_value<bool>(settings, "switches", "shortwave", true);
-    const bool switch_longwave            = get_ini_value<bool>(settings, "switches", "longwave", true);
-    const bool switch_fluxes              = get_ini_value<bool>(settings, "switches", "fluxes", true);
-    const bool switch_liquid_cloud_optics = get_ini_value<bool>(settings, "switches", "liquid_cloud_optics", false);
-    const bool switch_ice_cloud_optics    = get_ini_value<bool>(settings, "switches", "ice_cloud_optics", false);
-    const bool switch_aerosol_optics      = get_ini_value<bool>(settings, "switches", "aerosol_optics", false);
-    const bool switch_delta_cloud         = get_ini_value<bool>(settings, "switches", "delta_cloud", true);
-    const bool switch_delta_aerosol       = get_ini_value<bool>(settings, "switches", "delta_aerosol", false);
+    const bool switch_liquid_cloud_optics = get_ini_value<bool>(settings, "clouds", "liquid_cloud_optics", false);
+    const bool switch_ice_cloud_optics    = get_ini_value<bool>(settings, "clouds", "ice_cloud_optics", false);
+    const bool switch_delta_cloud         = get_ini_value<bool>(settings, "clouds", "delta_cloud", false);
 
+    const bool switch_shortwave           = get_ini_value<bool>(settings, "shortwave", "shortwave", true);
+    const bool switch_sw_fluxes           = get_ini_value<bool>(settings, "shortwave", "plane_parallel", true);
+
+    const bool switch_longwave            = get_ini_value<bool>(settings, "longwave", "longwave", true);
+    const bool switch_lw_fluxes           = get_ini_value<bool>(settings, "longwave", "plane_parallel", true);
+
+    const bool switch_aerosol_optics      = get_ini_value<bool>(settings, "aerosols", "aerosol_optics", false);
+    const bool switch_delta_aerosol       = get_ini_value<bool>(settings, "aerosols", "delta_aerosol", false);
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -336,7 +339,7 @@ void solve_radiation(int argc, char** argv)
         Array_gpu<Float,2> lw_flux_dn;
         Array_gpu<Float,2> lw_flux_net;
 
-        if (switch_fluxes)
+        if (switch_lw_fluxes)
         {
             lw_flux_up .set_dims({n_col, n_lev});
             lw_flux_dn .set_dims({n_col, n_lev});
@@ -370,7 +373,7 @@ void solve_radiation(int argc, char** argv)
             cudaEventRecord(start, 0);
 
             rad_lw.solve_gpu(
-                    switch_fluxes,
+                    switch_lw_fluxes,
                     switch_cloud_optics,
                     gas_concs_gpu,
                     p_lay_gpu, p_lev_gpu,
@@ -407,7 +410,7 @@ void solve_radiation(int argc, char** argv)
         auto nc_lw_band_lims_wvn = output_nc.add_variable<Float>("lw_band_lims_wvn", {"band_lw", "pair"});
         nc_lw_band_lims_wvn.insert(rad_lw.get_band_lims_wavenumber_gpu().v(), {0, 0});
 
-        if (switch_fluxes)
+        if (switch_lw_fluxes)
         {
             auto nc_lw_flux_up  = output_nc.add_variable<Float>("lw_flux_up" , {"lev", "y", "x"});
             auto nc_lw_flux_dn  = output_nc.add_variable<Float>("lw_flux_dn" , {"lev", "y", "x"});
@@ -464,7 +467,7 @@ void solve_radiation(int argc, char** argv)
         Array_gpu<Float,2> sw_flux_dn_dir;
         Array_gpu<Float,2> sw_flux_net;
 
-        if (switch_fluxes)
+        if (switch_sw_fluxes)
         {
             sw_flux_up    .set_dims({n_col, n_lev});
             sw_flux_dn    .set_dims({n_col, n_lev});
@@ -503,7 +506,7 @@ void solve_radiation(int argc, char** argv)
             cudaEventRecord(start, 0);
 
             rad_sw.solve_gpu(
-                    switch_fluxes,
+                    switch_sw_fluxes,
                     switch_cloud_optics,
                     switch_aerosol_optics,
                     switch_delta_cloud,
@@ -548,7 +551,7 @@ void solve_radiation(int argc, char** argv)
         auto nc_sw_band_lims_wvn = output_nc.add_variable<Float>("sw_band_lims_wvn", {"band_sw", "pair"});
         nc_sw_band_lims_wvn.insert(rad_sw.get_band_lims_wavenumber_gpu().v(), {0, 0});
 
-        if (switch_fluxes)
+        if (switch_sw_fluxes)
         {
             auto nc_sw_flux_up     = output_nc.add_variable<Float>("sw_flux_up"    , {"lev", "y", "x"});
             auto nc_sw_flux_dn     = output_nc.add_variable<Float>("sw_flux_dn"    , {"lev", "y", "x"});

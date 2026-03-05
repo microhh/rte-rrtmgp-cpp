@@ -46,13 +46,12 @@ class Radiation_solver_longwave
 
         #ifdef __CUDACC__
         void solve_gpu(
-                const bool switch_fluxes,
                 const bool switch_raytracing,
+                const bool switch_plane_parallel,
                 const bool switch_cloud_optics,
                 const bool switch_aerosol_optics,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
-                const bool switch_single_gpt,
                 const bool switch_lw_scattering,
                 const bool switch_independent_column,
                 const int single_gpt,
@@ -75,7 +74,6 @@ class Radiation_solver_longwave
                 Array_gpu<Float,2>& aer_tau_out,Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
                 Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
                 Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-                Array_gpu<Float,2>& lw_gpt_flux_up, Array_gpu<Float,2>& lw_gpt_flux_dn, Array_gpu<Float,2>& lw_gpt_flux_net,
                 Array_gpu<Float,2>& rt_flux_tod_up, Array_gpu<Float,2>& rt_flux_tod_dn, Array_gpu<Float,2>& rt_flux_sfc_up,
                 Array_gpu<Float,2>& rt_flux_sfc_dn, Array_gpu<Float,3>& rt_flux_abs);
 
@@ -122,14 +120,12 @@ class Radiation_solver_shortwave
 
         #ifdef __CUDACC__
         void solve_gpu(
-                const bool switch_fluxes,
-                const bool switch_twostream,
                 const bool switch_raytracing,
+                const bool switch_plane_parallel,
                 const bool switch_independent_column,
                 const bool switch_cloud_optics,
                 const bool switch_cloud_mie,
                 const bool switch_aerosol_optics,
-                const bool switch_single_gpt,
                 const bool switch_delta_cloud,
                 const bool switch_delta_aerosol,
                 const bool switch_attenuate_tica,
@@ -154,8 +150,6 @@ class Radiation_solver_shortwave
                 Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
                 Array_gpu<Float,2>& sw_flux_up, Array_gpu<Float,2>& sw_flux_dn,
                 Array_gpu<Float,2>& sw_flux_dn_dir, Array_gpu<Float,2>& sw_flux_net,
-                Array_gpu<Float,2>& sw_gpt_flux_up, Array_gpu<Float,2>& sw_gpt_flux_dn,
-                Array_gpu<Float,2>& sw_gpt_flux_dn_dir, Array_gpu<Float,2>& sw_gpt_flux_net,
                 Array_gpu<Float,2>& rt_flux_tod_up,
                 Array_gpu<Float,2>& rt_flux_sfc_dir,
                 Array_gpu<Float,2>& rt_flux_sfc_dif,
