@@ -479,8 +479,8 @@ Radiation_solver_longwave::Radiation_solver_longwave(
 
 
 void Radiation_solver_longwave::solve_gpu(
-        const bool switch_plane_parallel,
         const bool switch_raytracing,
+        const bool switch_plane_parallel,
         const bool switch_cloud_optics,
         const bool switch_aerosol_optics,
         const bool switch_delta_cloud,
@@ -536,8 +536,6 @@ void Radiation_solver_longwave::solve_gpu(
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, n_col, lw_flux_up.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, n_col, lw_flux_dn.ptr());
         Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_lev, n_col, lw_flux_net.ptr());
-
-        if (switch_raytracing)  { }
     }
 
     const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
@@ -603,7 +601,6 @@ void Radiation_solver_longwave::solve_gpu(
             const int col_s = n_blocks*n_col_block;
             gas_optics_subset(col_s, n_col_residual);
         }
-
 
         // Find maximum gasous optical depth to and compute lowest mean free path on the clearsky atmosphere
 
@@ -841,8 +838,8 @@ void Radiation_solver_shortwave::load_mie_tables(
 }
 
 void Radiation_solver_shortwave::solve_gpu(
-        const bool switch_plane_parallel,
         const bool switch_raytracing,
+        const bool switch_plane_parallel,
         const bool switch_independent_column,
         const bool switch_cloud_optics,
         const bool switch_cloud_mie,
