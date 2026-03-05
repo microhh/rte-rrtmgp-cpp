@@ -171,44 +171,70 @@ void solve_radiation(int argc, char** argv)
     const bool switch_ice_cloud_optics    = get_ini_value<bool>(settings, "clouds", "ice_cloud_optics", false);
     const bool switch_delta_cloud         = get_ini_value<bool>(settings, "clouds", "delta_cloud", false);
     const bool switch_tilted_columns      = get_ini_value<bool>(settings, "clouds", "tilted_columns", false);
-    const bool switch_cloud_mie           = get_ini_value<bool>(settings, "clouds", "cloud_mie", false); // use mie scattering. Curerntly only for shortwave and only for liquid cloud droplets (requires ice_cloud_optics = false)
+
+    // use mie scattering. Currently only for shortwave and only for liquid cloud droplets (requires ice_cloud_optics = false)
+    const bool switch_cloud_mie           = get_ini_value<bool>(settings, "clouds", "cloud_mie", false);
 
     const bool switch_aerosol_optics      = get_ini_value<bool>(settings, "aerosols", "aerosol_optics", false);
     const bool switch_delta_aerosol       = get_ini_value<bool>(settings, "aerosols", "delta_aerosol", false);
 
     const bool switch_shortwave           = get_ini_value<bool>(settings, "shortwave", "shortwave", true);
-    const bool switch_sw_raytracing       = get_ini_value<bool>(settings, "shortwave", "raytracing", true); // compute and output ray tracer fluxes
-    const bool switch_sw_plane_parallel   = get_ini_value<bool>(settings, "shortwave", "plane_parallel", true); // compute and output plane parallel 1D fluxes (two-stream)
-    bool switch_sw_independent_column     = get_ini_value<bool>(settings, "shortwave", "rt_independent_column", false); // solve ray tracer in independent column mode
-    const int sw_single_gpt               = get_ini_value<int>(settings, "shortwave", "single_gpt", 0); // only solve a single g-point and also output optical properties for that g-point. Defaults to -1 (broadband)
+    // compute and output ray tracer fluxes
+    const bool switch_sw_raytracing       = get_ini_value<bool>(settings, "shortwave", "raytracing", true);
+    // compute and output plane parallel 1D fluxes (two-stream)
+    const bool switch_sw_plane_parallel   = get_ini_value<bool>(settings, "shortwave", "plane_parallel", true);
+    // solve ray tracer in independent column mode
+    bool switch_sw_independent_column     = get_ini_value<bool>(settings, "shortwave", "rt_independent_column", false);
+    // only solve a single g-point and also output optical properties for that g-point. Defaults to -1 (broadband)
+    const int sw_single_gpt               = get_ini_value<int>(settings, "shortwave", "single_gpt", 0);
 
     const bool switch_longwave            = get_ini_value<bool>(settings, "longwave", "longwave", true);
-    const bool switch_lw_raytracing       = get_ini_value<bool>(settings, "longwave", "raytracing", true); // compute and output ray tracer fluxes
-    const bool switch_lw_plane_parallel   = get_ini_value<bool>(settings, "longwave", "plane_parallel", true); // compute and output plane parallel 1D fluxes (two-stream or no-scattering solution)
-    const bool switch_lw_scattering       = get_ini_value<bool>(settings, "longwave", "scattering", false); // enable scattering in longwave solver (only possible in ray tracer executable)
-    bool switch_lw_independent_column     = get_ini_value<bool>(settings, "longwave", "rt_independent_column", false); // solve ray tracer in independent column mode
-    const int lw_single_gpt               = get_ini_value<int>(settings, "longwave", "single_gpt", 0); // only solve a single g-point and also output optical properties for that g-point. Defaults to -1 (broadband)
-    const Float min_mfp_grid_ratio        = get_ini_value<Float>(settings, "longwave", "min_mfp_grid_ratio", Float(1.0)); // minimum ratio between the lowest gasous mean fee path and the horizontal grid spacing at which ray tracer is still used. Set to 0. to use ray tracer for all g-points
+    // compute and output ray tracer fluxes
+    const bool switch_lw_raytracing       = get_ini_value<bool>(settings, "longwave", "raytracing", true);
+    // compute and output plane parallel 1D fluxes (two-stream or no-scattering solution)
+    const bool switch_lw_plane_parallel   = get_ini_value<bool>(settings, "longwave", "plane_parallel", true);
+    // enable scattering in longwave solver (only possible in ray tracer executable)
+    const bool switch_lw_scattering       = get_ini_value<bool>(settings, "longwave", "scattering", false);
+    // solve ray tracer in independent column mode
+    bool switch_lw_independent_column     = get_ini_value<bool>(settings, "longwave", "rt_independent_column", false);
+    // only solve a single g-point and also output optical properties for that g-point. Defaults to -1 (broadband)
+    const int lw_single_gpt               = get_ini_value<int>(settings, "longwave", "single_gpt", 0);
+    // minimum ratio between the lowest gaseous mean free path and the horizontal grid spacing at which ray tracer is still used. Set to 0. to use ray tracer for all g-points
+    const Float min_mfp_grid_ratio        = get_ini_value<Float>(settings, "longwave", "min_mfp_grid_ratio", Float(1.0));
 
     const bool switch_bw_raytracing     = get_ini_value<bool>(settings, "backward", "bw_raytracing", true);
-    const bool switch_lu_albedo         = get_ini_value<bool>(settings, "backward", "lu_albedo", false); // read surface type from land_use_map variabele and compute spectral albedo and reflection type (lambertian/specular)  accordingly
-    const bool switch_image             = get_ini_value<bool>(settings, "backward", "image", true); // solve visible bands and convert to XYZ tristimulus values
-    const bool switch_broadband         = get_ini_value<bool>(settings, "backward", "broadband", false); // solve broadband radiances
-    const bool switch_cloud_cam         = get_ini_value<bool>(settings, "backward", "cloud_cam", false); // output additional cloud statistics for each camera pixel
+    // read surface type from land_use_map variable and compute spectral albedo and reflection type (lambertian/specular) accordingly
+    const bool switch_lu_albedo         = get_ini_value<bool>(settings, "backward", "lu_albedo", false);
+    // solve visible bands and convert to XYZ tristimulus values
+    const bool switch_image             = get_ini_value<bool>(settings, "backward", "image", true);
+    // solve broadband radiances
+    const bool switch_broadband         = get_ini_value<bool>(settings, "backward", "broadband", false);
+    // output additional cloud statistics for each camera pixel
+    const bool switch_cloud_cam         = get_ini_value<bool>(settings, "backward", "cloud_cam", false);
 
-    const Float input_sza = get_ini_value<Float>(settings, "solar_angles", "sza", -1.0); // if >0, overwrite zenith angle from input netcdf file
-    const Float input_azi = get_ini_value<Float>(settings, "solar_angles", "azi", -1.0); // if >0, overwrite azimuth angle from input netcdf file
+    // if >0, overwrite zenith angle from input netcdf file
+    const Float input_sza = get_ini_value<Float>(settings, "solar_angles", "sza", -1.0);
+    // if >0, overwrite azimuth angle from input netcdf file
+    const Float input_azi = get_ini_value<Float>(settings, "solar_angles", "azi", -1.0);
 
     Camera camera;
     if (switch_bw_raytracing)
     {
-        camera.fov = get_ini_value<Float>(settings, "camera", "cam_field-of-view", 80.);
+        camera.fov = get_ini_value<Float>(settings, "camera", "cam_field_of_view", 80.);
+
+        // camera type: (0) fish eye camera, (1) rectangular camera, (2) top-of-atmosphere upwelling radiances
         camera.cam_type = get_ini_value<int>(settings, "camera", "cam_type", 0);
+
+        // x,y,z positions of virtual camera
         camera.position = {get_ini_value<Float>(settings, "camera", "cam_px", 0.),
                            get_ini_value<Float>(settings, "camera", "cam_py", 0.),
                            get_ini_value<Float>(settings, "camera", "cam_pz", 100.)};
+
+        // width, height (pixels) of virtual camera or number of zenith and azimuth angles of fish camera
         camera.nx = get_ini_value<int>(settings, "camera", "cam_nx", 0);
         camera.ny = get_ini_value<int>(settings, "camera", "cam_ny", 0);
+
+        // yaw, pitch and roll angles (degrees) of the virtual camera
         camera.setup_rotation_matrix(get_ini_value<Float>(settings, "camera", "cam_yaw", 0.),
                                      get_ini_value<Float>(settings, "camera", "cam_pitch", 0.),
                                      get_ini_value<Float>(settings, "camera", "cam_roll", 0.));
