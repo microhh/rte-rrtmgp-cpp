@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import netCDF4 as nc
 
-data = nc.Dataset("rte_rrtmgp_output.nc")
-# ref = nc.Dataset("ref.nc")
+data = nc.Dataset("test_output.nc")
+ref = nc.Dataset("test_output_forward.nc")
 
 z = data.variables["z"][:]
 dz = z[1] - z[0]
@@ -11,11 +11,12 @@ dz = z[1] - z[0]
 hr_1d = (data.variables["lw_flux_net"][1:len(z)+1] - data.variables["lw_flux_net"][:len(z)]) / dz
 hr_3d = data.variables["rt_lw_flux_abs"][:, :, :]
 # hr_1d_ref = (ref.variables["lw_flux_net"][1:len(z)+1] - ref.variables["lw_flux_net"][:len(z)]) / dz
+hr_3d_ref = ref.variables["rt_lw_flux_abs"][:, :, :]
 
 plt.figure()
 plt.plot(hr_1d.mean(axis=(1, 2)), z)
 plt.plot(hr_3d.mean(axis=(1, 2)), z)
-# plt.plot(hr_1d_ref.mean(axis=(1, 2)), z, 'k:')
+plt.plot(hr_3d_ref.mean(axis=(1, 2)), z, 'k:')
 plt.show()
 
 tod_up = data.variables["rt_lw_flux_tod_up"][:, :].mean()

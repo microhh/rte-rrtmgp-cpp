@@ -70,7 +70,7 @@ namespace
 
     __global__
     void combine_and_store_kernel(const int ncol, const int nlay, const Float tmin,
-                  Float* __restrict__ tau,
+                  Float* __restrict__ tau, Float* __restrict__ ssa, Float* __restrict__ g,
                   const Float* __restrict__ ltau, const Float* __restrict__ ltaussa,
                   const Float* __restrict__ itau, const Float* __restrict__ itaussa)
     {
@@ -83,12 +83,15 @@ namespace
             const Float tau_t = (ltau[idx] - ltaussa[idx]) + (itau[idx] - itaussa[idx]);
 
             tau[idx] = tau_t;
+            ssa[idx] = Float(0.);
+            g[idx] = Float(0.);
         }
     }
 
     __global__
     void store_single_phase_kernel(const int ncol, const int nlay, const Float tmin,
-                  Float* __restrict__ tau, const Float* taussa)
+                  Float* __restrict__ tau, Float* __restrict__ ssa, Float* __restrict__ g,
+                  const Float* taussa)
     {
         const int icol = blockIdx.x*blockDim.x + threadIdx.x;
         const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
@@ -98,6 +101,9 @@ namespace
             const int idx = icol + ilay*ncol;
 
             tau[idx] -= taussa[idx];
+
+            ssa[idx] = Float(0.);
+            g[idx] = Float(0.);
         }
     }
 
@@ -160,8 +166,8 @@ namespace
 
 Cloud_optics_rt::Cloud_optics_rt(
         const Array<Float,2>& band_lims_wvn,
-        const Float radliq_lwr, const Float radliq_upr, const Float radliq_fac,
-        const Float diamice_lwr, const Float diamice_upr, const Float diamice_fac,
+        const Float radliq_lwr, const Float radliq_upr,
+        const Float diamice_lwr, const Float diamice_upr,
         const Array<Float,2>& lut_extliq, const Array<Float,2>& lut_ssaliq, const Array<Float,2>& lut_asyliq,
         const Array<Float,3>& lut_extice, const Array<Float,3>& lut_ssaice, const Array<Float,3>& lut_asyice) :
     Optical_props_rt(band_lims_wvn)
@@ -343,7 +349,7 @@ void Cloud_optics_rt::cloud_optics(
         {
             combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
                 ncol, nlay, eps,
-                optical_props.get_tau().ptr(),
+                optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
                 ltau.ptr(), ltaussa.ptr(),
                 itau.ptr(), itaussa.ptr());
 
@@ -362,7 +368,8 @@ void Cloud_optics_rt::cloud_optics(
         {
             store_single_phase_kernel<<<grid_gpu, block_gpu>>>(
                 ncol, nlay, eps,
-                optical_props.get_tau().ptr(), taussa.ptr());
+                optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
+                taussa.ptr());
         }
     }
 

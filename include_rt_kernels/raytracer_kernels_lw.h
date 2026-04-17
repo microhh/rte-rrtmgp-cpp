@@ -26,6 +26,7 @@ void ray_tracer_lw_kernel(
         const double* __restrict__ alias_prob,
         const int* __restrict__ alias_idx,
         const int alias_n,
+        const Int qrng_gpt_offset,
         const Float* __restrict__ k_null_grid,
         Float* __restrict__ toa_down_count,
         Float* __restrict__ tod_up_count,
@@ -38,5 +39,7 @@ void ray_tracer_lw_kernel(
         const Vector<Float> grid_size,
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,
-        const Vector<int> kn_grid);
+        const Vector<int> kn_grid,
+        curandDirectionVectors32_t* qrng_vectors,
+        unsigned int* qrng_constants);
 #endif

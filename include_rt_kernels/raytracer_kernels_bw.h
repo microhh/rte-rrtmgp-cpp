@@ -28,7 +28,7 @@ constexpr int bw_kernel_grid = 256;
 constexpr Float cos_half_angle = Float(0.9999891776066407); // cos(half_angle);
 constexpr Float sun_solid_angle = Float(6.799910294339209e-05); // 2.*M_PI*(1-cos_half_angle);
 constexpr Float sun_solid_angle_reciprocal = Float(14706.07635563193);
-
+constexpr Float sun_hemisphere_sa_fraction = Float(1.0822393359255502e-05);
 
 struct Grid_knull
 {
@@ -68,14 +68,11 @@ struct Camera
     {
         if (camera.cam_type != 0)
         {
-            const Vector<Float> dir_tmp = {1, 0, 0};
-            const Vector<Float> dir_up = {0, 0, 1};
+            cam_height = Vector<Float>({camera.mx.z, camera.my.z, camera.mz.z});
+            cam_depth = Vector<Float>({camera.mx.x, camera.my.x, camera.mz.x});
+            cam_width = Float(-1) * normalize(cross(cam_depth, cam_height));
 
-            const Vector<Float> dir_cam = normalize(Vector<Float>({dot(camera.mx,dir_tmp), dot(camera.my,dir_tmp), dot(camera.mz,dir_tmp)}));
-
-            cam_height = normalize(Vector<Float>({dot(camera.mx, dir_up), dot(camera.my,dir_up), dot(camera.mz,dir_up)}));
-            cam_width = Float(-1) * normalize(cross(dir_cam, dir_up));
-            cam_depth = dir_cam / tan(fov/Float(180)*M_PI/Float(2.));
+            cam_depth = cam_depth / tan(fov/Float(180)*M_PI/Float(2.));
 
             if (camera.nx > camera.ny)
                 cam_height = cam_height * Float(camera.ny)/Float(camera.nx);
@@ -91,12 +88,13 @@ struct Camera
 };
 
 
-__global__
+template<Bool tod_diffuse> __global__
 void ray_tracer_kernel_bw(
         const int igpt,
         const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
-        Float* __restrict__ camera_count,
+        Float* __restrict__ camera_count_direct,
+        Float* __restrict__ camera_count_diffuse,
         Float* __restrict__ camera_shot,
         Int* __restrict__ counter,
         const Float* __restrict__ k_ext, const Optics_scat* __restrict__ scat_asy,

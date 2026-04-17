@@ -273,7 +273,7 @@ namespace
 
     __global__
     void count_to_flux_2d(
-            const Camera camera, const Float photons_per_pixel, const Float toa_src, const Float toa_factor,
+            const Camera camera, const Float photons_per_pixel, const Float toa_src, const Float src_factor,
             const Float* __restrict__ count, Float* __restrict__ flux)
     {
         const int ix = blockIdx.x*blockDim.x + threadIdx.x;
@@ -282,8 +282,8 @@ namespace
         if ( ( ix < camera.nx) && ( iy < camera.ny) )
         {
             const int idx = ix + iy*camera.nx;
-            const Float flux_per_ray = toa_src * toa_factor / photons_per_pixel;
-            flux[idx] = count[idx] * flux_per_ray;
+            const Float flux_per_ray = toa_src * src_factor / photons_per_pixel;
+            flux[idx] += count[idx] * flux_per_ray;
         }
     }
 }
@@ -383,8 +383,9 @@ void Raytracer_bw::trace_rays(
         const Array_gpu<Float,1>& land_use_map,
         const Float zenith_angle,
         const Float azimuth_angle,
-        const Float toa_src,
-        const Float toa_factor,
+        const Float src_direct,
+        const Float src_diffuse,
+        const Float src_factor,
         const Float rayleigh,
         const Array_gpu<Float,2>& col_dry,
         const Array_gpu<Float,2>& vmr_h2o,
@@ -392,6 +393,8 @@ void Raytracer_bw::trace_rays(
         Array_gpu<Float,2>& flux_camera)
 {
     const Float mu = std::abs(std::cos(zenith_angle));
+
+    const Float f_diffuse = src_diffuse / (src_direct + src_diffuse);
 
     // set of block and grid dimensions used in data processing kernels - requires some proper tuning later
     const int block_col_x = 8;
@@ -454,12 +457,16 @@ void Raytracer_bw::trace_rays(
             rayleigh, col_dry.ptr(), vmr_h2o.ptr(),
             k_ext_bg.ptr(), ssa_asy_bg.ptr(), z_lev_bg.ptr());
 
-    Array_gpu<Float,2> camera_count({camera.nx, camera.ny});
+    Array_gpu<Float,2> camera_count_direct({camera.nx, camera.ny});
+    Array_gpu<Float,2> camera_count_diffuse({camera.nx, camera.ny});
     Array_gpu<Float,2> shot_count({camera.nx, camera.ny});
     Array_gpu<Int,1> counter({1});
 
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count_direct.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count_diffuse.ptr());
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, shot_count.ptr());
+
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, flux_camera.ptr());
 
     counter.fill(Int(0));
 
@@ -476,10 +483,14 @@ void Raytracer_bw::trace_rays(
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
 
-    ray_tracer_kernel_bw<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+    const Bool do_diffuse = f_diffuse>Float(0.);
+    if (do_diffuse)
+    {
+        ray_tracer_kernel_bw<true><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
-            camera_count.ptr(),
+            camera_count_direct.ptr(),
+            camera_count_diffuse.ptr(),
             shot_count.ptr(),
             counter.ptr(),
             k_ext.ptr(), ssa_asy.ptr(),
@@ -495,6 +506,30 @@ void Raytracer_bw::trace_rays(
             mie_phase.ptr(), mie_phase_ang.ptr(),
             mie_cdf_table_size,
             mie_phase_table_size);
+    }
+    else
+    {
+        ray_tracer_kernel_bw<false><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+            igpt-1,
+            photons_per_pixel, k_null_grid.ptr(),
+            camera_count_direct.ptr(),
+            camera_count_diffuse.ptr(),
+            shot_count.ptr(),
+            counter.ptr(),
+            k_ext.ptr(), ssa_asy.ptr(),
+            k_ext_bg.ptr(), ssa_asy_bg.ptr(),
+            z_lev_bg.ptr(),
+            r_eff.ptr(),
+            surface_albedo.ptr(),
+            land_use_map.ptr(),
+            mu,
+            grid_size, grid_d, grid_cells, kn_grid,
+            sun_direction, camera, nbg,
+            mie_cdf.ptr(), mie_ang.ptr(),
+            mie_phase.ptr(), mie_phase_ang.ptr(),
+            mie_cdf_table_size,
+            mie_phase_table_size);
+    }
 
     //// convert counts to fluxes
     const int block_cam_x = 8;
@@ -508,11 +543,20 @@ void Raytracer_bw::trace_rays(
 
     count_to_flux_2d<<<grid_cam, block_cam>>>(
             camera, photons_per_pixel,
-            toa_src,
-            toa_factor,
-            camera_count.ptr(),
+            src_direct,
+            src_factor,
+            camera_count_direct.ptr(),
             flux_camera.ptr());
 
+    if (f_diffuse > Float(0.))
+    {
+        count_to_flux_2d<<<grid_cam, block_cam>>>(
+            camera, photons_per_pixel,
+            src_diffuse,
+            src_factor * sun_hemisphere_sa_fraction,
+            camera_count_diffuse.ptr(),
+            flux_camera.ptr());
+    }
 }
 
 void Raytracer_bw::trace_rays_bb(
@@ -540,11 +584,14 @@ void Raytracer_bw::trace_rays_bb(
         const Array_gpu<Float,1>& land_use_map,
         const Float zenith_angle,
         const Float azimuth_angle,
-        const Float toa_src,
+        const Float src_direct,
+        const Float src_diffuse,
         const Camera& camera,
         Array_gpu<Float,2>& flux_camera)
 {
     const Float mu = std::abs(std::cos(zenith_angle));
+
+    const Float f_diffuse = src_diffuse / (src_direct + src_diffuse);
 
     // set of block and grid dimensions used in data processing kernels - requires some proper tuning later
     const int block_col_x = 8;
@@ -606,12 +653,16 @@ void Raytracer_bw::trace_rays_bb(
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
             k_ext_bg.ptr(), ssa_asy_bg.ptr(), z_lev_bg.ptr());
 
-    Array_gpu<Float,2> camera_count({camera.nx, camera.ny});
+    Array_gpu<Float,2> camera_count_direct({camera.nx, camera.ny});
+    Array_gpu<Float,2> camera_count_diffuse({camera.nx, camera.ny});
     Array_gpu<Float,2> shot_count({camera.nx, camera.ny});
     Array_gpu<Int,1> counter({1});
 
-    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count_direct.ptr());
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, camera_count_diffuse.ptr());
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, shot_count.ptr());
+
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(camera.nx, camera.ny, flux_camera.ptr());
     counter.fill(Int(0));
 
     // domain sizes
@@ -627,10 +678,14 @@ void Raytracer_bw::trace_rays_bb(
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
 
-    ray_tracer_kernel_bw<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+    const Bool do_diffuse = f_diffuse>Float(0.);
+    if (do_diffuse)
+    {
+        ray_tracer_kernel_bw<true><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
-            camera_count.ptr(),
+            camera_count_direct.ptr(),
+            camera_count_diffuse.ptr(),
             shot_count.ptr(),
             counter.ptr(),
             k_ext.ptr(), ssa_asy.ptr(),
@@ -646,6 +701,30 @@ void Raytracer_bw::trace_rays_bb(
             mie_phase.ptr(), mie_phase_ang.ptr(),
             mie_cdf_table_size,
             mie_phase_table_size);
+    }
+    else
+    {
+        ray_tracer_kernel_bw<false><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+            igpt-1,
+            photons_per_pixel, k_null_grid.ptr(),
+            camera_count_direct.ptr(),
+            camera_count_diffuse.ptr(),
+            shot_count.ptr(),
+            counter.ptr(),
+            k_ext.ptr(), ssa_asy.ptr(),
+            k_ext_bg.ptr(), ssa_asy_bg.ptr(),
+            z_lev_bg.ptr(),
+            r_eff.ptr(),
+            surface_albedo.ptr(),
+            land_use_map.ptr(),
+            mu,
+            grid_size, grid_d, grid_cells, kn_grid,
+            sun_direction, camera, nbg,
+            mie_cdf.ptr(), mie_ang.ptr(),
+            mie_phase.ptr(), mie_phase_ang.ptr(),
+            mie_cdf_table_size,
+            mie_phase_table_size);
+    }
 
     //// convert counts to fluxes
     const int block_cam_x = 8;
@@ -660,12 +739,22 @@ void Raytracer_bw::trace_rays_bb(
 
     count_to_flux_2d<<<grid_cam, block_cam>>>(
             camera, photons_per_pixel,
-            toa_src,
+            src_direct,
             sun_solid_angle_reciprocal,
-            camera_count.ptr(),
+            camera_count_direct.ptr(),
             flux_camera.ptr());
 
+    if (f_diffuse > Float(0.))
+    {
+        count_to_flux_2d<<<grid_cam, block_cam>>>(
+                camera, photons_per_pixel,
+                src_diffuse,
+                Float(1.)/Float(2.*M_PI),
+                camera_count_diffuse.ptr(),
+                flux_camera.ptr());
+    }
 }
+
 void Raytracer_bw::accumulate_clouds(
         const Vector<Float>& grid_d,
         const Vector<int>& grid_cells,

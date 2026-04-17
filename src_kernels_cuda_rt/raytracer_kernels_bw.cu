@@ -173,7 +173,7 @@ namespace
     __device__
     inline void reset_photon(
             Photon& photon,
-            Float* __restrict__ camera_count,
+            Float* __restrict__ camera_count_direct,
             Float* __restrict__ camera_shot,
             const Int ij_cam, const int n,
             Random_number_generator<Float>& rng,
@@ -218,9 +218,9 @@ namespace
         else
         {
             // Top-of-atmosphere upwelling radiances
-            photon.direction = {Float(0.), Float(0.), Float(-1)};
-            photon.position.x = (Float(ij_cam % camera.nx) + Float(0.5)) * (grid_size.x / camera.nx);
-            photon.position.y = (Float(ij_cam / camera.nx) + Float(0.5)) * (grid_size.y / camera.ny);
+            photon.direction = {camera.mx.x, camera.my.x, camera.mz.x};
+            photon.position.x = (Float(ij_cam % camera.nx) + rng()) * (grid_size.x / camera.nx);
+            photon.position.y = (Float(ij_cam / camera.nx) + rng()) * (grid_size.y / camera.ny);
             photon.position.z = z_lev_bg[kbg] - s_min;
         }
 
@@ -262,14 +262,14 @@ namespace
                                        grid_size, grid_cells,
                                        s_min, s_min_bg);
 
-           atomicAdd(&camera_count[ij_cam], weight * trans_sun);
+           atomicAdd(&camera_count_direct[ij_cam], weight * trans_sun);
         }
         atomicAdd(&camera_shot[ij_cam], Float(1.));
 
     }
 
     __device__
-    inline Float probability_from_sun(
+    inline Float probability_from_source(
             Photon photon,
             const Vector<Float>& sun_direction,
             const Float sun_solid_angle, const Float g,
@@ -307,12 +307,13 @@ namespace
     }
 }
 
-__global__
+template<Bool tod_diffuse>__global__
 void ray_tracer_kernel_bw(
         const int igpt,
         const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
-        Float* __restrict__ camera_count,
+        Float* __restrict__ camera_count_direct,
+        Float* __restrict__ camera_count_diffuse,
         Float* __restrict__ camera_shot,
         Int* __restrict__ counter,
         const Float* __restrict__ k_ext, const Optics_scat* __restrict__ scat_asy,
@@ -389,7 +390,7 @@ void ray_tracer_kernel_bw(
         Photon photon;
 
         reset_photon(
-                photon, camera_count, camera_shot,
+                photon, camera_count_direct, camera_shot,
                 ij_cam, n, rng, sun_direction,
                 k_null_grid, k_ext,
                 kn_grid, kn_grid_d, grid_d,
@@ -496,17 +497,37 @@ void ray_tracer_kernel_bw(
                         const Float cos_scat = (scatter_type == 0) ? rayleigh(rng()) : henyey(g, rng());
                         const Float sin_scat = max(Float(0.), sqrt(Float(1.) - cos_scat*cos_scat + Float_epsilon));
 
-                        // direct contribution
                         const Phase_kind kind = (scatter_type==0) ? Phase_kind::Rayleigh : Phase_kind::HG;
-                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
+
+                        // TOD direct contribution
+                        const Float p_direct = probability_from_source(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
                         const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
                                                     bg_tau_cum, z_lev_bg, bg_idx,
                                                     kn_grid, kn_grid_d, grid_d,
                                                     grid_size, grid_cells,
                                                     s_min, s_min_bg);
-                        atomicAdd(&camera_count[ij_cam], weight * p_sun * trans_sun);
+                        atomicAdd(&camera_count_direct[ij_cam], weight * p_direct * trans_sun);
 
+
+                        if (tod_diffuse)
+                        {
+                            // TOD diffuse contribution
+                            const Float mu_tod = sqrt(rng());
+                            const Float azi_tod = Float(2.*M_PI)*rng();
+                            const Float sin_theta = sqrt(Float(1.) - mu_tod*mu_tod + Float_epsilon);
+
+                            Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
+
+                            const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
+                            const Float trans_dif = transmission_direct_sun(photon,n,rng,diffuse_direction,
+                                                        k_null_grid,k_ext,
+                                                        bg_tau_cum, z_lev_bg, bg_idx,
+                                                        kn_grid, kn_grid_d, grid_d,
+                                                        grid_size, grid_cells,
+                                                        s_min, s_min_bg);
+                            atomicAdd(&camera_count_diffuse[ij_cam], weight * p_diffuse * trans_dif);
+                        }
 
                         Vector<Float> t1{Float(0.), Float(0.), Float(0.)};
                         if (fabs(photon.direction.x) < fabs(photon.direction.y))
@@ -585,8 +606,8 @@ void ray_tracer_kernel_bw(
                         const Phase_kind surface_kind = (land_use_map[ij] == 0) ? ( (photon.kind == Photon_kind::Direct) ? Phase_kind::Specular : Phase_kind::Lambertian)
                                                                                 : Phase_kind::Lambertian;
 
-                        // SUN SCATTERING GOES HERE
-                        const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, r_eff, 0, 0,
+                        // Direct sun contribution
+                        const Float p_sun = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, r_eff, 0, 0,
                                                                  surface_normal, surface_kind);
                         const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
@@ -594,7 +615,26 @@ void ray_tracer_kernel_bw(
                                                     kn_grid, kn_grid_d, grid_d,
                                                     grid_size, grid_cells,
                                                     s_min, s_min_bg);
-                        atomicAdd(&camera_count[ij_cam], weight * p_sun * trans_sun);
+                        atomicAdd(&camera_count_direct[ij_cam], weight * p_sun * trans_sun);
+
+                        if (tod_diffuse)
+                        {
+                            // TOD diffuse contribution
+                            const Float mu_tod = sqrt(rng());
+                            const Float azi_tod = Float(2.*M_PI)*rng();
+                            const Float sin_theta = sqrt(Float(1.) - mu_tod*mu_tod + Float_epsilon);
+
+                            Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
+
+                            const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, surface_kind);
+                            const Float trans_dif = transmission_direct_sun(photon,n,rng,diffuse_direction,
+                                                        k_null_grid,k_ext,
+                                                        bg_tau_cum, z_lev_bg, bg_idx,
+                                                        kn_grid, kn_grid_d, grid_d,
+                                                        grid_size, grid_cells,
+                                                        s_min, s_min_bg);
+                            atomicAdd(&camera_count_diffuse[ij_cam], weight * p_diffuse * trans_dif);
+                        }
 
                         if (weight < w_thres)
                             weight = (rng() > weight) ? Float(0.) : Float(1.);
@@ -726,14 +766,33 @@ void ray_tracer_kernel_bw(
                                                                         ? Phase_kind::Mie
                                                                         : Phase_kind::HG
                                                                 : Phase_kind::HG;
-                            const Float p_sun = probability_from_sun(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, ijk, mie_phase_table_size, surface_normal, kind);
+                            const Float p_sun = probability_from_source(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, ijk, mie_phase_table_size, surface_normal, kind);
                             const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
                                                         k_null_grid,k_ext,
                                                         bg_tau_cum, z_lev_bg, bg_idx,
                                                         kn_grid, kn_grid_d, grid_d,
                                                         grid_size, grid_cells,
                                                         s_min, s_min_bg);
-                            atomicAdd(&camera_count[ij_cam], weight * p_sun * trans_sun);
+                            atomicAdd(&camera_count_direct[ij_cam], weight * p_sun * trans_sun);
+
+                            if (tod_diffuse)
+                            {
+                                // TOD diffuse contribution
+                                const Float mu_tod = sqrt(rng());
+                                const Float azi_tod = Float(2.*M_PI)*rng();
+                                const Float sin_theta = sqrt(Float(1.) - mu_tod*mu_tod + Float_epsilon);
+
+                                Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
+
+                                const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
+                                const Float trans_dif = transmission_direct_sun(photon,n,rng,diffuse_direction,
+                                                            k_null_grid,k_ext,
+                                                            bg_tau_cum, z_lev_bg, bg_idx,
+                                                            kn_grid, kn_grid_d, grid_d,
+                                                            grid_size, grid_cells,
+                                                            s_min, s_min_bg);
+                                atomicAdd(&camera_count_diffuse[ij_cam], weight * p_diffuse * trans_dif);
+                            }
 
                             Vector<Float> t1{Float(0.), Float(0.), Float(0.)};
                             if (fabs(photon.direction.x) < fabs(photon.direction.y))
@@ -889,5 +948,22 @@ void ray_tracer_kernel_bw(
 
     }
 
-
+template __global__ void ray_tracer_kernel_bw<true>(
+    const int, const Int, const Grid_knull*,
+    Float*, Float*, Float*, Int*,
+    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
+    const Float*, const Float*, const Float*, const Float*,
+    const Float, const Vector<Float>, const Vector<Float>,
+    const Vector<int>, const Vector<int>, const Vector<Float>, const Camera,
+    const int, const Float*, const Float*, const Float*, const Float*,
+    const int, const int);
+template __global__ void ray_tracer_kernel_bw<false>(
+    const int, const Int, const Grid_knull*,
+    Float*, Float*, Float*, Int*,
+    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
+    const Float*, const Float*, const Float*, const Float*,
+    const Float, const Vector<Float>, const Vector<Float>,
+    const Vector<int>, const Vector<int>, const Vector<Float>, const Camera,
+    const int, const Float*, const Float*, const Float*, const Float*,
+    const int, const int);
 

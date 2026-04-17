@@ -141,6 +141,7 @@ class Netcdf_file : public Netcdf_handle
 class Netcdf_group : public Netcdf_handle
 {
     public:
+        Netcdf_group() : Netcdf_handle() { ncid = -1; root_ncid = -1; }
         Netcdf_group(const int, const int);
 };
 
@@ -372,8 +373,11 @@ inline Netcdf_variable<T> Netcdf_handle::add_variable(
     std::vector<int> dim_ids;
 
     for (const std::string& dim_name : dim_names)
-        dim_ids.push_back(dims.at(dim_name));
-
+    {
+        int dim_id;
+        nc_check(nc_inq_dimid(ncid, dim_name.c_str(), &dim_id));
+        dim_ids.push_back(dim_id);
+    }
     nc_check_code = nc_def_var(ncid, var_name.c_str(), netcdf_dtype<T>(), ndims, dim_ids.data(), &var_id);
     nc_check(nc_check_code);
 

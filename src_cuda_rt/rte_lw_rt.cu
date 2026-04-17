@@ -128,6 +128,8 @@ void Rte_lw_rt::rte_lw(
 
     // For now, just pass the arrays around.
     Array_gpu<Float,1> sfc_src_jac(sources.get_sfc_source().get_dims());
+    sfc_src_jac.fill(Float(0.));
+
     Array_gpu<Float,2> gpt_flux_up_jac(gpt_flux_up.get_dims());
 
     if (do_scattering)

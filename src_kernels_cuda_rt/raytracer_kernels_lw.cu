@@ -11,6 +11,34 @@ namespace
 
     constexpr Float w_thres = 0.5;
 
+    struct Quasi_random_number_generator_2d
+    {
+        __device__ Quasi_random_number_generator_2d(
+                curandDirectionVectors32_t* vectors, unsigned int* constants, unsigned int offset)
+        {
+            curand_init(vectors[0], constants[0], offset, &state_0);
+            curand_init(vectors[1], constants[1], offset, &state_1);
+        }
+
+        __device__ double operator()()
+        {
+            if (use_first)
+            {
+                use_first = false;
+                return curand_uniform_double(&state_0);
+            }
+            else
+            {
+                use_first = true;
+                return curand_uniform_double(&state_1);
+            }
+        }
+
+        bool use_first = true;
+        curandStateScrambledSobol32_t state_0;
+        curandStateScrambledSobol32_t state_1;
+    };
+
     __device__
     inline void write_emission(
             Photon& photon,
@@ -42,7 +70,7 @@ namespace
             const int* __restrict__ alias_idx,
             const int alias_n,
             Random_number_generator<Float>& rng,
-            Random_number_generator<double>& alias_rng,
+            Quasi_random_number_generator_2d& alias_qrng,
             const Vector<Float> grid_size,
             const Vector<Float> grid_d,
             const Vector<int> grid_cells,
@@ -63,7 +91,7 @@ namespace
 
             const int idx = sample_alias_table(
                     alias_prob, alias_idx, alias_n,
-                    alias_rng(), alias_rng());
+                    alias_qrng(), alias_qrng());
 
             const int i = (idx%(grid_cells.x * grid_cells.y)) % grid_cells.x ;
             const int j = (idx%(grid_cells.x * grid_cells.y)) / grid_cells.x ;
@@ -131,6 +159,7 @@ __global__ void ray_tracer_lw_kernel(
         const double* __restrict__ alias_prob,
         const int* __restrict__ alias_idx,
         const int alias_n,
+        const Int qrng_gpt_offset,
         const Float* __restrict__ k_null_grid,
         Float* __restrict__ toa_down_count,
         Float* __restrict__ tod_up_count,
@@ -143,7 +172,9 @@ __global__ void ray_tracer_lw_kernel(
         const Vector<Float> grid_size,
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,
-        const Vector<int> kn_grid)
+        const Vector<int> kn_grid,
+        curandDirectionVectors32_t* qrng_vectors,
+        unsigned int* qrng_constants)
 {
     const Vector<Float> kn_grid_d = grid_size / kn_grid;
 
@@ -153,7 +184,7 @@ __global__ void ray_tracer_lw_kernel(
 
     // todo, different random seed per g-point
     Random_number_generator<Float> rng(n + rng_offset);
-    Random_number_generator<double> alias_rng(n + rng_offset + 1);
+    Quasi_random_number_generator_2d alias_qrng(qrng_vectors, qrng_constants, n*photons_to_shoot + qrng_gpt_offset);
 
     const Float s_min = max(grid_size.z, max(grid_size.y, grid_size.x)) * Float_epsilon;
 
@@ -165,7 +196,7 @@ __global__ void ray_tracer_lw_kernel(
 
     reset_photon(
             photon, photons_shot, photons_to_shoot,
-            alias_prob, alias_idx, alias_n, rng, alias_rng,
+            alias_prob, alias_idx, alias_n, rng, alias_qrng,
             grid_size, grid_d, grid_cells,
             toa_down_count, surface_up_count, atmos_count,
             photon_weight, total_absorbed_weight, src_type);
@@ -249,7 +280,7 @@ __global__ void ray_tracer_lw_kernel(
 
                         reset_photon(
                              photon, photons_shot, photons_to_shoot,
-                             alias_prob, alias_idx, alias_n, rng, alias_rng,
+                             alias_prob, alias_idx, alias_n, rng, alias_qrng,
                              grid_size, grid_d, grid_cells,
                              toa_down_count, surface_up_count, atmos_count,
                              photon_weight, total_absorbed_weight, src_type);
@@ -295,7 +326,7 @@ __global__ void ray_tracer_lw_kernel(
                 reset_photon(
                        photon,
                        photons_shot, photons_to_shoot,
-                       alias_prob, alias_idx, alias_n, rng, alias_rng,
+                       alias_prob, alias_idx, alias_n, rng, alias_qrng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight, src_type);
@@ -432,7 +463,7 @@ __global__ void ray_tracer_lw_kernel(
                 reset_photon(
                        photon,
                        photons_shot, photons_to_shoot,
-                       alias_prob, alias_idx, alias_n, rng, alias_rng,
+                       alias_prob, alias_idx, alias_n, rng, alias_qrng,
                        grid_size, grid_d, grid_cells,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight, src_type);
@@ -444,7 +475,7 @@ __global__ void ray_tracer_lw_kernel(
 
 template __global__ void ray_tracer_lw_kernel<true>(
     const Int, const Int, const double*, const int*,
-    int, const Float*, Float*, Float*,
+    int, const Int, const Float*, Float*, Float*,
     Float*,
     Float*,
     Float*,
@@ -454,11 +485,13 @@ template __global__ void ray_tracer_lw_kernel<true>(
     const Vector<Float>,
     const Vector<Float>,
     const Vector<int>,
-    const Vector<int>);
+    const Vector<int>,
+    curandDirectionVectors32_t*,
+    unsigned int*);
 
 template __global__ void ray_tracer_lw_kernel<false>(
     const Int, const Int, const double*, const int*,
-    int, const Float*, Float*, Float*,
+    int, const Int, const Float*, Float*, Float*,
     Float*,
     Float*,
     Float*,
@@ -468,4 +501,6 @@ template __global__ void ray_tracer_lw_kernel<false>(
     const Vector<Float>,
     const Vector<Float>,
     const Vector<int>,
-    const Vector<int>);
+    const Vector<int>,
+    curandDirectionVectors32_t*,
+    unsigned int*);

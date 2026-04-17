@@ -822,8 +822,7 @@ void tica_tilt(
     Array<Float,2>& lwp_out, Array<Float,2>& iwp_out, Array<Float,2>& rel_out, Array<Float,2>& dei_out, Array<Float,2>& rh_out,
     Gas_concs& gas_concs_out, Aerosol_concs& aerosol_concs_out,
     std::vector<std::string> gas_names, std::vector<std::string> aerosol_names,
-    bool switch_liquid_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics
-)
+    bool switch_liquid_cloud_optics, bool switch_ice_cloud_optics, bool switch_aerosol_optics)
 {
        // if t lev all 0, interpolate from t lay
        if (*std::max_element(t_lev_out.v().begin(), t_lev_out.v().end()) <= 0) {

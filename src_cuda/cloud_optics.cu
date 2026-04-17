@@ -129,8 +129,8 @@ namespace
 
 Cloud_optics_gpu::Cloud_optics_gpu(
         const Array<Float,2>& band_lims_wvn,
-        const Float radliq_lwr, const Float radliq_upr, const Float radliq_fac,
-        const Float diamice_lwr, const Float diamice_upr, const Float diamice_fac,
+        const Float radliq_lwr, const Float radliq_upr,
+        const Float diamice_lwr, const Float diamice_upr,
         const Array<Float,2>& lut_extliq, const Array<Float,2>& lut_ssaliq, const Array<Float,2>& lut_asyliq,
         const Array<Float,3>& lut_extice, const Array<Float,3>& lut_ssaice, const Array<Float,3>& lut_asyice) :
     Optical_props_gpu(band_lims_wvn)

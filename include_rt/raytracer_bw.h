@@ -43,8 +43,9 @@ class Raytracer_bw
                 const Array_gpu<Float,1>& land_use_map,
                 const Float zenith_angle,
                 const Float azimuth_angle,
-                const Float toa_src,
-                const Float toa_factor,
+                const Float src_direct,
+                const Float src_diffuse,
+                const Float src_factor,
                 const Float rayleigh,
                 const Array_gpu<Float,2>& col_dry,
                 const Array_gpu<Float,2>& vmr_h2o,
@@ -76,7 +77,8 @@ class Raytracer_bw
                 const Array_gpu<Float,1>& land_use_map,
                 const Float zenith_angle,
                 const Float azimuth_angle,
-                const Float toa_src,
+                const Float src_direct,
+                const Float src_diffuse,
                 const Camera& camera,
                 Array_gpu<Float,2>& flux_camera);
 

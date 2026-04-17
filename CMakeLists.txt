@@ -50,6 +50,11 @@ else()
   message(STATUS "CUDA: Disabled.")
 endif()
 
+if (SAFERNG)
+  message(STATUS "SAFERNG: Use safer but slower initialization of pseudo-rng.")
+  add_definitions("-DSAFERNG")
+endif()
+
 # Only set the compiler flags when the cache is created
 # to enable editing of the flags in the CMakeCache.txt file.
 if(NOT HASCACHE)

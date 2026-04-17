@@ -4,6 +4,7 @@ import matplotlib.pyplot as pl
 import numpy as np
 from PIL import Image
 import netCDF4 as nc
+import xarray as xr
 import argparse
 import re
 import colour # pip install colour-science
@@ -11,7 +12,7 @@ import colour # pip install colour-science
 sRGB = colour.RGB_COLOURSPACES['sRGB']
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--name',default='rte_rrtmgp_output.nc', help="Raytracer output file")
+parser.add_argument('--case',default='test', help="Raytracer output file")
 parser.add_argument('--fisheye', action='store_true', help="If true: output is on a radial grid (zenith,azimuth), else: output is on a rectangular/square grid")
 parser.add_argument('--save_to_file', action='store_true', help="If true: image is saved to 'image.png', otherwise it is shown")
 parser.add_argument('--p_norm', default=98, type=float, help="Percentile of luminance to use for luminance normalization, defaults to 98")
@@ -34,12 +35,13 @@ if args.cat == "?":
         print(options)
 
 # Open ray traacer output file
-ncf  = nc.Dataset(args.name)
-nx = ncf.dimensions['x'].size
-ny = ncf.dimensions['y'].size
+ds  = xr.open_dataset(args.case+"_output.nc", group='rt_backward')
+
+nx = ds.sizes['px']
+ny = ds.sizes['py']
 
 # Load XYZ values
-XYZ = ncf['XYZ'][:].reshape((3, nx*ny))
+XYZ =ds.XYZ.values.reshape((3, nx*ny))
 
 # Illuminance normalization
 lum_norm = np.percentile(XYZ[1], args.p_norm)

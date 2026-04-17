@@ -175,7 +175,8 @@ namespace
 
     __global__
     void combine_and_store_kernel(const int ncol, const int nlay, const Float tmin,
-                  Float* __restrict__ tau, const Float* __restrict__ ltau, const Float* __restrict__ ltaussa)
+                  Float* __restrict__ tau, Float* __restrict__ ssa, Float* __restrict__ asy,
+                  const Float* __restrict__ ltau, const Float* __restrict__ ltaussa)
     {
         const int icol = blockIdx.x*blockDim.x + threadIdx.x;
         const int ilay = blockIdx.y*blockDim.y + threadIdx.y;
@@ -184,6 +185,8 @@ namespace
         {
             const int idx = icol + ilay*ncol;
             tau[idx] = ltau[idx] - ltaussa[idx];
+            ssa[idx] = Float(0.);
+            asy[idx] = Float(0.);
         }
     }
 
@@ -291,7 +294,8 @@ void Aerosol_optics_rt::aerosol_optics(
     {
         combine_and_store_kernel<<<grid_gpu, block_gpu>>>(
                 ncol, nlay, eps,
-                optical_props.get_tau().ptr(), ltau.ptr(), ltaussa.ptr());
+                optical_props.get_tau().ptr(), optical_props.get_ssa().ptr(), optical_props.get_g().ptr(),
+                ltau.ptr(), ltaussa.ptr());
 
     }
 

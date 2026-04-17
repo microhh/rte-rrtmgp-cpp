@@ -359,8 +359,20 @@ void solve_radiation(int argc, char** argv)
         const int n_gpt_sw = rad_sw.get_n_gpt();
 
         Array<Float,1> mu0(input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x}), {n_col});
-        Array<Float,2> sfc_alb_dir(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
-        Array<Float,2> sfc_alb_dif(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}), {n_bnd_sw, n_col});
+
+        Array<Float,2> sfc_alb_dir({n_bnd_sw, n_col});
+        Array<Float,2> sfc_alb_dif({n_bnd_sw, n_col});
+        if (input_nc.variable_exists("sfc_alb_dir") && input_nc.variable_exists("sfc_alb_dif"))
+        {
+            sfc_alb_dir = std::move(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}));
+            sfc_alb_dif = std::move(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}));
+        }
+        else
+        {
+            sfc_alb_dir = std::move(input_nc.get_variable<Float>("sfc_alb", {n_col_y, n_col_x, n_bnd_sw}));
+            sfc_alb_dif = std::move(input_nc.get_variable<Float>("sfc_alb", {n_col_y, n_col_x, n_bnd_sw}));
+        }
+
 
         Array<Float,1> tsi_scaling({n_col});
         if (input_nc.variable_exists("tsi"))

@@ -394,30 +394,28 @@ namespace
         // Read look-up table constants.
         Float radliq_lwr = coef_nc.get_variable<Float>("radliq_lwr");
         Float radliq_upr = coef_nc.get_variable<Float>("radliq_upr");
-        Float radliq_fac = coef_nc.get_variable<Float>("radliq_fac");
 
         Float diamice_lwr = coef_nc.get_variable<Float>("diamice_lwr");
         Float diamice_upr = coef_nc.get_variable<Float>("diamice_upr");
-        Float diamice_fac = coef_nc.get_variable<Float>("diamice_fac");
 
         Array<Float,2> lut_extliq(
-                coef_nc.get_variable<Float>("lut_extliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+                coef_nc.get_variable<Float>("extliq", {n_band, n_size_liq}), {n_size_liq, n_band});
         Array<Float,2> lut_ssaliq(
-                coef_nc.get_variable<Float>("lut_ssaliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+                coef_nc.get_variable<Float>("ssaliq", {n_band, n_size_liq}), {n_size_liq, n_band});
         Array<Float,2> lut_asyliq(
-                coef_nc.get_variable<Float>("lut_asyliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+                coef_nc.get_variable<Float>("asyliq", {n_band, n_size_liq}), {n_size_liq, n_band});
 
         Array<Float,3> lut_extice(
-                coef_nc.get_variable<Float>("lut_extice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+                coef_nc.get_variable<Float>("extice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
         Array<Float,3> lut_ssaice(
-                coef_nc.get_variable<Float>("lut_ssaice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+                coef_nc.get_variable<Float>("ssaice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
         Array<Float,3> lut_asyice(
-                coef_nc.get_variable<Float>("lut_asyice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+                coef_nc.get_variable<Float>("asyice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
 
         return Cloud_optics_rt(
                 band_lims_wvn,
-                radliq_lwr, radliq_upr, radliq_fac,
-                diamice_lwr, diamice_upr, diamice_fac,
+                radliq_lwr, radliq_upr,
+                diamice_lwr, diamice_upr,
                 lut_extliq, lut_ssaliq, lut_asyliq,
                 lut_extice, lut_ssaice, lut_asyice);
     }
@@ -502,7 +500,7 @@ void Radiation_solver_longwave::solve_gpu(
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         const Array_gpu<Float,2>& rh,
-        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out,
+        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out, Array_gpu<Float,2>& tot_asy_out,
         Array_gpu<Float,2>& cld_tau_out, Array_gpu<Float,2>& cld_ssa_out, Array_gpu<Float,2>& cld_asy_out,
         Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
         Array_gpu<Float,2>& lay_source, Array_gpu<Float,2>& lev_source, Array_gpu<Float,1>& sfc_source,
@@ -519,6 +517,8 @@ void Radiation_solver_longwave::solve_gpu(
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
     const Float grid_d_xy_min = min(grid_d.x, grid_d.y);
+
+    const Bool bg_profile_present = grid_cells.z < n_lay;
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
@@ -695,15 +695,16 @@ void Radiation_solver_longwave::solve_gpu(
 
             tot_tau_out = optical_props->get_tau();
             cld_tau_out = cloud_optical_props->get_tau();
+            aer_asy_out = aerosol_optical_props->get_g();
 
             if (switch_lw_scattering)
             {
                 tot_ssa_out = optical_props->get_ssa();
+                tot_asy_out = optical_props->get_g();
                 cld_ssa_out = cloud_optical_props->get_ssa();
                 cld_asy_out = cloud_optical_props->get_g();
                 aer_tau_out = aerosol_optical_props->get_tau();
                 aer_ssa_out = aerosol_optical_props->get_ssa();
-                aer_asy_out = aerosol_optical_props->get_g();
             }
         }
 
@@ -715,7 +716,7 @@ void Radiation_solver_longwave::solve_gpu(
         std::unique_ptr<Fluxes_broadband_rt> fluxes =
                 std::make_unique<Fluxes_broadband_rt>(grid_cells.x, grid_cells.y, grid_cells.z, n_lev);
 
-        if (switch_plane_parallel || !use_raytracer)
+        if (switch_plane_parallel || !use_raytracer || bg_profile_present)
         {
             rte_lw.rte_lw(
                     optical_props,
@@ -750,6 +751,8 @@ void Radiation_solver_longwave::solve_gpu(
             {
                 ++monte_carlo_gpoints;
 
+                const Float lw_flux_tod = bg_profile_present ? (*fluxes).get_flux_dn()({1, grid_cells.z+1}) : Float(0.);
+
                 raytracer_lw.trace_rays(
                         igpt,
                         switch_independent_column,
@@ -767,8 +770,8 @@ void Radiation_solver_longwave::solve_gpu(
                         dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
                         (*sources).get_lay_source(),
                         (*sources).get_sfc_source(),
-                        emis_sfc,
-                        (*fluxes).get_flux_dn()({1, grid_cells.z}),
+                        emis_sfc.subset({{ {band, band}, {1, n_col}}}),
+                        lw_flux_tod,
                         (*fluxes).get_flux_tod_dn(),
                         (*fluxes).get_flux_tod_up(),
                         (*fluxes).get_flux_sfc_dif(),
@@ -856,14 +859,14 @@ void Radiation_solver_shortwave::solve_gpu(
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
         Array_gpu<Float,2>& col_dry,
-        const Array_gpu<Float,2>& sfc_alb_dir, const Array_gpu<Float,2>& sfc_alb_dif,
+        const Array_gpu<Float,2>& alb_sfc,
         const Array_gpu<Float,1>& tsi_scaling,
         const Array_gpu<Float,1>& mu0, const Array_gpu<Float,1>& azi,
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         const Array_gpu<Float,2>& rh,
         Aerosol_concs_gpu& aerosol_concs,
-        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out,
+        Array_gpu<Float,2>& tot_tau_out, Array_gpu<Float,2>& tot_ssa_out, Array_gpu<Float,2>& tot_asy_out,
         Array_gpu<Float,2>& cld_tau_out, Array_gpu<Float,2>& cld_ssa_out, Array_gpu<Float,2>& cld_asy_out,
         Array_gpu<Float,2>& aer_tau_out, Array_gpu<Float,2>& aer_ssa_out, Array_gpu<Float,2>& aer_asy_out,
         Array_gpu<Float,2>& sw_flux_up, Array_gpu<Float,2>& sw_flux_dn,
@@ -1056,6 +1059,7 @@ void Radiation_solver_shortwave::solve_gpu(
         {
             tot_tau_out = optical_props->get_tau();
             tot_ssa_out = optical_props->get_ssa();
+            tot_asy_out = optical_props->get_g();
             cld_tau_out = cloud_optical_props->get_tau();
             cld_ssa_out = cloud_optical_props->get_ssa();
             cld_asy_out = cloud_optical_props->get_g();
@@ -1074,8 +1078,8 @@ void Radiation_solver_shortwave::solve_gpu(
                     top_at_1,
                     mu0,
                     toa_src,
-                    sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
-                    sfc_alb_dif.subset({{ {band, band}, {1, n_col}}}),
+                    alb_sfc.subset({{ {band, band}, {1, n_col}}}),
+                    alb_sfc.subset({{ {band, band}, {1, n_col}}}),
                     Array_gpu<Float,1>(), // Add an empty array, no inc_flux.
                     (*fluxes).get_flux_up(),
                     (*fluxes).get_flux_dn(),
@@ -1111,7 +1115,7 @@ void Radiation_solver_shortwave::solve_gpu(
                     dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
                     dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
                     rel,
-                    sfc_alb_dir.subset({{ {band, band}, {1, n_col}}}),
+                    alb_sfc.subset({{ {band, band}, {1, n_col}}}),
                     zenith_angle,
                     azimuth_angle,
                     toa_src({1}) * mu0({1}),

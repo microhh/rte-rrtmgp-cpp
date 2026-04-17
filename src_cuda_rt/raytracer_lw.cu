@@ -316,6 +316,8 @@ void Raytracer_lw::trace_rays(
     dim3 block(rt_kernel_block_size);
 
     const Int rng_offset = igpt*rt_lw_kernel_grid*rt_lw_kernel_block;
+    const Int qrng_gpt_offset = this->qrng_igpt * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
+    ++this->qrng_igpt;
 
     if (switch_independent_column)
     {
@@ -325,6 +327,7 @@ void Raytracer_lw::trace_rays(
                 alias_prob.ptr(),
                 alias_idx.ptr(),
                 n_alias,
+                qrng_gpt_offset,
                 k_null_grid.ptr(),
                 tod_dn_count.ptr(),
                 tod_up_count.ptr(),
@@ -333,7 +336,8 @@ void Raytracer_lw::trace_rays(
                 atmos_count.ptr(),
                 k_ext.ptr(), scat_asy.ptr(),
                 emis_sfc.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid);
+                grid_size, grid_d, grid_cells, kn_grid,
+                this->qrng_vectors_gpu, this->qrng_constants_gpu);
     }
     else
     {
@@ -343,6 +347,7 @@ void Raytracer_lw::trace_rays(
                 alias_prob.ptr(),
                 alias_idx.ptr(),
                 n_alias,
+                qrng_gpt_offset,
                 k_null_grid.ptr(),
                 tod_dn_count.ptr(),
                 tod_up_count.ptr(),
@@ -351,7 +356,8 @@ void Raytracer_lw::trace_rays(
                 atmos_count.ptr(),
                 k_ext.ptr(), scat_asy.ptr(),
                 emis_sfc.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid);
+                grid_size, grid_d, grid_cells, kn_grid,
+                this->qrng_vectors_gpu, this->qrng_constants_gpu);
 
 
     }
@@ -377,4 +383,17 @@ void Raytracer_lw::trace_rays(
 }
 
 Raytracer_lw::Raytracer_lw()
-{}
+{
+    curandDirectionVectors32_t* qrng_vectors;
+    curandGetDirectionVectors32(
+                &qrng_vectors,
+                CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6);
+    unsigned int* qrng_constants;
+    curandGetScrambleConstants32(&qrng_constants);
+
+    this->qrng_vectors_gpu = allocate_gpu<curandDirectionVectors32_t>(2);
+    this->qrng_constants_gpu = allocate_gpu<unsigned int>(2);
+
+    copy_to_gpu(qrng_vectors_gpu, qrng_vectors, 2);
+    copy_to_gpu(qrng_constants_gpu, qrng_constants, 2);
+}

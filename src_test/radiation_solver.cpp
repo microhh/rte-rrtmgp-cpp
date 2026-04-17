@@ -300,30 +300,28 @@ namespace
         // Read look-up table constants.
         Float radliq_lwr = coef_nc.get_variable<Float>("radliq_lwr");
         Float radliq_upr = coef_nc.get_variable<Float>("radliq_upr");
-        Float radliq_fac = coef_nc.get_variable<Float>("radliq_fac");
 
         Float diamice_lwr = coef_nc.get_variable<Float>("diamice_lwr");
         Float diamice_upr = coef_nc.get_variable<Float>("diamice_upr");
-        Float diamice_fac = coef_nc.get_variable<Float>("diamice_fac");
 
         Array<Float,2> lut_extliq(
-                coef_nc.get_variable<Float>("lut_extliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+                coef_nc.get_variable<Float>("extliq", {n_band, n_size_liq}), {n_size_liq, n_band});
         Array<Float,2> lut_ssaliq(
-                coef_nc.get_variable<Float>("lut_ssaliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+                coef_nc.get_variable<Float>("ssaliq", {n_band, n_size_liq}), {n_size_liq, n_band});
         Array<Float,2> lut_asyliq(
-                coef_nc.get_variable<Float>("lut_asyliq", {n_band, n_size_liq}), {n_size_liq, n_band});
+                coef_nc.get_variable<Float>("asyliq", {n_band, n_size_liq}), {n_size_liq, n_band});
 
         Array<Float,3> lut_extice(
-                coef_nc.get_variable<Float>("lut_extice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+                coef_nc.get_variable<Float>("extice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
         Array<Float,3> lut_ssaice(
-                coef_nc.get_variable<Float>("lut_ssaice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+                coef_nc.get_variable<Float>("ssaice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
         Array<Float,3> lut_asyice(
-                coef_nc.get_variable<Float>("lut_asyice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
+                coef_nc.get_variable<Float>("asyice", {n_rghice, n_band, n_size_ice}), {n_size_ice, n_band, n_rghice});
 
         return Cloud_optics(
                 band_lims_wvn,
-                radliq_lwr, radliq_upr, radliq_fac,
-                diamice_lwr, diamice_upr, diamice_fac,
+                radliq_lwr, radliq_upr,
+                diamice_lwr, diamice_upr,
                 lut_extliq, lut_ssaliq, lut_asyliq,
                 lut_extice, lut_ssaice, lut_asyice);
     }
