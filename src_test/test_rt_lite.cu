@@ -863,7 +863,7 @@ void solve_radiation(int argc, char** argv)
         // Store the output.
         Status::print_message("Storing the bw raytracer output.");
 
-        auto nc_radiance = output_nc.add_variable<Float>("radiance" , {"ny", "nx"});
+        auto nc_radiance = output_nc.add_variable<Float>("radiance" , {"py", "px"});
 
         nc_radiance.insert(radiance_c  .v(), {0, 0});
     }
