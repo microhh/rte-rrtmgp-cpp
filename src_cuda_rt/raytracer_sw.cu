@@ -77,7 +77,7 @@ namespace
 
     __global__
     void bundles_optical_props(
-            const Vector<int> grid_cells, const Vector<Float> grid_d,
+            const Vector<int> grid_cells, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
             const Float* __restrict__ tau_aer, const Float* __restrict__ ssa_aer, const Float* __restrict__ asy_aer,
@@ -90,14 +90,15 @@ namespace
         if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < (grid_cells.z-1)) )
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
-            const Float kext_tot = tau_tot[idx] / grid_d.z;
-            const Float kext_cld = tau_cld[idx] / grid_d.z;
-            const Float kext_aer = tau_aer[idx] / grid_d.z;
+            const Float dz = z_lev[iz+1] - z_lev[iz];
+            const Float kext_tot = tau_tot[idx] / dz;
+            const Float kext_cld = tau_cld[idx] / dz;
+            const Float kext_aer = tau_aer[idx] / dz;
             const Float ksca_cld = kext_cld * ssa_cld[idx];
             const Float ksca_aer = kext_aer * ssa_aer[idx];
             const Float ksca_gas = kext_tot * ssa_tot[idx] - ksca_cld - ksca_aer;
 
-            k_ext[idx] = tau_tot[idx] / grid_d.z;
+            k_ext[idx] = kext_tot;
 
             scat_asy[idx].k_sca_gas = ksca_gas;
             scat_asy[idx].k_sca_cld = ksca_cld;
@@ -110,7 +111,7 @@ namespace
 
     __global__
     void bundles_optical_props_tod(
-            const Vector<int> grid_cells, const Vector<Float> grid_d, const int n_lev,
+            const Vector<int> grid_cells, const Float* __restrict__ z_lev, const int n_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
             const Float* __restrict__ tau_aer, const Float* __restrict__ ssa_aer, const Float* __restrict__ asy_aer,
@@ -148,11 +149,12 @@ namespace
 
             const int idx = icol_x + icol_y*grid_cells.x + z_tod*grid_cells.y*grid_cells.x;
 
-            const Float kext_tot = tau_tot_sum / grid_d.z;
+            const Float dz = z_lev[z_tod+1] - z_lev[z_tod];
+            const Float kext_tot = tau_tot_sum / dz;
 
-            const Float ksca_cld = tausca_cld_sum / grid_d.z;
-            const Float ksca_aer = tausca_aer_sum / grid_d.z;
-            const Float ksca_gas = tausca_tot_sum / grid_d.z - ksca_cld - ksca_aer;
+            const Float ksca_cld = tausca_cld_sum / dz;
+            const Float ksca_aer = tausca_aer_sum / dz;
+            const Float ksca_gas = tausca_tot_sum / dz - ksca_cld - ksca_aer;
 
             k_ext[idx] = kext_tot;
 
@@ -192,7 +194,7 @@ namespace
     __global__
     void count_to_flux_3d(
             const Vector<int> grid_cells, const Float photons_per_col,
-            const Vector<Float> grid_d, const Float toa_src,
+            const Float* __restrict__ z_lev, const Float toa_src,
             const Float* __restrict__ count_1, const Float* __restrict__ count_2,
             Float* __restrict__ flux_1, Float* __restrict__ flux_2)
     {
@@ -205,9 +207,10 @@ namespace
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.x*grid_cells.y;
 
             const Float flux_per_ray = toa_src / photons_per_col;
+            const Float dz = z_lev[iz+1] - z_lev[iz];
 
-            flux_1[idx] = count_1[idx] * flux_per_ray / grid_d.z;
-            flux_2[idx] = count_2[idx] * flux_per_ray / grid_d.z;
+            flux_1[idx] = count_1[idx] * flux_per_ray / dz;
+            flux_2[idx] = count_2[idx] * flux_per_ray / dz;
         }
     }
 }
@@ -237,6 +240,12 @@ void Raytracer::trace_rays(
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
         const Vector<int> kn_grid,
+        const Array_gpu<Float,1>& z_lev,
+        const Array_gpu<Float,1>& kn_z_lev,
+        const Array_gpu<int,1>& z_lut,
+        const Array_gpu<int,1>& kn_z_lut,
+        const Float lut_dz,
+        const Float zsize,
         const Array_gpu<Float,2>& mie_cdf,
         const Array_gpu<Float,3>& mie_ang,
         const Array_gpu<Float,2>& tau_total,
@@ -283,7 +292,7 @@ void Raytracer::trace_rays(
 
     // first on the whole grid expect the extra layer
     bundles_optical_props<<<grid_3d, block_3d>>>(
-            grid_cells, grid_d,
+            grid_cells, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
@@ -291,7 +300,7 @@ void Raytracer::trace_rays(
 
     // second, integrate from TOD to TOA
     bundles_optical_props_tod<<<grid_2d, block_2d>>>(
-            grid_cells, grid_d, n_lay,
+            grid_cells, z_lev.ptr(), n_lay,
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
@@ -334,7 +343,7 @@ void Raytracer::trace_rays(
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, atmos_diffuse_count.ptr());
 
     // domain sizes
-    const Vector<Float> grid_size = grid_d * grid_cells;
+    const Vector<Float> grid_size = {grid_d.x * grid_cells.x, grid_d.y * grid_cells.y, zsize};
 
     // direction of direct rays. Take into account that azimuth is 0 north and increases clockwise
     const Vector<Float> sun_direction = {-std::sin(zenith_angle) * std::cos(Float(0.5*M_PI) - azimuth_angle),
@@ -398,6 +407,8 @@ void Raytracer::trace_rays(
                 tod_inc_diffuse,
                 surface_albedo.ptr(),
                 grid_size, grid_d, grid_cells, kn_grid,
+                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+                lut_dz, int(z_lut.size()),
                 sun_direction,
                 this->qrng_vectors_gpu, this->qrng_constants_gpu,
                 mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
@@ -423,6 +434,8 @@ void Raytracer::trace_rays(
                 tod_inc_diffuse,
                 surface_albedo.ptr(),
                 grid_size, grid_d, grid_cells, kn_grid,
+                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+                lut_dz, int(z_lut.size()),
                 sun_direction,
                 this->qrng_vectors_gpu, this->qrng_constants_gpu,
                 mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
@@ -447,7 +460,7 @@ void Raytracer::trace_rays(
 
     count_to_flux_3d<<<grid_3d, block_3d>>>(
             grid_cells, photons_per_pixel,
-            grid_d,
+            z_lev.ptr(),
             toa_src,
             atmos_direct_count.ptr(),
             atmos_diffuse_count.ptr(),

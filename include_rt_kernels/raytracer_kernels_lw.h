@@ -40,6 +40,12 @@ void ray_tracer_lw_kernel(
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,
         const Vector<int> kn_grid,
+        const Float* __restrict__ z_lev,
+        const Float* __restrict__ kn_z_lev,
+        const int* __restrict__ z_lut,
+        const int* __restrict__ kn_z_lut,
+        const Float lut_dz,
+        const int lut_size,
         curandDirectionVectors32_t* qrng_vectors,
         unsigned int* qrng_constants);
 #endif

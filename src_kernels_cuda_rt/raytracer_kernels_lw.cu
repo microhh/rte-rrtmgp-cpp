@@ -74,6 +74,7 @@ namespace
             const Vector<Float> grid_size,
             const Vector<Float> grid_d,
             const Vector<int> grid_cells,
+            const Float* __restrict__ z_lev,
             Float* __restrict__ const toa_down_count,
             Float* __restrict__ const surface_up_count,
             Float* __restrict__ const atmos_count,
@@ -129,7 +130,7 @@ namespace
                 src_type = 0;
 
                 const int km = k - 1;
-                photon.position.z = (km + rng()) * grid_d.z;
+                photon.position.z = z_lev[km] + rng() * (z_lev[km+1] - z_lev[km]);
 
                 mu = rng()*Float(2.) - Float(1.);
                 azi = Float(2.*M_PI)*rng();
@@ -173,6 +174,12 @@ __global__ void ray_tracer_lw_kernel(
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,
         const Vector<int> kn_grid,
+        const Float* __restrict__ z_lev,
+        const Float* __restrict__ kn_z_lev,
+        const int* __restrict__ z_lut,
+        const int* __restrict__ kn_z_lut,
+        const Float lut_dz,
+        const int lut_size,
         curandDirectionVectors32_t* qrng_vectors,
         unsigned int* qrng_constants)
 {
@@ -197,7 +204,7 @@ __global__ void ray_tracer_lw_kernel(
     reset_photon(
             photon, photons_shot, photons_to_shoot,
             alias_prob, alias_idx, alias_n, rng, alias_qrng,
-            grid_size, grid_d, grid_cells,
+            grid_size, grid_d, grid_cells, z_lev,
             toa_down_count, surface_up_count, atmos_count,
             photon_weight, total_absorbed_weight, src_type);
 
@@ -214,10 +221,10 @@ __global__ void ray_tracer_lw_kernel(
         {
             i_n = float_to_int(photon.position.x, kn_grid_d.x, kn_grid.x);
             j_n = float_to_int(photon.position.y, kn_grid_d.y, kn_grid.y);
-            k_n = float_to_int(photon.position.z, kn_grid_d.z, kn_grid.z);
+            k_n = height_to_int(photon.position.z, kn_z_lev, kn_z_lut, lut_dz, lut_size, kn_grid.z);
             const Float sx = abs((photon.direction.x > 0) ? ((i_n+1) * kn_grid_d.x - photon.position.x)/photon.direction.x : (i_n*kn_grid_d.x - photon.position.x)/photon.direction.x);
             const Float sy = abs((photon.direction.y > 0) ? ((j_n+1) * kn_grid_d.y - photon.position.y)/photon.direction.y : (j_n*kn_grid_d.y - photon.position.y)/photon.direction.y);
-            const Float sz = abs((photon.direction.z > 0) ? ((k_n+1) * kn_grid_d.z - photon.position.z)/photon.direction.z : (k_n*kn_grid_d.z - photon.position.z)/photon.direction.z);
+            const Float sz = abs((photon.direction.z > 0) ? (kn_z_lev[k_n+1] - photon.position.z)/photon.direction.z : (kn_z_lev[k_n] - photon.position.z)/photon.direction.z);
             d_max = independent_column ? sz : min(sx, min(sy, sz));
             const int ijk_n = i_n + j_n*kn_grid.x + k_n*kn_grid.x*kn_grid.y;
             k_ext_null = k_null_grid[ijk_n];
@@ -281,7 +288,7 @@ __global__ void ray_tracer_lw_kernel(
                         reset_photon(
                              photon, photons_shot, photons_to_shoot,
                              alias_prob, alias_idx, alias_n, rng, alias_qrng,
-                             grid_size, grid_d, grid_cells,
+                             grid_size, grid_d, grid_cells, z_lev,
                              toa_down_count, surface_up_count, atmos_count,
                              photon_weight, total_absorbed_weight, src_type);
 
@@ -327,7 +334,7 @@ __global__ void ray_tracer_lw_kernel(
                        photon,
                        photons_shot, photons_to_shoot,
                        alias_prob, alias_idx, alias_n, rng, alias_qrng,
-                       grid_size, grid_d, grid_cells,
+                       grid_size, grid_d, grid_cells, z_lev,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight, src_type);
 
@@ -361,7 +368,7 @@ __global__ void ray_tracer_lw_kernel(
         else
         {
             Float dz = photon.direction.z * dn;
-            photon.position.z = (dz > 0) ? min(photon.position.z + dz, (k_n+1) * kn_grid_d.z - s_min) : max(photon.position.z + dz, (k_n) * kn_grid_d.z + s_min);
+            photon.position.z = (dz > 0) ? min(photon.position.z + dz, kn_z_lev[k_n+1] - s_min) : max(photon.position.z + dz, kn_z_lev[k_n] + s_min);
 
             if (!independent_column)
             {
@@ -375,7 +382,7 @@ __global__ void ray_tracer_lw_kernel(
             // Calculate the 3D index.
             const int i = float_to_int(photon.position.x, grid_d.x, grid_cells.x);
             const int j = float_to_int(photon.position.y, grid_d.y, grid_cells.y);
-            const int k = float_to_int(photon.position.z, grid_d.z, grid_cells.z);
+            const int k = height_to_int(photon.position.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
             const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
 
             // Compute probability not being absorbed and store weighted absorption probability
@@ -464,7 +471,7 @@ __global__ void ray_tracer_lw_kernel(
                        photon,
                        photons_shot, photons_to_shoot,
                        alias_prob, alias_idx, alias_n, rng, alias_qrng,
-                       grid_size, grid_d, grid_cells,
+                       grid_size, grid_d, grid_cells, z_lev,
                        toa_down_count, surface_up_count, atmos_count,
                        photon_weight, total_absorbed_weight, src_type);
 
@@ -486,6 +493,12 @@ template __global__ void ray_tracer_lw_kernel<true>(
     const Vector<Float>,
     const Vector<int>,
     const Vector<int>,
+    const Float*,
+    const Float*,
+    const int*,
+    const int*,
+    const Float,
+    const int,
     curandDirectionVectors32_t*,
     unsigned int*);
 
@@ -502,5 +515,11 @@ template __global__ void ray_tracer_lw_kernel<false>(
     const Vector<Float>,
     const Vector<int>,
     const Vector<int>,
+    const Float*,
+    const Float*,
+    const int*,
+    const int*,
+    const Float,
+    const int,
     curandDirectionVectors32_t*,
     unsigned int*);

@@ -55,6 +55,12 @@ namespace
             const Vector<Float>& grid_d,
             const Vector<Float>& grid_size,
             const Vector<int>& grid_cells,
+            const Float* __restrict__ z_lev,
+            const Float* __restrict__ kn_z_lev,
+            const int* __restrict__ z_lut,
+            const int* __restrict__ kn_z_lut,
+            const Float lut_dz,
+            const int lut_size,
             const Float s_min, const Float s_min_bg)
 
     {
@@ -87,10 +93,10 @@ namespace
                 {
                     i_n = float_to_int(photon.position.x, kn_grid_d.x, kn_grid.x);
                     j_n = float_to_int(photon.position.y, kn_grid_d.y, kn_grid.y);
-                    k_n = float_to_int(photon.position.z, kn_grid_d.z, kn_grid.z);
+                    k_n = height_to_int(photon.position.z, kn_z_lev, kn_z_lut, lut_dz, lut_size, kn_grid.z);
                     const Float sx = abs((sun_dir.x > 0) ? ((i_n+1) * kn_grid_d.x - photon.position.x)/sun_dir.x : (i_n*kn_grid_d.x - photon.position.x)/sun_dir.x);
                     const Float sy = abs((sun_dir.y > 0) ? ((j_n+1) * kn_grid_d.y - photon.position.y)/sun_dir.y : (j_n*kn_grid_d.y - photon.position.y)/sun_dir.y);
-                    const Float sz = ((k_n+1) * kn_grid_d.z - photon.position.z)/sun_dir.z;
+                    const Float sz = (kn_z_lev[k_n+1] - photon.position.z)/sun_dir.z;
                     d_max = min(sx, min(sy, sz));
                     const int ijk = i_n + j_n*kn_grid.x + k_n*kn_grid.x*kn_grid.y;
 
@@ -149,12 +155,12 @@ namespace
 
                     photon.position.x = (dx > 0) ? min(photon.position.x + dx, (i_n+1) * kn_grid_d.x - s_min) : max(photon.position.x + dx, (i_n) * kn_grid_d.x + s_min);
                     photon.position.y = (dy > 0) ? min(photon.position.y + dy, (j_n+1) * kn_grid_d.y - s_min) : max(photon.position.y + dy, (j_n) * kn_grid_d.y + s_min);
-                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, (k_n+1) * kn_grid_d.z - s_min) : max(photon.position.z + dz, (k_n) * kn_grid_d.z + s_min);
+                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, kn_z_lev[k_n+1] - s_min) : max(photon.position.z + dz, kn_z_lev[k_n] + s_min);
 
                     // Calculate the 3D index.
                     const int i = float_to_int(photon.position.x, grid_d.x, grid_cells.x);
                     const int j = float_to_int(photon.position.y, grid_d.y, grid_cells.y);
-                    const int k = float_to_int(photon.position.z, grid_d.z, grid_cells.z);
+                    const int k = height_to_int(photon.position.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
                     const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
 
                     // Handle the action.
@@ -190,6 +196,12 @@ namespace
             const int kbg,
             const Float* __restrict__ bg_tau_cum,
             const Float* __restrict__ z_lev_bg,
+            const Float* __restrict__ z_lev,
+            const Float* __restrict__ kn_z_lev,
+            const int* __restrict__ z_lut,
+            const int* __restrict__ kn_z_lut,
+            const Float lut_dz,
+            const int lut_size,
             const Float s_min,
             const Float s_min_bg)
     {
@@ -260,6 +272,7 @@ namespace
                                        bg_tau_cum, z_lev_bg, bg_idx,
                                        kn_grid, kn_grid_d, grid_d,
                                        grid_size, grid_cells,
+                                       z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
                                        s_min, s_min_bg);
 
            atomicAdd(&camera_count_direct[ij_cam], weight * trans_sun);
@@ -325,6 +338,12 @@ void ray_tracer_kernel_bw(
         const Float mu,
         const Vector<Float> grid_size, const Vector<Float> grid_d,
         const Vector<int> grid_cells, const Vector<int> kn_grid,
+        const Float* __restrict__ z_lev,
+        const Float* __restrict__ kn_z_lev,
+        const int* __restrict__ z_lut,
+        const int* __restrict__ kn_z_lut,
+        const Float lut_dz,
+        const int lut_size,
         const Vector<Float> sun_direction, const Camera camera,
         const int kbg,
         const Float* __restrict__ mie_cdf,
@@ -397,7 +416,9 @@ void ray_tracer_kernel_bw(
                 grid_size, grid_cells,
                 weight, bg_idx,
                 camera,
-                kbg, bg_tau_cum, z_lev_bg, s_min, s_min_bg);
+                kbg, bg_tau_cum, z_lev_bg,
+                z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
+                s_min, s_min_bg);
 
         Float tau;
         Float d_max = Float(0.);
@@ -506,6 +527,7 @@ void ray_tracer_kernel_bw(
                                                     bg_tau_cum, z_lev_bg, bg_idx,
                                                     kn_grid, kn_grid_d, grid_d,
                                                     grid_size, grid_cells,
+                                                    z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
                                                     s_min, s_min_bg);
                         atomicAdd(&camera_count_direct[ij_cam], weight * p_direct * trans_sun);
 
@@ -525,6 +547,7 @@ void ray_tracer_kernel_bw(
                                                         bg_tau_cum, z_lev_bg, bg_idx,
                                                         kn_grid, kn_grid_d, grid_d,
                                                         grid_size, grid_cells,
+                                                        z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
                                                         s_min, s_min_bg);
                             atomicAdd(&camera_count_diffuse[ij_cam], weight * p_diffuse * trans_dif);
                         }
@@ -568,10 +591,10 @@ void ray_tracer_kernel_bw(
                 {
                     i_n = float_to_int(photon.position.x, kn_grid_d.x, kn_grid.x);
                     j_n = float_to_int(photon.position.y, kn_grid_d.y, kn_grid.y);
-                    k_n = float_to_int(photon.position.z, kn_grid_d.z, kn_grid.z);
+                    k_n = height_to_int(photon.position.z, kn_z_lev, kn_z_lut, lut_dz, lut_size, kn_grid.z);
                     const Float sx = abs((photon.direction.x > 0) ? ((i_n+1) * kn_grid_d.x - photon.position.x)/photon.direction.x : (i_n*kn_grid_d.x - photon.position.x)/photon.direction.x);
                     const Float sy = abs((photon.direction.y > 0) ? ((j_n+1) * kn_grid_d.y - photon.position.y)/photon.direction.y : (j_n*kn_grid_d.y - photon.position.y)/photon.direction.y);
-                    const Float sz = abs((photon.direction.z > 0) ? ((k_n+1) * kn_grid_d.z - photon.position.z)/photon.direction.z : (k_n*kn_grid_d.z - photon.position.z)/photon.direction.z);
+                    const Float sz = abs((photon.direction.z > 0) ? (kn_z_lev[k_n+1] - photon.position.z)/photon.direction.z : (kn_z_lev[k_n] - photon.position.z)/photon.direction.z);
                     d_max = min(sx, min(sy, sz));
                     ijk_n = i_n + j_n*kn_grid.x + k_n*kn_grid.y*kn_grid.x;
                     k_ext_null = k_null_grid[ijk_n].k_max;
@@ -614,6 +637,7 @@ void ray_tracer_kernel_bw(
                                                     bg_tau_cum, z_lev_bg, bg_idx,
                                                     kn_grid, kn_grid_d, grid_d,
                                                     grid_size, grid_cells,
+                                                    z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
                                                     s_min, s_min_bg);
                         atomicAdd(&camera_count_direct[ij_cam], weight * p_sun * trans_sun);
 
@@ -632,6 +656,7 @@ void ray_tracer_kernel_bw(
                                                         bg_tau_cum, z_lev_bg, bg_idx,
                                                         kn_grid, kn_grid_d, grid_d,
                                                         grid_size, grid_cells,
+                                                        z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
                                                         s_min, s_min_bg);
                             atomicAdd(&camera_count_diffuse[ij_cam], weight * p_diffuse * trans_dif);
                         }
@@ -704,12 +729,12 @@ void ray_tracer_kernel_bw(
 
                     photon.position.x = (dx > 0) ? min(photon.position.x + dx, (i_n+1) * kn_grid_d.x - s_min) : max(photon.position.x + dx, (i_n) * kn_grid_d.x + s_min);
                     photon.position.y = (dy > 0) ? min(photon.position.y + dy, (j_n+1) * kn_grid_d.y - s_min) : max(photon.position.y + dy, (j_n) * kn_grid_d.y + s_min);
-                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, (k_n+1) * kn_grid_d.z - s_min) : max(photon.position.z + dz, (k_n) * kn_grid_d.z + s_min);
+                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, kn_z_lev[k_n+1] - s_min) : max(photon.position.z + dz, kn_z_lev[k_n] + s_min);
 
                     // Calculate the 3D index.
                     const int i = float_to_int(photon.position.x, grid_d.x, grid_cells.x);
                     const int j = float_to_int(photon.position.y, grid_d.y, grid_cells.y);
-                    const int k = float_to_int(photon.position.z, grid_d.z, grid_cells.z);
+                    const int k = height_to_int(photon.position.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
                     const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
 
 
@@ -772,6 +797,7 @@ void ray_tracer_kernel_bw(
                                                         bg_tau_cum, z_lev_bg, bg_idx,
                                                         kn_grid, kn_grid_d, grid_d,
                                                         grid_size, grid_cells,
+                                                        z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
                                                         s_min, s_min_bg);
                             atomicAdd(&camera_count_direct[ij_cam], weight * p_sun * trans_sun);
 
@@ -790,6 +816,7 @@ void ray_tracer_kernel_bw(
                                                             bg_tau_cum, z_lev_bg, bg_idx,
                                                             kn_grid, kn_grid_d, grid_d,
                                                             grid_size, grid_cells,
+                                                            z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
                                                             s_min, s_min_bg);
                                 atomicAdd(&camera_count_diffuse[ij_cam], weight * p_diffuse * trans_dif);
                             }
@@ -837,6 +864,10 @@ void ray_tracer_kernel_bw(
             const Vector<Float> grid_d,
             const Vector<Float> grid_size,
             const Vector<int> grid_cells,
+            const Float* __restrict__ z_lev,
+            const int* __restrict__ z_lut,
+            const Float lut_dz,
+            const int lut_size,
             Float* __restrict__ liwp_cam,
             Float* __restrict__ tauc_cam,
             Float* __restrict__ dist_cam,
@@ -902,12 +933,12 @@ void ray_tracer_kernel_bw(
             {
                 const int i = float_to_int(position.x, grid_d.x, grid_cells.x);
                 const int j = float_to_int(position.y, grid_d.y, grid_cells.y);
-                const int k = float_to_int(position.z, grid_d.z, grid_cells.z);
+                const int k = height_to_int(position.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
                 const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
 
                 const Float sx = abs((direction.x > 0) ? ((i+1) * grid_d.x - position.x)/direction.x : (i*grid_d.x - position.x)/direction.x);
                 const Float sy = abs((direction.y > 0) ? ((j+1) * grid_d.y - position.y)/direction.y : (j*grid_d.y - position.y)/direction.y);
-                const Float sz = abs((direction.z > 0) ? ((k+1) * grid_d.z - position.z)/direction.z : (k*grid_d.z - position.z)/direction.z);
+                const Float sz = abs((direction.z > 0) ? (z_lev[k+1] - position.z)/direction.z : (z_lev[k] - position.z)/direction.z);
                 const Float s_min = min(sx, min(sy, sz));
 
                 liwp_sum += s_min * (lwp[ijk] + iwp[ijk]);
@@ -954,7 +985,9 @@ template __global__ void ray_tracer_kernel_bw<true>(
     const Float*, const Optics_scat*, const Float*, const Optics_scat*,
     const Float*, const Float*, const Float*, const Float*,
     const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>, const Vector<Float>, const Camera,
+    const Vector<int>, const Vector<int>,
+    const Float*, const Float*, const int*, const int*, const Float, const int,
+    const Vector<Float>, const Camera,
     const int, const Float*, const Float*, const Float*, const Float*,
     const int, const int);
 template __global__ void ray_tracer_kernel_bw<false>(
@@ -963,7 +996,9 @@ template __global__ void ray_tracer_kernel_bw<false>(
     const Float*, const Optics_scat*, const Float*, const Optics_scat*,
     const Float*, const Float*, const Float*, const Float*,
     const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>, const Vector<Float>, const Camera,
+    const Vector<int>, const Vector<int>,
+    const Float*, const Float*, const int*, const int*, const Float, const int,
+    const Vector<Float>, const Camera,
     const int, const Float*, const Float*, const Float*, const Float*,
     const int, const int);
 

@@ -161,6 +161,17 @@ namespace Raytracer_functions
     }
 
     __device__
+    inline int height_to_int(const Float z, const Float* z_lev, const int* z_lut, const Float lut_dz, const int lut_size, const int ntot_max)
+    {
+        int k = z_lut[min(max(static_cast<int>(z / lut_dz), 0), lut_size-1)];
+        while (k > 0 && z < z_lev[k])
+            --k;
+        while (k < ntot_max-1 && z >= z_lev[k+1])
+            ++k;
+        return k;
+    }
+
+    __device__
     inline void write_photon_out(Float* field_out, const Float w)
     {
         #ifdef __CUDACC__

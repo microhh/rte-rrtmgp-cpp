@@ -53,6 +53,55 @@ T get_ini_value(const toml::value& ini_file, const std::string& group, const std
 }
 
 
+namespace
+{
+    struct Vertical_grid_gpu
+    {
+        Array_gpu<Float,1> z_lev;
+        Array_gpu<Float,1> kn_z_lev;
+        Array_gpu<int,1> z_lut;
+        Array_gpu<int,1> kn_z_lut;
+        Float lut_dz;
+        Float zsize;
+    };
+
+    Vertical_grid_gpu build_vertical_grid(const Array<Float,1>& z_lev, const int nz, const int kn_z)
+    {
+        Array<Float,1> kn_z_lev({kn_z+1});
+        const Float fz = Float(nz) / Float(kn_z);
+        for (int k=0; k<kn_z; ++k)
+            kn_z_lev({k+1}) = z_lev({static_cast<int>(k*fz)+1});
+        kn_z_lev({kn_z+1}) = z_lev({nz+1});
+
+        Float dz_min = z_lev({2}) - z_lev({1});
+        for (int k=1; k<nz; ++k)
+            dz_min = std::min(dz_min, z_lev({k+2}) - z_lev({k+1}));
+
+        const Float zsize = z_lev({nz+1});
+        const int lut_size = static_cast<int>(std::ceil(zsize/dz_min));
+        const Float lut_dz = zsize / lut_size;
+
+        Array<int,1> z_lut({lut_size});
+        Array<int,1> kn_z_lut({lut_size});
+        for (int i=0; i<lut_size; ++i)
+        {
+            const Float z = i*lut_dz;
+            int k = 0;
+            while (k < nz-1 && z >= z_lev({k+2}))
+                ++k;
+            z_lut({i+1}) = k;
+            k = 0;
+            while (k < kn_z-1 && z >= kn_z_lev({k+2}))
+                ++k;
+            kn_z_lut({i+1}) = k;
+        }
+
+        return {Array_gpu<Float,1>(z_lev), Array_gpu<Float,1>(kn_z_lev),
+                Array_gpu<int,1>(z_lut), Array_gpu<int,1>(kn_z_lut), lut_dz, zsize};
+    }
+}
+
+
 void solve_radiation(int argc, char** argv)
 {
     Status::print_message("###### Starting raytracing ######");
@@ -199,6 +248,18 @@ void solve_radiation(int argc, char** argv)
     const int ngrid_y = input_nc.get_variable<Float>("ngrid_y");
     const int ngrid_z = input_nc.get_variable<Float>("ngrid_z");
     const Vector<int> kn_grid = {ngrid_x, ngrid_y, ngrid_z};
+
+    Array<Float,1> z_lev_les({n_z_in+1});
+    for (int k=0; k<n_z_in+1; ++k)
+        z_lev_les({k+1}) = z_lev({k+1});
+    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev_les, n_z_in, ngrid_z);
+
+    Array<Float,1> z_lev_tod({nz+1});
+    for (int k=0; k<n_z_in+1; ++k)
+        z_lev_tod({k+1}) = z_lev({k+1});
+    if (nz > n_z_in)
+        z_lev_tod({nz+1}) = z_lev_tod({nz}) + dz;
+    const Vertical_grid_gpu vgrid_tod = build_vertical_grid(z_lev_tod, nz, ngrid_z);
 
     // Read the atmospheric fields.
     Array<Float,2> sw_tau_tot, sw_ssa_tot, sw_asy_tot;
@@ -530,6 +591,12 @@ void solve_radiation(int argc, char** argv)
                    grid_cells,
                    grid_d,
                    kn_grid,
+                   vgrid.z_lev,
+                   vgrid.kn_z_lev,
+                   vgrid.z_lut,
+                   vgrid.kn_z_lut,
+                   vgrid.lut_dz,
+                   vgrid.zsize,
                    lw_tau_tot_g,
                    lw_ssa_tot_g,
                    lw_tau_cld_g,
@@ -661,6 +728,12 @@ void solve_radiation(int argc, char** argv)
                    grid_cells,
                    grid_d,
                    kn_grid,
+                   vgrid_tod.z_lev,
+                   vgrid_tod.kn_z_lev,
+                   vgrid_tod.z_lut,
+                   vgrid_tod.kn_z_lut,
+                   vgrid_tod.lut_dz,
+                   vgrid_tod.zsize,
                    mie_cdfs,
                    mie_angs,
                    sw_tau_tot_g,
@@ -748,6 +821,11 @@ void solve_radiation(int argc, char** argv)
                 bw_photons_per_pixel, nlay,
                 grid_cells, grid_d, kn_grid,
                 z_lev_g,
+                vgrid.kn_z_lev,
+                vgrid.z_lut,
+                vgrid.kn_z_lut,
+                vgrid.lut_dz,
+                vgrid.zsize,
                 mie_cdfs_bw,
                 mie_angs_bw,
                 mie_phase_bw,

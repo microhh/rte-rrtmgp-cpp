@@ -128,7 +128,7 @@ namespace
 
     __global__
     void bundles_optical_props(
-            const Vector<int> grid_cells, const int nlay, const Float grid_dz,
+            const Vector<int> grid_cells, const int nlay, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
             const Float* __restrict__ tau_aer, const Float* __restrict__ ssa_aer, const Float* __restrict__ asy_aer,
@@ -142,6 +142,7 @@ namespace
         if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < grid_cells.z) )
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
+            const Float grid_dz = z_lev[iz+1] - z_lev[iz];
 
             const Float kext_cld = tau_cld[idx] / grid_dz;
             const Float kext_aer = tau_aer[idx] / grid_dz;
@@ -167,7 +168,7 @@ namespace
 
     __global__
     void bundles_optical_props_bb(
-            const Vector<int> grid_cells, const int nlay, const Float grid_dz,
+            const Vector<int> grid_cells, const int nlay, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
             const Float* __restrict__ tau_aer, const Float* __restrict__ ssa_aer, const Float* __restrict__ asy_aer,
@@ -180,6 +181,7 @@ namespace
         if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < grid_cells.z) )
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
+            const Float grid_dz = z_lev[iz+1] - z_lev[iz];
             const Float kext_cld = tau_cld[idx] / grid_dz;
             const Float kext_aer = tau_aer[idx] / grid_dz;
             const Float kext_tot = tau_tot[idx] / grid_dz;
@@ -366,6 +368,11 @@ void Raytracer_bw::trace_rays(
         const Vector<Float>& grid_d,
         const Vector<int>& kn_grid,
         const Array_gpu<Float,1>& z_lev,
+        const Array_gpu<Float,1>& kn_z_lev,
+        const Array_gpu<int,1>& z_lut,
+        const Array_gpu<int,1>& kn_z_lut,
+        const Float lut_dz,
+        const Float zsize,
         const Array_gpu<Float,3>& mie_cdf,
         const Array_gpu<Float,4>& mie_ang,
         const Array_gpu<Float,4>& mie_phase,
@@ -413,7 +420,7 @@ void Raytracer_bw::trace_rays(
     Array_gpu<Optics_scat,3> ssa_asy({grid_cells.x, grid_cells.y, grid_cells.z});
 
     bundles_optical_props<<<grid_3d, block_3d>>>(
-            grid_cells, nlay, grid_d.z,
+            grid_cells, nlay, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
@@ -471,7 +478,7 @@ void Raytracer_bw::trace_rays(
     counter.fill(Int(0));
 
     // domain sizes
-    const Vector<Float> grid_size = grid_d * grid_cells;
+    const Vector<Float> grid_size = {grid_d.x * grid_cells.x, grid_d.y * grid_cells.y, zsize};
 
     // direction of direct sun rays
     const Vector<Float> sun_direction = {std::sin(zenith_angle) * std::sin(azimuth_angle),
@@ -501,6 +508,8 @@ void Raytracer_bw::trace_rays(
             land_use_map.ptr(),
             mu,
             grid_size, grid_d, grid_cells, kn_grid,
+            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+            lut_dz, int(z_lut.size()),
             sun_direction, camera, nbg,
             mie_cdf.ptr(), mie_ang.ptr(),
             mie_phase.ptr(), mie_phase_ang.ptr(),
@@ -524,6 +533,8 @@ void Raytracer_bw::trace_rays(
             land_use_map.ptr(),
             mu,
             grid_size, grid_d, grid_cells, kn_grid,
+            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+            lut_dz, int(z_lut.size()),
             sun_direction, camera, nbg,
             mie_cdf.ptr(), mie_ang.ptr(),
             mie_phase.ptr(), mie_phase_ang.ptr(),
@@ -567,6 +578,11 @@ void Raytracer_bw::trace_rays_bb(
         const Vector<Float>& grid_d,
         const Vector<int>& kn_grid,
         const Array_gpu<Float,1>& z_lev,
+        const Array_gpu<Float,1>& kn_z_lev,
+        const Array_gpu<int,1>& z_lut,
+        const Array_gpu<int,1>& kn_z_lut,
+        const Float lut_dz,
+        const Float zsize,
         const Array_gpu<Float,3>& mie_cdf,
         const Array_gpu<Float,4>& mie_ang,
         const Array_gpu<Float,4>& mie_phase,
@@ -610,7 +626,7 @@ void Raytracer_bw::trace_rays_bb(
     Array_gpu<Optics_scat,3> ssa_asy({grid_cells.x, grid_cells.y, grid_cells.z});
 
     bundles_optical_props_bb<<<grid_3d, block_3d>>>(
-            grid_cells, nlay, grid_d.z,
+            grid_cells, nlay, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
@@ -666,7 +682,7 @@ void Raytracer_bw::trace_rays_bb(
     counter.fill(Int(0));
 
     // domain sizes
-    const Vector<Float> grid_size = grid_d * grid_cells;
+    const Vector<Float> grid_size = {grid_d.x * grid_cells.x, grid_d.y * grid_cells.y, zsize};
 
     // direction of direct sun rays
     const Vector<Float> sun_direction = {std::sin(zenith_angle) * std::sin(azimuth_angle),
@@ -696,6 +712,8 @@ void Raytracer_bw::trace_rays_bb(
             land_use_map.ptr(),
             mu,
             grid_size, grid_d, grid_cells, kn_grid,
+            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+            lut_dz, int(z_lut.size()),
             sun_direction, camera, nbg,
             mie_cdf.ptr(), mie_ang.ptr(),
             mie_phase.ptr(), mie_phase_ang.ptr(),
@@ -719,6 +737,8 @@ void Raytracer_bw::trace_rays_bb(
             land_use_map.ptr(),
             mu,
             grid_size, grid_d, grid_cells, kn_grid,
+            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+            lut_dz, int(z_lut.size()),
             sun_direction, camera, nbg,
             mie_cdf.ptr(), mie_ang.ptr(),
             mie_phase.ptr(), mie_phase_ang.ptr(),
@@ -758,6 +778,10 @@ void Raytracer_bw::trace_rays_bb(
 void Raytracer_bw::accumulate_clouds(
         const Vector<Float>& grid_d,
         const Vector<int>& grid_cells,
+        const Array_gpu<Float,1>& z_lev,
+        const Array_gpu<int,1>& z_lut,
+        const Float lut_dz,
+        const Float zsize,
         const Array_gpu<Float,2>& lwp,
         const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& tau_cloud,
@@ -779,7 +803,7 @@ void Raytracer_bw::accumulate_clouds(
     dim3 block(n_block);
 
     // domain sizes
-    const Vector<Float> grid_size = grid_d * grid_cells;
+    const Vector<Float> grid_size = {grid_d.x * grid_cells.x, grid_d.y * grid_cells.y, zsize};
 
     accumulate_clouds_kernel<<<grid, block>>>(
         lwp.ptr(),
@@ -788,6 +812,10 @@ void Raytracer_bw::accumulate_clouds(
         grid_d,
         grid_size,
         grid_cells,
+        z_lev.ptr(),
+        z_lut.ptr(),
+        lut_dz,
+        int(z_lut.size()),
         liwp_cam.ptr(),
         tauc_cam.ptr(),
         dist_cam.ptr(),
