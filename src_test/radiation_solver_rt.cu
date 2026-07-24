@@ -100,7 +100,7 @@ namespace
     void convert_1d_to_rt_hr_kernels(
         const int ncol,
         const int nz,
-        const Float dz,
+        const Float* z_lev,
         const Float* flux_net,
         Float* flux_rt_abs)
     {
@@ -112,7 +112,7 @@ namespace
             const int idx = icol + iz*ncol;
             const int idx_p = icol + (iz+1)*ncol;
 
-            flux_rt_abs[idx] = (flux_net[idx_p] - flux_net[idx])/dz;
+            flux_rt_abs[idx] = (flux_net[idx_p] - flux_net[idx])/(z_lev[iz+1] - z_lev[iz]);
         }
     }
 
@@ -139,7 +139,7 @@ namespace
         const int ncol,
         const int nlay,
         const int nz,
-        const Float dz,
+        const Array_gpu<Float,1>& z_lev,
         const Array_gpu<Float,2>& flux_up,
         const Array_gpu<Float,2>& flux_dn,
         const Array_gpu<Float,2>& flux_net,
@@ -158,7 +158,7 @@ namespace
         const dim3 block_2d(block_col, 1, 1);
         const dim3 grid_2d(grid_col, nz, 1);
         convert_1d_to_rt_hr_kernels<<<grid_2d, block_2d>>>(
-            ncol, nz, dz, flux_net.ptr(), flux_abs.ptr());
+            ncol, nz, z_lev.ptr(), flux_net.ptr(), flux_abs.ptr());
     }
 
 
@@ -545,6 +545,7 @@ void Radiation_solver_longwave::solve_gpu(
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
         const Vector<int> kn_grid,
+        const Array<Float,1>& z_lev,
         const Gas_concs_gpu& gas_concs,
         Aerosol_concs_gpu& aerosol_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
@@ -572,7 +573,10 @@ void Radiation_solver_longwave::solve_gpu(
 
     const Float grid_d_xy_min = min(grid_d.x, grid_d.y);
 
-    const Vertical_grid_gpu vgrid = build_vertical_grid_uniform(grid_d, grid_cells, kn_grid);
+    Array<Float,1> z_lev_rt({grid_cells.z+1});
+    for (int k=1; k<=grid_cells.z+1; ++k)
+        z_lev_rt({k}) = z_lev({k});
+    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev_rt, grid_cells.z, kn_grid.z);
 
     const Bool bg_profile_present = grid_cells.z < n_lay;
 
@@ -843,7 +847,7 @@ void Radiation_solver_longwave::solve_gpu(
             else
             {
                 convert_1d_to_rt_output(
-                    n_col, n_lay, grid_cells.z, grid_d.z,
+                    n_col, n_lay, grid_cells.z, vgrid.z_lev,
                     (*fluxes).get_flux_up(),
                     (*fluxes).get_flux_dn(),
                     (*fluxes).get_flux_net(),
@@ -917,6 +921,7 @@ void Radiation_solver_shortwave::solve_gpu(
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
         const Vector<int> kn_grid,
+        const Array<Float,1>& z_lev,
         const Gas_concs_gpu& gas_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
@@ -951,7 +956,15 @@ void Radiation_solver_shortwave::solve_gpu(
 
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
-    const Vertical_grid_gpu vgrid = build_vertical_grid_uniform(grid_d, grid_cells, kn_grid);
+    // With a background profile, grid_cells.z has one TOD layer above the input z_lev.
+    const Bool bg_in_grid = grid_cells.z < n_lay;
+    Array<Float,1> z_lev_rt({grid_cells.z+1});
+    const int n_zlev_in = bg_in_grid ? grid_cells.z : grid_cells.z+1;
+    for (int k=1; k<=n_zlev_in; ++k)
+        z_lev_rt({k}) = z_lev({k});
+    if (bg_in_grid)
+        z_lev_rt({grid_cells.z+1}) = Float(2.)*z_lev({grid_cells.z}) - z_lev({grid_cells.z-1});
+    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev_rt, grid_cells.z, kn_grid.z);
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
