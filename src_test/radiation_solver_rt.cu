@@ -40,6 +40,14 @@
 #include "gpt_combine_kernels_cuda_rt.h"
 
 
+struct Tau_to_kext
+{
+    const Float* tau;
+    const Float* dz;
+    int n_col;
+    __device__ Float operator()(const int i) const { return tau[i] / dz[i / n_col]; }
+};
+
 namespace
 {
 
@@ -578,6 +586,11 @@ void Radiation_solver_longwave::solve_gpu(
         z_lev_rt({k}) = z_lev({k});
     const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev_rt, grid_cells.z, kn_grid.z);
 
+    Array<Float,1> dz_rt({grid_cells.z});
+    for (int k=1; k<=grid_cells.z; ++k)
+        dz_rt({k}) = z_lev_rt({k+1}) - z_lev_rt({k});
+    const Array_gpu<Float,1> dz_rt_gpu(dz_rt);
+
     const Bool bg_profile_present = grid_cells.z < n_lay;
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
@@ -662,7 +675,7 @@ void Radiation_solver_longwave::solve_gpu(
             gas_optics_subset(col_s, n_col_residual);
         }
 
-        // Find maximum gasous optical depth to and compute lowest mean free path on the clearsky atmosphere
+        // Find maximum gasous extinction to and compute lowest mean free path on the clearsky atmosphere
 
         // Allocate temporary storage
         void* d_temp_storage = nullptr;
@@ -670,23 +683,28 @@ void Radiation_solver_longwave::solve_gpu(
 
         const int max_size = n_col * grid_cells.z;
 
-        Float* max_tau_gas_g = Tools_gpu::allocate_gpu<Float>(1);
-        Float max_tau_gas = 0;
+        Float* max_kext_gas_g = Tools_gpu::allocate_gpu<Float>(1);
+        Float max_kext_gas = 0;
+
+        const Tau_to_kext to_kext{optical_props->get_tau().ptr(), dz_rt_gpu.ptr(), n_col};
+        cub::CountingInputIterator<int> counting(0);
+        cub::TransformInputIterator<Float, Tau_to_kext, cub::CountingInputIterator<int>>
+                kext_it(counting, to_kext);
 
         // Get required temp storage size
         cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
-                               optical_props->get_tau().ptr(), max_tau_gas_g, max_size);
+                               kext_it, max_kext_gas_g, max_size);
 
         // Allocate temp storage
         cudaMalloc(&d_temp_storage, temp_storage_bytes);
 
         // Compute max
         cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
-                               optical_props->get_tau().ptr(), max_tau_gas_g, max_size);
+                               kext_it, max_kext_gas_g, max_size);
 
-        cudaMemcpy(&max_tau_gas, max_tau_gas_g, sizeof(Float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&max_kext_gas, max_kext_gas_g, sizeof(Float), cudaMemcpyDeviceToHost);
 
-        const Float lowest_gas_mean_free_path = grid_d.z / max_tau_gas;
+        const Float lowest_gas_mean_free_path = Float(1.) / max_kext_gas;
 
         if (switch_cloud_optics)
         {
@@ -868,7 +886,7 @@ void Radiation_solver_longwave::solve_gpu(
                     n_col, grid_cells.z, rt_flux_abs.ptr(), (*fluxes).get_flux_abs_dif().ptr());
 
         }
-        Tools_gpu::free_gpu<Float>(max_tau_gas_g);
+        Tools_gpu::free_gpu<Float>(max_kext_gas_g);
     }
     Status::print_message("Solved "+ std::to_string(monte_carlo_gpoints)+" out of "+std::to_string(n_gpt)+" g-points in 3D with Monte Carlo");
 }
