@@ -40,13 +40,75 @@
 #include "gpt_combine_kernels_cuda_rt.h"
 
 
+struct Tau_to_kext
+{
+    const Float* tau;
+    const Float* dz;
+    int n_col;
+    __device__ Float operator()(const int i) const { return tau[i] / dz[i / n_col]; }
+};
+
 namespace
 {
+
+    struct Vertical_grid_gpu
+    {
+        Array_gpu<Float,1> z_lev;
+        Array_gpu<Float,1> kn_z_lev;
+        Array_gpu<int,1> z_lut;
+        Array_gpu<int,1> kn_z_lut;
+        Float lut_dz;
+        Float zsize;
+    };
+
+    Vertical_grid_gpu build_vertical_grid(const Array<Float,1>& z_lev, const int nz, const int kn_z)
+    {
+        Array<Float,1> kn_z_lev({kn_z+1});
+        const Float fz = Float(nz) / Float(kn_z);
+        for (int k=0; k<kn_z; ++k)
+            kn_z_lev({k+1}) = z_lev({static_cast<int>(k*fz)+1});
+        kn_z_lev({kn_z+1}) = z_lev({nz+1});
+
+        Float dz_min = z_lev({2}) - z_lev({1});
+        for (int k=1; k<nz; ++k)
+            dz_min = std::min(dz_min, z_lev({k+2}) - z_lev({k+1}));
+
+        const Float zsize = z_lev({nz+1});
+        const int lut_size = static_cast<int>(std::ceil(zsize/dz_min));
+        const Float lut_dz = zsize / lut_size;
+
+        Array<int,1> z_lut({lut_size});
+        Array<int,1> kn_z_lut({lut_size});
+        for (int i=0; i<lut_size; ++i)
+        {
+            const Float z = i*lut_dz;
+            int k = 0;
+            while (k < nz-1 && z >= z_lev({k+2}))
+                ++k;
+            z_lut({i+1}) = k;
+            k = 0;
+            while (k < kn_z-1 && z >= kn_z_lev({k+2}))
+                ++k;
+            kn_z_lut({i+1}) = k;
+        }
+
+        return {Array_gpu<Float,1>(z_lev), Array_gpu<Float,1>(kn_z_lev),
+                Array_gpu<int,1>(z_lut), Array_gpu<int,1>(kn_z_lut), lut_dz, zsize};
+    }
+
+    Vertical_grid_gpu build_vertical_grid_uniform(const Vector<Float> grid_d, const Vector<int> grid_cells, const Vector<int> kn_grid)
+    {
+        Array<Float,1> z_lev({grid_cells.z+1});
+        for (int k=0; k<grid_cells.z+1; ++k)
+            z_lev({k+1}) = k * grid_d.z;
+        return build_vertical_grid(z_lev, grid_cells.z, kn_grid.z);
+    }
+
     __global__
     void convert_1d_to_rt_hr_kernels(
         const int ncol,
         const int nz,
-        const Float dz,
+        const Float* z_lev,
         const Float* flux_net,
         Float* flux_rt_abs)
     {
@@ -58,7 +120,7 @@ namespace
             const int idx = icol + iz*ncol;
             const int idx_p = icol + (iz+1)*ncol;
 
-            flux_rt_abs[idx] = (flux_net[idx_p] - flux_net[idx])/dz;
+            flux_rt_abs[idx] = (flux_net[idx_p] - flux_net[idx])/(z_lev[iz+1] - z_lev[iz]);
         }
     }
 
@@ -85,7 +147,7 @@ namespace
         const int ncol,
         const int nlay,
         const int nz,
-        const Float dz,
+        const Array_gpu<Float,1>& z_lev,
         const Array_gpu<Float,2>& flux_up,
         const Array_gpu<Float,2>& flux_dn,
         const Array_gpu<Float,2>& flux_net,
@@ -104,7 +166,7 @@ namespace
         const dim3 block_2d(block_col, 1, 1);
         const dim3 grid_2d(grid_col, nz, 1);
         convert_1d_to_rt_hr_kernels<<<grid_2d, block_2d>>>(
-            ncol, nz, dz, flux_net.ptr(), flux_abs.ptr());
+            ncol, nz, z_lev.ptr(), flux_net.ptr(), flux_abs.ptr());
     }
 
 
@@ -491,6 +553,7 @@ void Radiation_solver_longwave::solve_gpu(
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
         const Vector<int> kn_grid,
+        const Array<Float,1>& z_lev,
         const Gas_concs_gpu& gas_concs,
         Aerosol_concs_gpu& aerosol_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
@@ -517,6 +580,16 @@ void Radiation_solver_longwave::solve_gpu(
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
     const Float grid_d_xy_min = min(grid_d.x, grid_d.y);
+
+    Array<Float,1> z_lev_rt({grid_cells.z+1});
+    for (int k=1; k<=grid_cells.z+1; ++k)
+        z_lev_rt({k}) = z_lev({k});
+    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev_rt, grid_cells.z, kn_grid.z);
+
+    Array<Float,1> dz_rt({grid_cells.z});
+    for (int k=1; k<=grid_cells.z; ++k)
+        dz_rt({k}) = z_lev_rt({k+1}) - z_lev_rt({k});
+    const Array_gpu<Float,1> dz_rt_gpu(dz_rt);
 
     const Bool bg_profile_present = grid_cells.z < n_lay;
 
@@ -602,7 +675,7 @@ void Radiation_solver_longwave::solve_gpu(
             gas_optics_subset(col_s, n_col_residual);
         }
 
-        // Find maximum gasous optical depth to and compute lowest mean free path on the clearsky atmosphere
+        // Find maximum gasous extinction to and compute lowest mean free path on the clearsky atmosphere
 
         // Allocate temporary storage
         void* d_temp_storage = nullptr;
@@ -610,23 +683,28 @@ void Radiation_solver_longwave::solve_gpu(
 
         const int max_size = n_col * grid_cells.z;
 
-        Float* max_tau_gas_g = Tools_gpu::allocate_gpu<Float>(1);
-        Float max_tau_gas = 0;
+        Float* max_kext_gas_g = Tools_gpu::allocate_gpu<Float>(1);
+        Float max_kext_gas = 0;
+
+        const Tau_to_kext to_kext{optical_props->get_tau().ptr(), dz_rt_gpu.ptr(), n_col};
+        cub::CountingInputIterator<int> counting(0);
+        cub::TransformInputIterator<Float, Tau_to_kext, cub::CountingInputIterator<int>>
+                kext_it(counting, to_kext);
 
         // Get required temp storage size
         cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
-                               optical_props->get_tau().ptr(), max_tau_gas_g, max_size);
+                               kext_it, max_kext_gas_g, max_size);
 
         // Allocate temp storage
         cudaMalloc(&d_temp_storage, temp_storage_bytes);
 
         // Compute max
         cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes,
-                               optical_props->get_tau().ptr(), max_tau_gas_g, max_size);
+                               kext_it, max_kext_gas_g, max_size);
 
-        cudaMemcpy(&max_tau_gas, max_tau_gas_g, sizeof(Float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&max_kext_gas, max_kext_gas_g, sizeof(Float), cudaMemcpyDeviceToHost);
 
-        const Float lowest_gas_mean_free_path = grid_d.z / max_tau_gas;
+        const Float lowest_gas_mean_free_path = Float(1.) / max_kext_gas;
 
         if (switch_cloud_optics)
         {
@@ -760,6 +838,12 @@ void Radiation_solver_longwave::solve_gpu(
                         grid_cells,
                         grid_d,
                         kn_grid,
+                        vgrid.z_lev,
+                        vgrid.kn_z_lev,
+                        vgrid.z_lut,
+                        vgrid.kn_z_lut,
+                        vgrid.lut_dz,
+                        vgrid.zsize,
                         dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
                         dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
                         dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
@@ -781,7 +865,7 @@ void Radiation_solver_longwave::solve_gpu(
             else
             {
                 convert_1d_to_rt_output(
-                    n_col, n_lay, grid_cells.z, grid_d.z,
+                    n_col, n_lay, grid_cells.z, vgrid.z_lev,
                     (*fluxes).get_flux_up(),
                     (*fluxes).get_flux_dn(),
                     (*fluxes).get_flux_net(),
@@ -802,7 +886,7 @@ void Radiation_solver_longwave::solve_gpu(
                     n_col, grid_cells.z, rt_flux_abs.ptr(), (*fluxes).get_flux_abs_dif().ptr());
 
         }
-        Tools_gpu::free_gpu<Float>(max_tau_gas_g);
+        Tools_gpu::free_gpu<Float>(max_kext_gas_g);
     }
     Status::print_message("Solved "+ std::to_string(monte_carlo_gpoints)+" out of "+std::to_string(n_gpt)+" g-points in 3D with Monte Carlo");
 }
@@ -855,6 +939,7 @@ void Radiation_solver_shortwave::solve_gpu(
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
         const Vector<int> kn_grid,
+        const Array<Float,1>& z_lev,
         const Gas_concs_gpu& gas_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
@@ -889,6 +974,15 @@ void Radiation_solver_shortwave::solve_gpu(
 
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
+    // With a background profile, grid_cells.z has one TOD layer above the input z_lev.
+    const Bool bg_in_grid = grid_cells.z < n_lay;
+    Array<Float,1> z_lev_rt({grid_cells.z+1});
+    const int n_zlev_in = bg_in_grid ? grid_cells.z : grid_cells.z+1;
+    for (int k=1; k<=n_zlev_in; ++k)
+        z_lev_rt({k}) = z_lev({k});
+    if (bg_in_grid)
+        z_lev_rt({grid_cells.z+1}) = Float(2.)*z_lev({grid_cells.z}) - z_lev({grid_cells.z-1});
+    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev_rt, grid_cells.z, kn_grid.z);
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
@@ -1104,6 +1198,12 @@ void Radiation_solver_shortwave::solve_gpu(
                     grid_cells,
                     grid_d,
                     kn_grid,
+                    vgrid.z_lev,
+                    vgrid.kn_z_lev,
+                    vgrid.z_lut,
+                    vgrid.kn_z_lut,
+                    vgrid.lut_dz,
+                    vgrid.zsize,
                     mie_cdfs_sub,
                     mie_angs_sub,
                     dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),

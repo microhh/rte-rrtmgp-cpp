@@ -18,7 +18,7 @@ constexpr int rt_kernel_grid = 256;
 
 constexpr Float k_null_gas_min = Float(1.e-3);
 
-template<Bool independent_column> __global__
+template<Bool independent_column, Bool dz_constant> __global__
 void ray_tracer_kernel(
         const Int photons_to_shoot,
         const Int qrng_grid_x,
@@ -42,6 +42,12 @@ void ray_tracer_kernel(
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,
         const Vector<int> kn_grid,
+        const Float* __restrict__ z_lev,
+        const Float* __restrict__ kn_z_lev,
+        const int* __restrict__ z_lut,
+        const int* __restrict__ kn_z_lut,
+        const Float lut_dz,
+        const int lut_size,
         const Vector<Float> sun_direction,
         curandDirectionVectors32_t* qrng_vectors, unsigned int* qrng_constants,
         const Float* __restrict__ mie_cdf,
