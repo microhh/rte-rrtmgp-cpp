@@ -18,7 +18,7 @@ constexpr int rt_kernel_grid = 256;
 
 constexpr Float k_null_gas_min = Float(1.e-3);
 
-template<Bool independent_column> __global__
+template<Bool independent_column, Bool dz_constant> __global__
 void ray_tracer_kernel(
         const Int photons_to_shoot,
         const Int qrng_grid_x,

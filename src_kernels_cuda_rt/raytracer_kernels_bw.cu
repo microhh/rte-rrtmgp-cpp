@@ -39,7 +39,7 @@ namespace
         return Float(1.)/(Float(4.)*M_PI) * (1-g*g) / (denom*sqrt(denom));
     }
 
-    __device__
+    template<Bool dz_constant> __device__
     Float transmission_direct_sun(
             Photon photon,
             const int n,
@@ -93,10 +93,10 @@ namespace
                 {
                     i_n = float_to_int(photon.position.x, kn_grid_d.x, kn_grid.x);
                     j_n = float_to_int(photon.position.y, kn_grid_d.y, kn_grid.y);
-                    k_n = height_to_int(photon.position.z, kn_z_lev, kn_z_lut, lut_dz, lut_size, kn_grid.z);
+                    k_n = grid_z_index<dz_constant>(photon.position.z, kn_grid_d.z, kn_z_lev, kn_z_lut, lut_dz, lut_size, kn_grid.z);
                     const Float sx = abs((sun_dir.x > 0) ? ((i_n+1) * kn_grid_d.x - photon.position.x)/sun_dir.x : (i_n*kn_grid_d.x - photon.position.x)/sun_dir.x);
                     const Float sy = abs((sun_dir.y > 0) ? ((j_n+1) * kn_grid_d.y - photon.position.y)/sun_dir.y : (j_n*kn_grid_d.y - photon.position.y)/sun_dir.y);
-                    const Float sz = (kn_z_lev[k_n+1] - photon.position.z)/sun_dir.z;
+                    const Float sz = (grid_z_bound<dz_constant>(k_n+1, kn_grid_d.z, kn_z_lev) - photon.position.z)/sun_dir.z;
                     d_max = min(sx, min(sy, sz));
                     const int ijk = i_n + j_n*kn_grid.x + k_n*kn_grid.x*kn_grid.y;
 
@@ -155,12 +155,12 @@ namespace
 
                     photon.position.x = (dx > 0) ? min(photon.position.x + dx, (i_n+1) * kn_grid_d.x - s_min) : max(photon.position.x + dx, (i_n) * kn_grid_d.x + s_min);
                     photon.position.y = (dy > 0) ? min(photon.position.y + dy, (j_n+1) * kn_grid_d.y - s_min) : max(photon.position.y + dy, (j_n) * kn_grid_d.y + s_min);
-                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, kn_z_lev[k_n+1] - s_min) : max(photon.position.z + dz, kn_z_lev[k_n] + s_min);
+                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, grid_z_bound<dz_constant>(k_n+1, kn_grid_d.z, kn_z_lev) - s_min) : max(photon.position.z + dz, grid_z_bound<dz_constant>(k_n, kn_grid_d.z, kn_z_lev) + s_min);
 
                     // Calculate the 3D index.
                     const int i = float_to_int(photon.position.x, grid_d.x, grid_cells.x);
                     const int j = float_to_int(photon.position.y, grid_d.y, grid_cells.y);
-                    const int k = height_to_int(photon.position.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
+                    const int k = grid_z_index<dz_constant>(photon.position.z, grid_d.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
                     const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
 
                     // Handle the action.
@@ -176,7 +176,7 @@ namespace
         }
     }
 
-    __device__
+    template<Bool dz_constant> __device__
     inline void reset_photon(
             Photon& photon,
             Float* __restrict__ camera_count_direct,
@@ -267,7 +267,7 @@ namespace
 
         if ( (dot(photon.direction, sun_direction) > cos_half_angle) )
         {
-            const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
+            const Float trans_sun = transmission_direct_sun<dz_constant>(photon,n,rng,sun_direction,
                                        k_null_grid,k_ext,
                                        bg_tau_cum, z_lev_bg, bg_idx,
                                        kn_grid, kn_grid_d, grid_d,
@@ -320,7 +320,7 @@ namespace
     }
 }
 
-template<Bool tod_diffuse>__global__
+template<Bool tod_diffuse, Bool dz_constant>__global__
 void ray_tracer_kernel_bw(
         const int igpt,
         const Int photons_per_pixel,
@@ -408,7 +408,7 @@ void ray_tracer_kernel_bw(
 
         Photon photon;
 
-        reset_photon(
+        reset_photon<dz_constant>(
                 photon, camera_count_direct, camera_shot,
                 ij_cam, n, rng, sun_direction,
                 k_null_grid, k_ext,
@@ -522,7 +522,7 @@ void ray_tracer_kernel_bw(
 
                         // TOD direct contribution
                         const Float p_direct = probability_from_source(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
-                        const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
+                        const Float trans_sun = transmission_direct_sun<dz_constant>(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
                                                     bg_tau_cum, z_lev_bg, bg_idx,
                                                     kn_grid, kn_grid_d, grid_d,
@@ -542,7 +542,7 @@ void ray_tracer_kernel_bw(
                             Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
 
                             const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
-                            const Float trans_dif = transmission_direct_sun(photon,n,rng,diffuse_direction,
+                            const Float trans_dif = transmission_direct_sun<dz_constant>(photon,n,rng,diffuse_direction,
                                                         k_null_grid,k_ext,
                                                         bg_tau_cum, z_lev_bg, bg_idx,
                                                         kn_grid, kn_grid_d, grid_d,
@@ -591,10 +591,10 @@ void ray_tracer_kernel_bw(
                 {
                     i_n = float_to_int(photon.position.x, kn_grid_d.x, kn_grid.x);
                     j_n = float_to_int(photon.position.y, kn_grid_d.y, kn_grid.y);
-                    k_n = height_to_int(photon.position.z, kn_z_lev, kn_z_lut, lut_dz, lut_size, kn_grid.z);
+                    k_n = grid_z_index<dz_constant>(photon.position.z, kn_grid_d.z, kn_z_lev, kn_z_lut, lut_dz, lut_size, kn_grid.z);
                     const Float sx = abs((photon.direction.x > 0) ? ((i_n+1) * kn_grid_d.x - photon.position.x)/photon.direction.x : (i_n*kn_grid_d.x - photon.position.x)/photon.direction.x);
                     const Float sy = abs((photon.direction.y > 0) ? ((j_n+1) * kn_grid_d.y - photon.position.y)/photon.direction.y : (j_n*kn_grid_d.y - photon.position.y)/photon.direction.y);
-                    const Float sz = abs((photon.direction.z > 0) ? (kn_z_lev[k_n+1] - photon.position.z)/photon.direction.z : (kn_z_lev[k_n] - photon.position.z)/photon.direction.z);
+                    const Float sz = abs((photon.direction.z > 0) ? (grid_z_bound<dz_constant>(k_n+1, kn_grid_d.z, kn_z_lev) - photon.position.z)/photon.direction.z : (grid_z_bound<dz_constant>(k_n, kn_grid_d.z, kn_z_lev) - photon.position.z)/photon.direction.z);
                     d_max = min(sx, min(sy, sz));
                     ijk_n = i_n + j_n*kn_grid.x + k_n*kn_grid.y*kn_grid.x;
                     k_ext_null = k_null_grid[ijk_n].k_max;
@@ -632,7 +632,7 @@ void ray_tracer_kernel_bw(
                         // Direct sun contribution
                         const Float p_sun = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, r_eff, 0, 0,
                                                                  surface_normal, surface_kind);
-                        const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
+                        const Float trans_sun = transmission_direct_sun<dz_constant>(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
                                                     bg_tau_cum, z_lev_bg, bg_idx,
                                                     kn_grid, kn_grid_d, grid_d,
@@ -651,7 +651,7 @@ void ray_tracer_kernel_bw(
                             Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
 
                             const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, surface_kind);
-                            const Float trans_dif = transmission_direct_sun(photon,n,rng,diffuse_direction,
+                            const Float trans_dif = transmission_direct_sun<dz_constant>(photon,n,rng,diffuse_direction,
                                                         k_null_grid,k_ext,
                                                         bg_tau_cum, z_lev_bg, bg_idx,
                                                         kn_grid, kn_grid_d, grid_d,
@@ -729,12 +729,12 @@ void ray_tracer_kernel_bw(
 
                     photon.position.x = (dx > 0) ? min(photon.position.x + dx, (i_n+1) * kn_grid_d.x - s_min) : max(photon.position.x + dx, (i_n) * kn_grid_d.x + s_min);
                     photon.position.y = (dy > 0) ? min(photon.position.y + dy, (j_n+1) * kn_grid_d.y - s_min) : max(photon.position.y + dy, (j_n) * kn_grid_d.y + s_min);
-                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, kn_z_lev[k_n+1] - s_min) : max(photon.position.z + dz, kn_z_lev[k_n] + s_min);
+                    photon.position.z = (dz > 0) ? min(photon.position.z + dz, grid_z_bound<dz_constant>(k_n+1, kn_grid_d.z, kn_z_lev) - s_min) : max(photon.position.z + dz, grid_z_bound<dz_constant>(k_n, kn_grid_d.z, kn_z_lev) + s_min);
 
                     // Calculate the 3D index.
                     const int i = float_to_int(photon.position.x, grid_d.x, grid_cells.x);
                     const int j = float_to_int(photon.position.y, grid_d.y, grid_cells.y);
-                    const int k = height_to_int(photon.position.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
+                    const int k = grid_z_index<dz_constant>(photon.position.z, grid_d.z, z_lev, z_lut, lut_dz, lut_size, grid_cells.z);
                     const int ijk = i + j*grid_cells.x + k*grid_cells.x*grid_cells.y;
 
 
@@ -792,7 +792,7 @@ void ray_tracer_kernel_bw(
                                                                         : Phase_kind::HG
                                                                 : Phase_kind::HG;
                             const Float p_sun = probability_from_source(photon, sun_direction, sun_solid_angle, g, mie_phase_ang_shared, mie_phase, r_eff, ijk, mie_phase_table_size, surface_normal, kind);
-                            const Float trans_sun = transmission_direct_sun(photon,n,rng,sun_direction,
+                            const Float trans_sun = transmission_direct_sun<dz_constant>(photon,n,rng,sun_direction,
                                                         k_null_grid,k_ext,
                                                         bg_tau_cum, z_lev_bg, bg_idx,
                                                         kn_grid, kn_grid_d, grid_d,
@@ -811,7 +811,7 @@ void ray_tracer_kernel_bw(
                                 Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
 
                                 const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
-                                const Float trans_dif = transmission_direct_sun(photon,n,rng,diffuse_direction,
+                                const Float trans_dif = transmission_direct_sun<dz_constant>(photon,n,rng,diffuse_direction,
                                                             k_null_grid,k_ext,
                                                             bg_tau_cum, z_lev_bg, bg_idx,
                                                             kn_grid, kn_grid_d, grid_d,
@@ -979,18 +979,7 @@ void ray_tracer_kernel_bw(
 
     }
 
-template __global__ void ray_tracer_kernel_bw<true>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Float*, const Float*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
-template __global__ void ray_tracer_kernel_bw<false>(
+template __global__ void ray_tracer_kernel_bw<true, true>(
     const int, const Int, const Grid_knull*,
     Float*, Float*, Float*, Int*,
     const Float*, const Optics_scat*, const Float*, const Optics_scat*,
@@ -1002,3 +991,38 @@ template __global__ void ray_tracer_kernel_bw<false>(
     const int, const Float*, const Float*, const Float*, const Float*,
     const int, const int);
 
+template __global__ void ray_tracer_kernel_bw<true, false>(
+    const int, const Int, const Grid_knull*,
+    Float*, Float*, Float*, Int*,
+    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
+    const Float*, const Float*, const Float*, const Float*,
+    const Float, const Vector<Float>, const Vector<Float>,
+    const Vector<int>, const Vector<int>,
+    const Float*, const Float*, const int*, const int*, const Float, const int,
+    const Vector<Float>, const Camera,
+    const int, const Float*, const Float*, const Float*, const Float*,
+    const int, const int);
+
+template __global__ void ray_tracer_kernel_bw<false, true>(
+    const int, const Int, const Grid_knull*,
+    Float*, Float*, Float*, Int*,
+    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
+    const Float*, const Float*, const Float*, const Float*,
+    const Float, const Vector<Float>, const Vector<Float>,
+    const Vector<int>, const Vector<int>,
+    const Float*, const Float*, const int*, const int*, const Float, const int,
+    const Vector<Float>, const Camera,
+    const int, const Float*, const Float*, const Float*, const Float*,
+    const int, const int);
+
+template __global__ void ray_tracer_kernel_bw<false, false>(
+    const int, const Int, const Grid_knull*,
+    Float*, Float*, Float*, Int*,
+    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
+    const Float*, const Float*, const Float*, const Float*,
+    const Float, const Vector<Float>, const Vector<Float>,
+    const Vector<int>, const Vector<int>,
+    const Float*, const Float*, const int*, const int*, const Float, const int,
+    const Vector<Float>, const Camera,
+    const int, const Float*, const Float*, const Float*, const Float*,
+    const int, const int);

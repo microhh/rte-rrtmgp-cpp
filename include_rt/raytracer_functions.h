@@ -171,6 +171,25 @@ namespace Raytracer_functions
         return k;
     }
 
+    template<Bool dz_constant> __device__
+    inline int grid_z_index(const Float z, const Float dz, const Float* z_lev,
+                            const int* z_lut, const Float lut_dz, const int lut_size, const int ntot_max)
+    {
+        if constexpr (dz_constant)
+            return float_to_int(z, dz, ntot_max);
+        else
+            return height_to_int(z, z_lev, z_lut, lut_dz, lut_size, ntot_max);
+    }
+
+    template<Bool dz_constant> __device__
+    inline Float grid_z_bound(const int k, const Float dz, const Float* z_lev)
+    {
+        if constexpr (dz_constant)
+            return k * dz;
+        else
+            return z_lev[k];
+    }
+
     __device__
     inline void write_photon_out(Float* field_out, const Float w)
     {

@@ -1,4 +1,5 @@
 #include <curand_kernel.h>
+#include <limits>
 
 #include "raytracer_sw.h"
 #include "array.h"
@@ -216,6 +217,18 @@ namespace
 }
 
 
+static bool vertical_spacing_is_constant(const Array_gpu<Float,1>& z_lev_gpu, const int nz)
+{
+    const Array<Float,1> z_lev(z_lev_gpu);
+    const Float dz0 = (z_lev({nz+1}) - z_lev({1})) / Float(nz);
+    const Float tol = Float(4.) * std::numeric_limits<Float>::epsilon() * Float(nz) * std::abs(dz0);
+    for (int k=1; k<=nz; ++k)
+        if (std::abs((z_lev({k+1}) - z_lev({k})) - dz0) > tol)
+            return false;
+    return true;
+}
+
+
 Raytracer::Raytracer()
 {
     curandDirectionVectors32_t* qrng_vectors;
@@ -386,61 +399,41 @@ void Raytracer::trace_rays(
 
     const Int rng_gpt_offset = (igpt-1) * rt_kernel_grid_size * rt_kernel_block_size;
 
-    if (switch_independent_column)
-    {
-        ray_tracer_kernel<true><<<grid, block,sizeof(Float)*mie_table_size>>>(
-                photons_per_thread,
-                qrng_grid_x,
-                qrng_grid_y,
-                rng_gpt_offset,
-                k_null_grid.ptr(),
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_down_direct_count.ptr(),
-                surface_down_diffuse_count.ptr(),
-                surface_up_count.ptr(),
-                atmos_direct_count.ptr(),
-                atmos_diffuse_count.ptr(),
-                k_ext.ptr(), scat_asy.ptr(),
-                r_eff.ptr(),
-                tod_inc_direct,
-                tod_inc_diffuse,
-                surface_albedo.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid,
-                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-                lut_dz, int(z_lut.size()),
-                sun_direction,
-                this->qrng_vectors_gpu, this->qrng_constants_gpu,
-                mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
-    }
-    else
-    {
-        ray_tracer_kernel<false><<<grid, block,sizeof(Float)*mie_table_size>>>(
-                photons_per_thread,
-                qrng_grid_x,
-                qrng_grid_y,
-                rng_gpt_offset,
-                k_null_grid.ptr(),
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_down_direct_count.ptr(),
-                surface_down_diffuse_count.ptr(),
-                surface_up_count.ptr(),
-                atmos_direct_count.ptr(),
-                atmos_diffuse_count.ptr(),
-                k_ext.ptr(), scat_asy.ptr(),
-                r_eff.ptr(),
-                tod_inc_direct,
-                tod_inc_diffuse,
-                surface_albedo.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid,
-                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-                lut_dz, int(z_lut.size()),
-                sun_direction,
-                this->qrng_vectors_gpu, this->qrng_constants_gpu,
-                mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
+    // Constant dz implies the old uniform null-cell walls, valid for any kn_grid.
+    const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
-    }
+    auto launch = [&](auto kernel)
+    {
+        kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
+                photons_per_thread,
+                qrng_grid_x,
+                qrng_grid_y,
+                rng_gpt_offset,
+                k_null_grid.ptr(),
+                tod_dn_count.ptr(),
+                tod_up_count.ptr(),
+                surface_down_direct_count.ptr(),
+                surface_down_diffuse_count.ptr(),
+                surface_up_count.ptr(),
+                atmos_direct_count.ptr(),
+                atmos_diffuse_count.ptr(),
+                k_ext.ptr(), scat_asy.ptr(),
+                r_eff.ptr(),
+                tod_inc_direct,
+                tod_inc_diffuse,
+                surface_albedo.ptr(),
+                grid_size, grid_d, grid_cells, kn_grid,
+                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+                lut_dz, int(z_lut.size()),
+                sun_direction,
+                this->qrng_vectors_gpu, this->qrng_constants_gpu,
+                mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
+    };
+
+    if (switch_independent_column)
+        dz_constant ? launch(ray_tracer_kernel<true, true>) : launch(ray_tracer_kernel<true, false>);
+    else
+        dz_constant ? launch(ray_tracer_kernel<false, true>) : launch(ray_tracer_kernel<false, false>);
     // convert counts to fluxes
 
     const Float toa_src = tod_inc_direct + tod_inc_diffuse;

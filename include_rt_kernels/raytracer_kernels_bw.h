@@ -88,7 +88,7 @@ struct Camera
 };
 
 
-template<Bool tod_diffuse> __global__
+template<Bool tod_diffuse, Bool dz_constant> __global__
 void ray_tracer_kernel_bw(
         const int igpt,
         const Int photons_per_pixel,

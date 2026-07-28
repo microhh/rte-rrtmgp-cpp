@@ -1,4 +1,5 @@
 #include <curand_kernel.h>
+#include <limits>
 
 #include "raytracer_lw.h"
 #include "array.h"
@@ -182,6 +183,18 @@ namespace
     }
 }
 
+static bool vertical_spacing_is_constant(const Array_gpu<Float,1>& z_lev_gpu, const int nz)
+{
+    const Array<Float,1> z_lev(z_lev_gpu);
+    const Float dz0 = (z_lev({nz+1}) - z_lev({1})) / Float(nz);
+    const Float tol = Float(4.) * std::numeric_limits<Float>::epsilon() * Float(nz) * std::abs(dz0);
+    for (int k=1; k<=nz; ++k)
+        if (std::abs((z_lev({k+1}) - z_lev({k})) - dz0) > tol)
+            return false;
+    return true;
+}
+
+
 void Raytracer_lw::trace_rays(
         const int igpt,
         const bool switch_independent_column,
@@ -326,52 +339,36 @@ void Raytracer_lw::trace_rays(
     const Int qrng_gpt_offset = this->qrng_igpt * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
     ++this->qrng_igpt;
 
+    // Constant dz implies the old uniform null-cell walls, valid for any kn_grid.
+    const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
+
+    auto launch = [&](auto kernel)
+    {
+        kernel<<<grid, block>>>(
+                rng_offset,
+                photons_per_thread,
+                alias_prob.ptr(),
+                alias_idx.ptr(),
+                n_alias,
+                qrng_gpt_offset,
+                k_null_grid.ptr(),
+                tod_dn_count.ptr(),
+                tod_up_count.ptr(),
+                surface_dn_count.ptr(),
+                surface_up_count.ptr(),
+                atmos_count.ptr(),
+                k_ext.ptr(), scat_asy.ptr(),
+                emis_sfc.ptr(),
+                grid_size, grid_d, grid_cells, kn_grid,
+                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+                lut_dz, int(z_lut.size()),
+                this->qrng_vectors_gpu, this->qrng_constants_gpu);
+    };
+
     if (switch_independent_column)
-    {
-        ray_tracer_lw_kernel<true><<<grid, block>>>(
-                rng_offset,
-                photons_per_thread,
-                alias_prob.ptr(),
-                alias_idx.ptr(),
-                n_alias,
-                qrng_gpt_offset,
-                k_null_grid.ptr(),
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_dn_count.ptr(),
-                surface_up_count.ptr(),
-                atmos_count.ptr(),
-                k_ext.ptr(), scat_asy.ptr(),
-                emis_sfc.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid,
-                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-                lut_dz, int(z_lut.size()),
-                this->qrng_vectors_gpu, this->qrng_constants_gpu);
-    }
+        dz_constant ? launch(ray_tracer_lw_kernel<true, true>) : launch(ray_tracer_lw_kernel<true, false>);
     else
-    {
-        ray_tracer_lw_kernel<false><<<grid, block>>>(
-                rng_offset,
-                photons_per_thread,
-                alias_prob.ptr(),
-                alias_idx.ptr(),
-                n_alias,
-                qrng_gpt_offset,
-                k_null_grid.ptr(),
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_dn_count.ptr(),
-                surface_up_count.ptr(),
-                atmos_count.ptr(),
-                k_ext.ptr(), scat_asy.ptr(),
-                emis_sfc.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid,
-                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-                lut_dz, int(z_lut.size()),
-                this->qrng_vectors_gpu, this->qrng_constants_gpu);
-
-
-    }
+        dz_constant ? launch(ray_tracer_lw_kernel<false, true>) : launch(ray_tracer_lw_kernel<false, false>);
     const Float power_per_photon = Float(total_power / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block));
 
     count_to_flux_2d<<<grid_2d, block_2d>>>(

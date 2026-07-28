@@ -1,4 +1,5 @@
 #include <curand_kernel.h>
+#include <limits>
 
 #include "optical_props_rt.h"
 #include "array.h"
@@ -291,6 +292,18 @@ namespace
 }
 
 
+static bool vertical_spacing_is_constant(const Array_gpu<Float,1>& z_lev_gpu, const int nz)
+{
+    const Array<Float,1> z_lev(z_lev_gpu);
+    const Float dz0 = (z_lev({nz+1}) - z_lev({1})) / Float(nz);
+    const Float tol = Float(4.) * std::numeric_limits<Float>::epsilon() * Float(nz) * std::abs(dz0);
+    for (int k=1; k<=nz; ++k)
+        if (std::abs((z_lev({k+1}) - z_lev({k})) - dz0) > tol)
+            return false;
+    return true;
+}
+
+
 Raytracer_bw::Raytracer_bw()
 {
 }
@@ -490,10 +503,13 @@ void Raytracer_bw::trace_rays(
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
 
+    // Constant dz implies the old uniform null-cell walls, valid for any kn_grid.
+    const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
+
     const Bool do_diffuse = f_diffuse>Float(0.);
     if (do_diffuse)
     {
-        ray_tracer_kernel_bw<true><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+        (dz_constant ? ray_tracer_kernel_bw<true, true> : ray_tracer_kernel_bw<true, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -518,7 +534,7 @@ void Raytracer_bw::trace_rays(
     }
     else
     {
-        ray_tracer_kernel_bw<false><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+        (dz_constant ? ray_tracer_kernel_bw<false, true> : ray_tracer_kernel_bw<false, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -694,10 +710,13 @@ void Raytracer_bw::trace_rays_bb(
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
 
+    // Constant dz implies the old uniform null-cell walls, valid for any kn_grid.
+    const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
+
     const Bool do_diffuse = f_diffuse>Float(0.);
     if (do_diffuse)
     {
-        ray_tracer_kernel_bw<true><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+        (dz_constant ? ray_tracer_kernel_bw<true, true> : ray_tracer_kernel_bw<true, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -722,7 +741,7 @@ void Raytracer_bw::trace_rays_bb(
     }
     else
     {
-        ray_tracer_kernel_bw<false><<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+        (dz_constant ? ray_tracer_kernel_bw<false, true> : ray_tracer_kernel_bw<false, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),

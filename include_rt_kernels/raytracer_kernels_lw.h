@@ -18,7 +18,7 @@ constexpr int rt_lw_kernel_grid = 256;
 
 constexpr Float k_null_gas_min = Float(1.e-3);
 
-template<Bool independent_column>
+template<Bool independent_column, Bool dz_constant>
 __global__
 void ray_tracer_lw_kernel(
         const Int rng_offset,
