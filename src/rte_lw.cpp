@@ -175,10 +175,10 @@ void Rte_lw::rte_lw(
 
     const Bool do_broadband = (gpt_flux_up.dim(3) == 1) ? true : false;
 
-    // CvH: For now, just pass the arrays around. Could we reduce the array size?
+    // The Fortran solver does not access these arguments when Jacobians are disabled.
     const Bool do_jacobians = false;
-    Array<Float,2> sfc_src_jac(sources.get_sfc_source().get_dims());
-    Array<Float,3> gpt_flux_up_jac(gpt_flux_up.get_dims());
+    Array<Float,2> sfc_src_jac({1, 1});
+    Array<Float,3> gpt_flux_up_jac({1, 1, 1});
 
     // Do not rescale and pass tau in twice in the last line to not trigger an exception.
     const Bool do_rescaling = false;
@@ -203,12 +203,12 @@ void Rte_lw::rte_lw(
 
 void Rte_lw::expand_and_transpose(
         const std::unique_ptr<Optical_props_arry>& ops,
-        const Array<Float,2> arr_in,
+        const Array<Float,2>& arr_in,
         Array<Float,2>& arr_out)
 {
     const int ncol = arr_in.dim(2);
     const int nband = ops->get_nband();
-    Array<int,2> limits = ops->get_band_lims_gpoint();
+    const Array<int,2>& limits = ops->get_band_lims_gpoint();
 
     for (int iband=1; iband<=nband; ++iband)
         for (int icol=1; icol<=ncol; ++icol)

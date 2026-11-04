@@ -89,7 +89,7 @@ void Fluxes_byband_gpu::reduce(
     const int ngpt = spectral_disc->get_ngpt();
     const int nbnd = spectral_disc->get_nband();
 
-    const Array_gpu<int,2>& band_lims = spectral_disc->get_band_lims_gpoint();
+    const Array_gpu<int,2>& band_lims = spectral_disc->get_band_lims_gpoint_gpu();
 
     Fluxes_broadband_gpu::reduce(
             gpt_flux_up, gpt_flux_dn,
@@ -103,8 +103,9 @@ void Fluxes_byband_gpu::reduce(
             ncol, nlev, ngpt, nbnd, band_lims.ptr(),
             gpt_flux_dn.ptr(), this->bnd_flux_dn.ptr());
 
-    Fluxes_kernels_cuda::net_byband_full(
-            ncol, nlev, ngpt, nbnd, band_lims.ptr(),
+    // These arrays are already band-integrated, not g-point resolved.
+    Fluxes_kernels_cuda::net_broadband_precalc(
+            ncol, nlev*nbnd,
             this->bnd_flux_dn.ptr(), this->bnd_flux_up.ptr(), this->bnd_flux_net.ptr());
 }
 
@@ -122,7 +123,7 @@ void Fluxes_byband_gpu::reduce(
     const int ngpt = spectral_disc->get_ngpt();
     const int nbnd = spectral_disc->get_nband();
 
-    const Array_gpu<int,2>& band_lims = spectral_disc->get_band_lims_gpoint();
+    const Array_gpu<int,2>& band_lims = spectral_disc->get_band_lims_gpoint_gpu();
 
     Fluxes_broadband_gpu::reduce(
             gpt_flux_up, gpt_flux_dn, gpt_flux_dn_dir,

@@ -20,6 +20,10 @@ class Raytracer
 {
     public:
         Raytracer();
+        ~Raytracer();
+
+        Raytracer(const Raytracer&) = delete;
+        Raytracer& operator=(const Raytracer&) = delete;
 
         void trace_rays(
                 const int qrng_gpt_offset,

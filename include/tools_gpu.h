@@ -72,6 +72,9 @@ namespace Tools_gpu
     template<typename T>
     T* allocate_gpu(int length)
     {
+        if (length == 0)
+            return nullptr;
+
         T* data_ptr = nullptr;
 
         #if defined(RTE_RRTMGP_GPU_MEMPOOL_CUDA)
@@ -88,6 +91,9 @@ namespace Tools_gpu
     template<typename T>
     void free_gpu(T*& data_ptr)
     {
+        if (data_ptr == nullptr)
+            return;
+
         #if defined(RTE_RRTMGP_GPU_MEMPOOL_CUDA)
         cuda_safe_call(cudaFreeAsync(data_ptr, 0));
         #elif defined(RTE_RRTMGP_GPU_MEMPOOL_OWN)

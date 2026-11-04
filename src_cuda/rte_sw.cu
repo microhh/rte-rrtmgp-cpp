@@ -163,7 +163,7 @@ void Rte_sw_gpu::rte_sw(
 
 void Rte_sw_gpu::expand_and_transpose(
         const std::unique_ptr<Optical_props_arry_gpu>& ops,
-        const Array_gpu<Float,2> arr_in,
+        const Array_gpu<Float,2>& arr_in,
         Array_gpu<Float,2>& arr_out)
 {
     const int ncol = arr_in.dim(2);
@@ -177,7 +177,7 @@ void Rte_sw_gpu::expand_and_transpose(
     dim3 grid_gpu(grid_col, grid_bnd);
     dim3 block_gpu(block_col, block_bnd);
 
-    Array_gpu<int,2> limits = ops->get_band_lims_gpoint_gpu();
+    const Array_gpu<int,2>& limits = ops->get_band_lims_gpoint_gpu();
 
     // Array_gpu<int,2> limits(limitsc);
     expand_and_transpose_kernel<<<grid_gpu, block_gpu>>>(

@@ -80,7 +80,7 @@ void sum_byband_kernel(
 
         byband_flux[idx_bnd] = 0;
 
-        for (int igpt = gpt_start; igpt < gpt_end; ++igpt)
+        for (int igpt = gpt_start-1; igpt < gpt_end; ++igpt)
         {
             const int idx_gpt = icol + ilev*ncol + igpt*ncol*nlev;
             byband_flux[idx_bnd] += spectral_flux[idx_gpt];
@@ -105,7 +105,7 @@ void net_byband_full_kernel(
         const int gpt_start = band_lims[2*ibnd];
         const int gpt_end = band_lims[2*ibnd+1];
         byband_flux_net[idx_bnd] = 0;
-        for (int igpt = gpt_start; igpt < gpt_end; ++igpt)
+        for (int igpt = gpt_start-1; igpt < gpt_end; ++igpt)
         {
             const int idx_gpt = icol + ilev*ncol + igpt*ncol*nlev;
             byband_flux_net[idx_bnd] += spectral_flux_dn[idx_gpt] - spectral_flux_up[idx_gpt];

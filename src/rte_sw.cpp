@@ -186,13 +186,13 @@ void Rte_sw::rte_sw(
 
 void Rte_sw::expand_and_transpose(
         const std::unique_ptr<Optical_props_arry>& ops,
-        const Array<Float,2> arr_in,
+        const Array<Float,2>& arr_in,
         Array<Float,2>& arr_out)
 {
     const int ncol = arr_in.dim(2);
     const int nband = ops->get_nband();
 
-    Array<int,2> limits = ops->get_band_lims_gpoint();
+    const Array<int,2>& limits = ops->get_band_lims_gpoint();
 
     for (int iband=1; iband<=nband; ++iband)
         for (int icol=1; icol<=ncol; ++icol)

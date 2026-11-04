@@ -36,7 +36,7 @@ Gas_concs::Gas_concs(const Gas_concs& gas_concs_ref, const int start, const int 
         else
         {
             Array<Float,2> gas_conc_subset = g.second.subset({{ {start, end}, {1, g.second.dim(2)} }});
-            this->gas_concs_map.emplace(g.first, gas_conc_subset);
+            this->gas_concs_map.emplace(g.first, std::move(gas_conc_subset));
         }
     }
 }
@@ -61,7 +61,7 @@ void Gas_concs::set_vmr(const std::string& name, const Float data)
     data_2d({1, 1}) = data;
 
     if (this->exists(name))
-        gas_concs_map.at(name) = data_2d;
+        gas_concs_map.at(name) = std::move(data_2d);
     else
         gas_concs_map.emplace(name, std::move(data_2d));
 }
@@ -80,7 +80,7 @@ void Gas_concs::set_vmr(const std::string& name, const Array<Float,1>& data)
     Array<Float,2> data_2d(data.v(), {1, data.dim(1)});
 
     if (this->exists(name))
-        gas_concs_map.at(name) = data_2d;
+        gas_concs_map.at(name) = std::move(data_2d);
     else
         gas_concs_map.emplace(name, std::move(data_2d));
 }
