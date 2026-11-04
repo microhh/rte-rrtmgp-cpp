@@ -53,7 +53,8 @@ void lw_transport_noscat_kernel(
         const int idx_bot = icol + nlay*ncol + igpt*ncol*(nlay+1);
         const int idx2d = icol + igpt*ncol;
         radn_up[idx_bot] = radn_dn[idx_bot] * sfc_albedo[idx2d] + source_sfc[idx2d];
-        radn_up_jac[idx_bot] = source_sfc_jac[idx2d];
+        if (radn_up_jac != nullptr)
+            radn_up_jac[idx_bot] = source_sfc_jac[idx2d];
 
         #pragma unroll loop_unroll_factor_nlay
         for (int ilev=nlay-1; ilev>=0; --ilev)
@@ -62,7 +63,8 @@ void lw_transport_noscat_kernel(
             const int idx2 = icol + (ilev+1)*ncol + igpt*ncol*(nlay+1);
             const int idx3 = icol + ilev*ncol + igpt*ncol*nlay;
             radn_up[idx1] = trans[idx3] * radn_up[idx2] + source_up[idx3];
-            radn_up_jac[idx1] = trans[idx3] * radn_up_jac[idx2];
+            if (radn_up_jac != nullptr)
+                radn_up_jac[idx1] = trans[idx3] * radn_up_jac[idx2];
         }
     }
     else
@@ -79,7 +81,8 @@ void lw_transport_noscat_kernel(
         const int idx_bot = icol + igpt*ncol*(nlay+1);
         const int idx2d = icol + igpt*ncol;
         radn_up[idx_bot] = radn_dn[idx_bot] * sfc_albedo[idx2d] + source_sfc[idx2d];
-        radn_up_jac[idx_bot] = source_sfc_jac[idx2d];
+        if (radn_up_jac != nullptr)
+            radn_up_jac[idx_bot] = source_sfc_jac[idx2d];
 
         #pragma unroll loop_unroll_factor_nlay
         for (int ilev=1; ilev<(nlay+1); ++ilev)
@@ -88,7 +91,8 @@ void lw_transport_noscat_kernel(
             const int idx2 = icol + (ilev-1)*ncol + igpt*ncol*(nlay+1);
             const int idx3 = icol + (ilev-1)*ncol + igpt*ncol*nlay;
             radn_up[idx1] = trans[idx3] * radn_up[idx2] + source_up[idx3];
-            radn_up_jac[idx1] = trans[idx3] * radn_up_jac[idx2];;
+            if (radn_up_jac != nullptr)
+                radn_up_jac[idx1] = trans[idx3] * radn_up_jac[idx2];
         }
     }
 }
@@ -153,7 +157,8 @@ void lw_solver_noscat_step_2_kernel(
         const int idx2d = icol + igpt*ncol;
         sfc_albedo[idx2d] = Float(1.) - sfc_emis[idx2d];
         source_sfc[idx2d] = sfc_emis[idx2d] * sfc_src[idx2d];
-        source_sfc_jac[idx2d] = sfc_emis[idx2d] * sfc_src_jac[idx2d];
+        if (source_sfc_jac != nullptr)
+            source_sfc_jac[idx2d] = sfc_emis[idx2d] * sfc_src_jac[idx2d];
 
         const Float pi = acos(Float(-1.));
         const int idx_top = icol + (top_at_1 ? 0 : nlay)*ncol + igpt*ncol*(nlay+1);
@@ -188,7 +193,8 @@ void lw_solver_noscat_step_3_kernel(
         const int idx = icol + ilev*ncol + igpt*ncol*(nlay+1);
         radn_up[idx] *= pi * weight[0];
         radn_dn[idx] *= pi * weight[0];
-        radn_up_jac[idx] *= pi * weight[0];
+        if (radn_up_jac != nullptr)
+            radn_up_jac[idx] *= pi * weight[0];
     }
 }
 
@@ -577,4 +583,3 @@ void sw_source_2stream_kernel(
         }
     }
 }
-

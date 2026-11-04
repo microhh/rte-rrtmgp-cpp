@@ -51,7 +51,7 @@ class Rte_lw_rt
 
         void expand_and_transpose(
                 const std::unique_ptr<Optical_props_arry_rt>& ops,
-                const Array_gpu<Float,2> arr_in,
+                const Array_gpu<Float,2>& arr_in,
                 Array_gpu<Float,2>& arr_out);
 
 };

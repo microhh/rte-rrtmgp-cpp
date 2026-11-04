@@ -44,7 +44,7 @@ Gas_concs_gpu::Gas_concs_gpu(const Gas_concs_gpu& gas_concs_ref, const int start
         else
         {
             Array_gpu<Float,2> gas_conc_subset = g.second.subset({{ {start, end}, {1, g.second.dim(2)} }});
-            this->gas_concs_map.emplace(g.first, gas_conc_subset);
+            this->gas_concs_map.emplace(g.first, std::move(gas_conc_subset));
         }
     }
 }
@@ -69,8 +69,11 @@ void Gas_concs_gpu::set_vmr(const std::string& name, const Array_gpu<Float,2>& d
 
 void Gas_concs_gpu::set_vmr(const std::string& name, const Array<Float,2>& data)
 {
-    Array_gpu<Float,2> tmp(data);
-    gas_concs_map.at(name) = tmp;
+    auto& destination = gas_concs_map.at(name);
+    if (destination.get_dims() == data.get_dims())
+        destination.set_data(data);
+    else
+        destination = Array_gpu<Float,2>(data);
 }
 
 // Check if gas exists in map.

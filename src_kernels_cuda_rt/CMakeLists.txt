@@ -19,4 +19,14 @@ include_directories("../include" "../include_rt" "../include_rt_kernels" SYSTEM 
 
 add_library(rte_rrtmgp_kernels_cuda_rt STATIC ${sourcefiles_rt})
 
+# These explicitly instantiated kernel templates are launched from src_cuda_rt.
+# CUDA 13 defaults to static host stubs, which cannot link across those files.
+if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" AND
+   CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
+    set_property(SOURCE
+        "../src_kernels_cuda_rt/raytracer_kernels_sw.cu"
+        "../src_kernels_cuda_rt/raytracer_kernels_lw.cu"
+        "../src_kernels_cuda_rt/raytracer_kernels_bw.cu"
+        APPEND PROPERTY COMPILE_OPTIONS --static-global-template-stub=false)
+endif()
 

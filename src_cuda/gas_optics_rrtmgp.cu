@@ -392,7 +392,7 @@ namespace
     template<typename Float> __global__
     void fill_gases_kernel(
             const int ncol, const int nlay, const int dim1, const int dim2, const int ngas, const int igas,
-            Float* __restrict__ vmr_out, const Float* __restrict__ vmr_in,
+            const Float* __restrict__ vmr_in,
             Float* __restrict__ col_gas, const Float* __restrict__ col_dry)
     {
         const int icol = blockIdx.x*blockDim.x + threadIdx.x;
@@ -401,18 +401,18 @@ namespace
         if ( (icol < ncol) && (ilay < nlay) )
         {
             const int idx_in = icol + ilay*ncol;
-            const int idx_out1 = icol + ilay*ncol + (igas-1)*ncol*nlay;
             const int idx_out2 = icol + ilay*ncol + igas*ncol*nlay;
 
             if (igas > 0)
             {
+                Float vmr;
                 if (dim1 == 1 && dim2 == 1)
-                     vmr_out[idx_out1] = vmr_in[0];
+                    vmr = vmr_in[0];
                 else if (dim1 == 1)
-                     vmr_out[idx_out1] = vmr_in[ilay];
+                    vmr = vmr_in[ilay];
                 else
-                    vmr_out[idx_out1] = vmr_in[idx_in];
-                col_gas[idx_out2] = vmr_out[idx_out1] * col_dry[idx_in];
+                    vmr = vmr_in[idx_in];
+                col_gas[idx_out2] = vmr * col_dry[idx_in];
             }
             else if (igas == 0)
             {
@@ -990,9 +990,6 @@ void Gas_optics_rrtmgp_gpu::compute_gas_taus(
         Array_gpu<Float,6>& fmajor,
         const Array_gpu<Float,2>& col_dry)
 {
-    Array_gpu<Float,3> tau({ngpt, nlay, ncol});
-    Array_gpu<Float,3> tau_rayleigh({ngpt, nlay, ncol});
-    Array_gpu<Float,3> vmr({ncol, nlay, this->get_ngas()});
     Array_gpu<Float,3> col_gas({ncol, nlay, this->get_ngas()+1});
     col_gas.set_offsets({0, 0, -1});
     Array_gpu<Float,4> col_mix({2, ncol, nlay, this->get_nflav()});
@@ -1024,10 +1021,8 @@ void Gas_optics_rrtmgp_gpu::compute_gas_taus(
     {
         const Array_gpu<Float,2>& vmr_2d = igas > 0 ? gas_desc.get_vmr(this->gas_names({igas})) : gas_desc.get_vmr(this->gas_names({1}));
         fill_gases_kernel<<<grid_gpu, block_gpu>>>(
-            ncol, nlay, vmr_2d.dim(1), vmr_2d.dim(2), ngas, igas, vmr.ptr(), vmr_2d.ptr(), col_gas.ptr(), col_dry.ptr());
+            ncol, nlay, vmr_2d.dim(1), vmr_2d.dim(2), ngas, igas, vmr_2d.ptr(), col_gas.ptr(), col_dry.ptr());
     }
-
-    // Gas_optics_rrtmgp_kernels_cuda::zero_array(ngpt, nlay, ncol, tau);
 
     Gas_optics_rrtmgp_kernels_cuda::interpolation(
             ncol, nlay,
@@ -1066,8 +1061,6 @@ void Gas_optics_rrtmgp_gpu::compute_gas_taus(
     {
         Array_gpu<Float,3> tau({ncol, nlay, ngpt});
         Array_gpu<Float,3> tau_rayleigh({ncol, nlay, ngpt});
-        Gas_optics_rrtmgp_kernels_cuda::zero_array(ngpt, nlay, ncol, tau.ptr());
-
         Gas_optics_rrtmgp_kernels_cuda::zero_array(ncol, nlay, ngpt, tau.ptr());
         Gas_optics_rrtmgp_kernels_cuda::zero_array(ncol, nlay, ngpt, tau_rayleigh.ptr());
 
@@ -1123,7 +1116,7 @@ void Gas_optics_rrtmgp_gpu::compute_gas_taus(
                 nminorupper, nminorkupper,
                 idx_h2o,
                 gpoint_flavor_gpu.ptr(),
-                this->get_band_lims_gpoint().ptr(),
+                this->get_band_lims_gpoint_gpu().ptr(),
                 kmajor_gpu.ptr(),
                 kminor_lower_gpu.ptr(),
                 kminor_upper_gpu.ptr(),

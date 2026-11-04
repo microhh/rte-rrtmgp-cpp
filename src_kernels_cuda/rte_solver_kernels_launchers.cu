@@ -69,28 +69,29 @@ namespace Rte_solver_kernels_cuda
             const bool do_broadband, Float* flux_up_loc, Float* flux_dn_loc,
             const bool do_jacobians, const Float* sfc_src_jac, Float* flux_up_jac)
     {
+        // Reject unsupported modes before allocating scratch or launching kernels.
+        if (nmus != 1)
+            throw std::runtime_error("CUDA longwave solver supports one quadrature angle");
+        if (do_jacobians && (sfc_src_jac == nullptr || flux_up_jac == nullptr))
+            throw std::runtime_error("Jacobian output requires source and flux arrays");
+        if (!do_jacobians)
+        {
+            sfc_src_jac = nullptr;
+            flux_up_jac = nullptr;
+        }
+
         Float eps = std::numeric_limits<Float>::epsilon();
 
-        const int flx_size = ncol*(nlay+1)*ngpt;
         const int opt_size = ncol*nlay*ngpt;
-        const int sfc_size = ncol*ngpt;;
+        const int sfc_size = ncol*ngpt;
 
         Float* source_sfc = Tools_gpu::allocate_gpu<Float>(sfc_size);
-        Float* source_sfc_jac = Tools_gpu::allocate_gpu<Float>(sfc_size);
+        Float* source_sfc_jac = do_jacobians ? Tools_gpu::allocate_gpu<Float>(sfc_size) : nullptr;
         Float* sfc_albedo = Tools_gpu::allocate_gpu<Float>(sfc_size);
         Float* tau_loc = Tools_gpu::allocate_gpu<Float>(opt_size);
         Float* trans = Tools_gpu::allocate_gpu<Float>(opt_size);
         Float* source_dn = Tools_gpu::allocate_gpu<Float>(opt_size);
         Float* source_up = Tools_gpu::allocate_gpu<Float>(opt_size);
-        Float* radn_dn = Tools_gpu::allocate_gpu<Float>(flx_size);
-        Float* radn_up = Tools_gpu::allocate_gpu<Float>(flx_size);
-        Float* radn_up_jac = Tools_gpu::allocate_gpu<Float>(flx_size);
-
-        dim3 block_gpu2d(64, 2);
-        dim3 grid_gpu2d = calc_grid_size(block_gpu2d, dim3(ncol, ngpt));
-
-        const int top_level = top_at_1 ? 0 : nlay;
-
 
         // Upper boundary condition.
         if (inc_flux == nullptr)
@@ -106,9 +107,9 @@ namespace Rte_solver_kernels_cuda
 
         if (tunings.count("lw_step_1") == 0)
         {
-                   Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
-                   Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
-                   Float* flux_up_jac_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
+            Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
+            Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
+            Float* flux_up_jac_tmp = do_jacobians ? Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol) : nullptr;
 
             std::tie(grid_1, block_1) = tune_kernel(
                     "lw_step_1",
@@ -122,9 +123,9 @@ namespace Rte_solver_kernels_cuda
                     flux_up_jac_tmp, tau_loc, trans,
                     source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
 
-                    Tools_gpu::free_gpu<Float>(flux_up_tmp);
-                    Tools_gpu::free_gpu<Float>(flux_dn_tmp);
-                    Tools_gpu::free_gpu<Float>(flux_up_jac_tmp);
+            Tools_gpu::free_gpu<Float>(flux_up_tmp);
+            Tools_gpu::free_gpu<Float>(flux_dn_tmp);
+            Tools_gpu::free_gpu<Float>(flux_up_jac_tmp);
 
             tunings["lw_step_1"].first = grid_1;
             tunings["lw_step_1"].second = block_1;
@@ -153,7 +154,7 @@ namespace Rte_solver_kernels_cuda
         {
             Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
             Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
-            Float* flux_up_jac_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
+            Float* flux_up_jac_tmp = do_jacobians ? Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol) : nullptr;
 
             std::tie(grid_2, block_2) = tune_kernel(
                     "lw_step_2",
@@ -198,7 +199,7 @@ namespace Rte_solver_kernels_cuda
         {
             Float* flux_up_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
             Float* flux_dn_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
-            Float* flux_up_jac_tmp = Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol);
+            Float* flux_up_jac_tmp = do_jacobians ? Tools_gpu::allocate_gpu<Float>(ngpt*(nlay+1)*ncol) : nullptr;
 
             std::tie(grid_3, block_3) = tune_kernel(
                     "lw_step_3",
@@ -235,47 +236,6 @@ namespace Rte_solver_kernels_cuda
                 flux_up_jac, tau_loc, trans,
                 source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
 
-        apply_BC_kernel_lw<<<grid_gpu2d, block_gpu2d>>>(top_level, ncol, nlay, ngpt, top_at_1, flux_dn, radn_dn);
-
-        if (nmus > 1)
-        {
-            for (int imu=1; imu<nmus; ++imu)
-            {
-                throw std::runtime_error("Not implemented due to lacking test case");
-                /*
-                lw_solver_noscat_step_1_kernel<<<grid_1, block_1>>>(
-                        ncol, nlay, ngpt, eps, top_at_1,
-                        secants+imu, weights+imu, tau, lay_source,
-                        lev_source_inc, lev_source_dec,
-                        sfc_emis, sfc_src, radn_up, radn_dn, sfc_src_jac,
-                        radn_up_jac, tau_loc, trans,
-                        source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
-
-                lw_solver_noscat_step_2_kernel<<<grid_2, block_2>>>(
-                        ncol, nlay, ngpt, eps, top_at_1,
-                        secants+imu, weights+imu, tau, lay_source,
-                        lev_source_inc, lev_source_dec,
-                        sfc_emis, sfc_src,
-                        radn_up, radn_dn, sfc_src_jac,
-                        radn_up_jac, tau_loc, trans,
-                        source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
-
-                lw_solver_noscat_step_3_kernel<<<grid_3, block_3>>>(
-                        ncol, nlay, ngpt, eps, top_at_1,
-                        secants+imu, weights+imu, tau, lay_source,
-                        lev_source_inc, lev_source_dec,
-                        sfc_emis, sfc_src, radn_up, radn_dn, sfc_src_jac,
-                        radn_up_jac, tau_loc, trans,
-                        source_dn, source_up, source_sfc, sfc_albedo, source_sfc_jac);
-
-                add_fluxes_kernel<<<grid_gpu3d, block_gpu3d>>>(
-                        ncol, nlay+1, ngpt,
-                        radn_up, radn_dn, radn_up_jac,
-                        flux_up, flux_dn, flux_up_jac);
-                        */
-            }
-        }
-
         Tools_gpu::free_gpu(source_sfc);
         Tools_gpu::free_gpu(source_sfc_jac);
         Tools_gpu::free_gpu(sfc_albedo);
@@ -283,9 +243,6 @@ namespace Rte_solver_kernels_cuda
         Tools_gpu::free_gpu(trans);
         Tools_gpu::free_gpu(source_dn);
         Tools_gpu::free_gpu(source_up);
-        Tools_gpu::free_gpu(radn_dn);
-        Tools_gpu::free_gpu(radn_up);
-        Tools_gpu::free_gpu(radn_up_jac);
     }
 
 

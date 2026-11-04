@@ -230,6 +230,13 @@ Raytracer::Raytracer()
 }
 
 
+Raytracer::~Raytracer()
+{
+    cudaFree(qrng_vectors_gpu);
+    cudaFree(qrng_constants_gpu);
+}
+
+
 void Raytracer::trace_rays(
         const int igpt,
         const bool switch_independent_column,

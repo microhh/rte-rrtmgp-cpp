@@ -1100,7 +1100,6 @@ void Gas_optics_rrtmgp::compute_gas_taus(
         Array<Float,6>& fmajor,
         const Array<Float,2>& col_dry) const
 {
-    Array<Float,3> vmr({ncol, nlay, this->get_ngas()});
     Array<Float,3> col_gas({ncol, nlay, this->get_ngas()+1});
     col_gas.set_offsets({0, 0, -1});
     Array<Float,4> col_mix({2, ncol, nlay, this->get_nflav()});
@@ -1128,7 +1127,7 @@ void Gas_optics_rrtmgp::compute_gas_taus(
             const Float vmr_c = vmr_2d({1, 1});
             for (int ilay=1; ilay<=nlay; ++ilay)
                 for (int icol=1; icol<=ncol; ++icol)
-                    vmr({icol, ilay, igas}) = vmr_c;
+                    col_gas({icol, ilay, igas}) = vmr_c * col_dry({icol, ilay});
         }
         // Fill array with constant profile.
         else if (vmr_2d.dim(1) == 1)
@@ -1137,7 +1136,7 @@ void Gas_optics_rrtmgp::compute_gas_taus(
             {
                 const Float vmr_lay = vmr_2d({1, ilay});
                 for (int icol=1; icol<=ncol; ++icol)
-                    vmr({icol, ilay, igas}) = vmr_lay;
+                    col_gas({icol, ilay, igas}) = vmr_lay * col_dry({icol, ilay});
             }
         }
         // Fill array with full 2d data.
@@ -1145,7 +1144,7 @@ void Gas_optics_rrtmgp::compute_gas_taus(
         {
             for (int ilay=1; ilay<=nlay; ++ilay)
                 for (int icol=1; icol<=ncol; ++icol)
-                    vmr({icol, ilay, igas}) = vmr_2d({icol, ilay});
+                    col_gas({icol, ilay, igas}) = vmr_2d({icol, ilay}) * col_dry({icol, ilay});
         }
     }
 
@@ -1153,11 +1152,6 @@ void Gas_optics_rrtmgp::compute_gas_taus(
     for (int ilay=1; ilay<=nlay; ++ilay)
         for (int icol=1; icol<=ncol; ++icol)
             col_gas({icol, ilay, 0}) = col_dry({icol, ilay});
-
-    for (int igas=1; igas<=ngas; ++igas)
-        for (int ilay=1; ilay<=nlay; ++ilay)
-            for (int icol=1; icol<=ncol; ++icol)
-                col_gas({icol, ilay, igas}) = vmr({icol, ilay, igas}) * col_dry({icol, ilay});
 
     // Call the fortran kernels
     rrtmgp_kernel_launcher::interpolation(

@@ -42,7 +42,7 @@ Gas_concs_rt::Gas_concs_rt(const Gas_concs_rt& gas_concs_ref, const int start, c
         else
         {
             Array_gpu<Float,2> gas_conc_subset = g.second.subset({{ {start, end}, {1, g.second.dim(2)} }});
-            this->gas_concs_map.emplace(g.first, gas_conc_subset);
+            this->gas_concs_map.emplace(g.first, std::move(gas_conc_subset));
         }
     }
 }
@@ -74,4 +74,3 @@ bool Gas_concs_rt::exists(const std::string& name) const
 {
     return gas_concs_map.count(name) != 0;
 }
-

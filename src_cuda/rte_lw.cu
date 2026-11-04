@@ -105,10 +105,6 @@ void Rte_lw_gpu::rte_lw(
             ncol, ngpt, n_quad_angs, max_gauss_pts,
             gauss_Ds.ptr(), secants.ptr());
 
-    // For now, just pass the arrays around.
-    Array_gpu<Float,2> sfc_src_jac(sources.get_sfc_source().get_dims());
-    Array_gpu<Float,3> gpt_flux_up_jac(gpt_flux_up.get_dims());
-
     const bool do_broadband = (gpt_flux_up.dim(3) == 1) ? true : false;
 
     if (do_broadband)
@@ -129,7 +125,7 @@ void Rte_lw_gpu::rte_lw(
             inc_flux_ptr,
             gpt_flux_up.ptr(), gpt_flux_dn.ptr(),
             do_broadband, gpt_flux_up.ptr(), gpt_flux_dn.ptr(),
-            do_jacobians, sfc_src_jac.ptr(), gpt_flux_up_jac.ptr());
+            do_jacobians, nullptr, nullptr);
 
     // CvH: In the fortran code this call is here, I removed it for performance and flexibility.
     // fluxes->reduce(gpt_flux_up, gpt_flux_dn, optical_props, top_at_1);
@@ -138,7 +134,7 @@ void Rte_lw_gpu::rte_lw(
 
 void Rte_lw_gpu::expand_and_transpose(
         const std::unique_ptr<Optical_props_arry_gpu>& ops,
-        const Array_gpu<Float,2> arr_in,
+        const Array_gpu<Float,2>& arr_in,
         Array_gpu<Float,2>& arr_out)
 {
     const int ncol = arr_in.dim(2);
@@ -152,7 +148,7 @@ void Rte_lw_gpu::expand_and_transpose(
     dim3 grid_gpu(grid_col, grid_bnd);
     dim3 block_gpu(block_col, block_bnd);
 
-    Array_gpu<int,2> limits = ops->get_band_lims_gpoint_gpu();
+    const Array_gpu<int,2>& limits = ops->get_band_lims_gpoint_gpu();
 
     expand_and_transpose_kernel<<<grid_gpu, block_gpu>>>(
             ncol, nbnd, limits.ptr(), arr_out.ptr(), arr_in.ptr());
