@@ -1,0 +1,137 @@
+name: GPU Simulator
+
+# Optional, non-required check. The hosted runners have no GPU, so the CUDA
+# build (-DUSECUDA=TRUE) is never exercised by the regular CI. This builds it
+# and runs the same rfmip and allsky tests on a simulated NVIDIA H100
+# (https://github.com/pantheongpu/pantheonsim), against the same reference
+# files and thresholds as continuous-integration.yml. A simulator cannot
+# reproduce hardware-specific behavior or timing, so it complements real-GPU
+# testing and does not replace it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src_cuda/**"
+      - "src_kernels_cuda/**"
+      - "src_cuda_rt/**"
+      - "src_kernels_cuda_rt/**"
+      - "src_kernels/**"
+      - "src_test/**"
+      - "include/**"
+      - "include_kernels_cuda/**"
+      - "include_test/**"
+      - "config/**"
+      - "CMakeLists.txt"
+      - "rfmip/**"
+      - "allsky/**"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: rfmip and allsky (CUDA 13.0 and simulated H100)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      RRTMGP_ROOT: ${{ github.workspace }}
+      RRTMGP_DATA: ${{ github.workspace }}/rrtmgp-data
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and CUDA toolkit
+        uses: pantheongpu/setup-pantheonsim@ca87fe3143b29166822b923d6050945c5179408c # v0.1.5
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "13.0"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gfortran libnetcdf-dev libhdf5-dev libboost-dev python3-venv
+          python3 -m venv "$HOME/venv"
+          "$HOME/venv/bin/pip" install numpy netcdf4 "dask[array]" xarray
+
+      # config/ubuntu_22lts.cmake pins CUDA architecture 86. The simulator
+      # runs PTX only, so 90-virtual is used instead, and it needs a shared
+      # CUDA runtime. The edit is made in the checkout of the runner only.
+      - name: Configure and build
+        run: |
+          sed -i 's/set(CMAKE_CUDA_ARCHITECTURES 86)/set(CMAKE_CUDA_ARCHITECTURES 90-virtual)/' config/ubuntu_22lts.cmake
+          mkdir build
+          cd build
+          cmake -DSYST=ubuntu_22lts -DUSECUDA=TRUE \
+                -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.0/bin/nvcc \
+                -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared ..
+          make -j3 test_rte_rrtmgp_gpu
+
+      # The test case scripts start ./test_rte_rrtmgp, so that name is a
+      # small wrapper that runs the GPU binary under the simulator.
+      #
+      # The solver auto-tunes its launch configurations on the first call
+      # and caches them in rte_rrtmgp_kernel_tuning.txt in the working
+      # directory. The simulator has no timing model, so tuning means
+      # nothing here and takes about 10 minutes on a fast machine. The file
+      # below holds block sizes that the tuner picks on the simulator, so
+      # the cached values are used instead (the tuning step is skipped
+      # for kernels that are listed).
+      - name: Prepare the test cases
+        run: |
+          export PATH="$HOME/venv/bin:$PATH"
+          cat > tuning.txt <<'TUNING'
+          Planck_source_kernel 25 60 16 4 1 16
+          combine_abs_and_rayleigh_kernel 25 60 5 4 1 48
+          compute_tau_rayleigh_kernel 25 4 1 4 16 1
+          gas_optical_depths_major_kernel 32 60 13 8 1 8
+          gas_optical_depths_minor_kernel_lower 1 30 7 1 2 16
+          gas_optical_depths_minor_kernel_upper 1 30 7 1 2 16
+          inc_2stream_by_2stream_bybnd_kernel 1 18 224 24 4 1
+          lw_step_1 13 8 256 8 8 1
+          lw_step_2 2 256 1 64 1 1
+          lw_step_3 13 8 256 8 8 1
+          sw_adding 4 112 1 32 2 1
+          sw_source_2stream_kernel 13 28 1 8 8 1
+          TUNING
+          for d in rfmip allsky; do
+            (
+              cd $d
+              ./make_links.sh
+              cp ../tuning.txt rte_rrtmgp_kernel_tuning.txt
+              ln -sf ../build/test_rte_rrtmgp_gpu .
+              printf '#!/bin/sh\nexec vgpu run ./test_rte_rrtmgp_gpu "$@"\n' > test_rte_rrtmgp
+              chmod +x test_rte_rrtmgp
+            )
+          done
+          (cd rfmip && python3 rfmip_init.py)
+          (cd allsky && python3 allsky_init.py)
+
+      - name: Run rfmip (18 experiments)
+        run: |
+          export PATH="$HOME/venv/bin:$PATH"
+          cd rfmip
+          python3 rfmip_run.py
+
+      - name: Run allsky
+        run: |
+          export PATH="$HOME/venv/bin:$PATH"
+          cd allsky
+          python3 allsky_run.py
+
+      - name: Check results against the reference files
+        run: |
+          export PATH="$HOME/venv/bin:$PATH"
+          cd rfmip
+          python3 compare-to-reference.py --ref_dir ../rrtmgp-data/examples/rfmip-clear-sky/reference --tst_dir . --var rld rlu rsd rsu --file r??_Efx_RTE-RRTMGP-181204_rad-irf_r1i1p1f1_gn.nc --failure_threshold=5.8e-2
+          cd ../allsky
+          python3 allsky_check.py --failure_threshold=5.8e-2
