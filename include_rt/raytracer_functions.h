@@ -161,6 +161,36 @@ namespace Raytracer_functions
     }
 
     __device__
+    inline int height_to_int(const Float z, const Float* z_lev, const int* z_lut, const Float lut_dz, const int lut_size, const int ntot_max)
+    {
+        int k = z_lut[min(max(static_cast<int>(z / lut_dz), 0), lut_size-1)];
+        while (k > 0 && z < z_lev[k])
+            --k;
+        while (k < ntot_max-1 && z >= z_lev[k+1])
+            ++k;
+        return k;
+    }
+
+    template<Bool dz_constant> __device__
+    inline int grid_z_index(const Float z, const Float dz, const Float* z_lev,
+                            const int* z_lut, const Float lut_dz, const int lut_size, const int ntot_max)
+    {
+        if constexpr (dz_constant)
+            return float_to_int(z, dz, ntot_max);
+        else
+            return height_to_int(z, z_lev, z_lut, lut_dz, lut_size, ntot_max);
+    }
+
+    template<Bool dz_constant> __device__
+    inline Float grid_z_bound(const int k, const Float dz, const Float* z_lev)
+    {
+        if constexpr (dz_constant)
+            return k * dz;
+        else
+            return z_lev[k];
+    }
+
+    __device__
     inline void write_photon_out(Float* field_out, const Float w)
     {
         #ifdef __CUDACC__

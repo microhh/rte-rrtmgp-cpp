@@ -109,6 +109,57 @@ namespace
         return albedo / Float(nwv) * Float(0.01);
     }
 
+
+    struct Vertical_grid_gpu
+    {
+        Array_gpu<Float,1> z_lev;
+        Array_gpu<Float,1> kn_z_lev;
+        Array_gpu<int,1> z_lut;
+        Array_gpu<int,1> kn_z_lut;
+        Float lut_dz;
+        Float zsize;
+    };
+
+    Vertical_grid_gpu build_vertical_grid(const Array_gpu<Float,1>& z_lev_col, const int nz, const int kn_z)
+    {
+        const Array<Float,1> z_lev_c(z_lev_col);
+        Array<Float,1> z_lev({nz+1});
+        for (int k=0; k<nz+1; ++k)
+            z_lev({k+1}) = z_lev_c({k+1});
+
+        Array<Float,1> kn_z_lev({kn_z+1});
+        const Float fz = Float(nz) / Float(kn_z);
+        for (int k=0; k<kn_z; ++k)
+            kn_z_lev({k+1}) = z_lev({static_cast<int>(k*fz)+1});
+        kn_z_lev({kn_z+1}) = z_lev({nz+1});
+
+        Float dz_min = z_lev({2}) - z_lev({1});
+        for (int k=1; k<nz; ++k)
+            dz_min = std::min(dz_min, z_lev({k+2}) - z_lev({k+1}));
+
+        const Float zsize = z_lev({nz+1});
+        const int lut_size = static_cast<int>(std::ceil(zsize/dz_min));
+        const Float lut_dz = zsize / lut_size;
+
+        Array<int,1> z_lut({lut_size});
+        Array<int,1> kn_z_lut({lut_size});
+        for (int i=0; i<lut_size; ++i)
+        {
+            const Float z = i*lut_dz;
+            int k = 0;
+            while (k < nz-1 && z >= z_lev({k+2}))
+                ++k;
+            z_lut({i+1}) = k;
+            k = 0;
+            while (k < kn_z-1 && z >= kn_z_lev({k+2}))
+                ++k;
+            kn_z_lut({i+1}) = k;
+        }
+
+        return {Array_gpu<Float,1>(z_lev), Array_gpu<Float,1>(kn_z_lev),
+                Array_gpu<int,1>(z_lut), Array_gpu<int,1>(kn_z_lut), lut_dz, zsize};
+    }
+
     __global__
     void spectral_albedo_kernel(const int ncol, const Float wv1, const Float wv2,
                          const Float* __restrict__ land_use_map,
@@ -838,6 +889,8 @@ void Radiation_solver_bw_shortwave::solve_gpu(
     const int cam_ns = XYZ.dim(3);
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
+    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev, grid_cells.z, kn_grid.z);
+
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
     aerosol_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *aerosol_optics_gpu);
@@ -1045,6 +1098,11 @@ void Radiation_solver_bw_shortwave::solve_gpu(
                         photons_per_pixel, n_lay,
                         grid_cells, grid_d, kn_grid,
                         z_lev,
+                        vgrid.kn_z_lev,
+                        vgrid.z_lut,
+                        vgrid.kn_z_lut,
+                        vgrid.lut_dz,
+                        vgrid.zsize,
                         mie_cdfs_sub,
                         mie_angs_sub,
                         mie_phase_sub,
@@ -1097,6 +1155,10 @@ void Radiation_solver_bw_shortwave::solve_gpu(
         raytracer.accumulate_clouds(
                 grid_d,
                 grid_cells,
+                vgrid.z_lev,
+                vgrid.z_lut,
+                vgrid.lut_dz,
+                vgrid.zsize,
                 lwp,
                 iwp,
                 dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
@@ -1154,6 +1216,8 @@ void Radiation_solver_bw_shortwave::solve_gpu_bb(
     const int cam_nx = radiance.dim(1);
     const int cam_ny = radiance.dim(2);
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
+
+    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev, grid_cells.z, kn_grid.z);
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
@@ -1322,6 +1386,11 @@ void Radiation_solver_bw_shortwave::solve_gpu_bb(
                     photons_per_pixel, n_lay,
                     grid_cells, grid_d, kn_grid,
                     z_lev,
+                    vgrid.kn_z_lev,
+                    vgrid.z_lut,
+                    vgrid.kn_z_lut,
+                    vgrid.lut_dz,
+                    vgrid.zsize,
                     mie_cdfs_sub,
                     mie_angs_sub,
                     mie_phase_sub,
@@ -1368,6 +1437,10 @@ void Radiation_solver_bw_shortwave::solve_gpu_bb(
         raytracer.accumulate_clouds(
                 grid_d,
                 grid_cells,
+                vgrid.z_lev,
+                vgrid.z_lut,
+                vgrid.lut_dz,
+                vgrid.zsize,
                 lwp,
                 iwp,
                 dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
