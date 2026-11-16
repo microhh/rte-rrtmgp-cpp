@@ -1,4 +1,5 @@
 #include <curand_kernel.h>
+#include <limits>
 
 #include "raytracer_lw.h"
 #include "array.h"
@@ -111,7 +112,7 @@ namespace
 
     __global__
     void bundle_optical_props(
-            const Vector<int> grid_cells, const Vector<Float> grid_d,
+            const Vector<int> grid_cells, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
             const Float* __restrict__ tau_aer, const Float* __restrict__ ssa_aer, const Float* __restrict__ asy_aer,
@@ -124,14 +125,15 @@ namespace
         if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) && (iz < (grid_cells.z)) )
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.y*grid_cells.x;
-            const Float kext_tot = tau_tot[idx] / grid_d.z;
-            const Float kext_cld = tau_cld[idx] / grid_d.z;
-            const Float kext_aer = tau_aer[idx] / grid_d.z;
+            const Float dz = z_lev[iz+1] - z_lev[iz];
+            const Float kext_tot = tau_tot[idx] / dz;
+            const Float kext_cld = tau_cld[idx] / dz;
+            const Float kext_aer = tau_aer[idx] / dz;
             const Float ksca_cld = kext_cld * ssa_cld[idx];
             const Float ksca_aer = kext_aer * ssa_aer[idx];
             const Float ksca_gas = kext_tot * ssa_tot[idx] - ksca_cld - ksca_aer;
 
-            k_ext[idx] = tau_tot[idx] / grid_d.z;
+            k_ext[idx] = kext_tot;
 
             scat_asy[idx].k_sca_gas = ksca_gas;
             scat_asy[idx].k_sca_cld = ksca_cld;
@@ -163,7 +165,7 @@ namespace
 
     __global__
     void count_to_flux_3d(
-            const Vector<int> grid_cells, const Vector<Float> grid_d,
+            const Vector<int> grid_cells, const Float* __restrict__ z_lev,
             const Float power_per_photon,
             const Float* __restrict__ count,
             Float* __restrict__ flux)
@@ -176,10 +178,22 @@ namespace
         {
             const int idx = icol_x + icol_y*grid_cells.x + iz*grid_cells.x*grid_cells.y;
 
-            flux[idx] += count[idx] * power_per_photon / grid_d.z;
+            flux[idx] += count[idx] * power_per_photon / (z_lev[iz+1] - z_lev[iz]);
         }
     }
 }
+
+static bool vertical_spacing_is_constant(const Array_gpu<Float,1>& z_lev_gpu, const int nz)
+{
+    const Array<Float,1> z_lev(z_lev_gpu);
+    const Float dz0 = (z_lev({nz+1}) - z_lev({1})) / Float(nz);
+    const Float tol = Float(4.) * std::numeric_limits<Float>::epsilon() * Float(nz) * std::abs(dz0);
+    for (int k=1; k<=nz; ++k)
+        if (std::abs((z_lev({k+1}) - z_lev({k})) - dz0) > tol)
+            return false;
+    return true;
+}
+
 
 void Raytracer_lw::trace_rays(
         const int igpt,
@@ -188,6 +202,12 @@ void Raytracer_lw::trace_rays(
         const Vector<int> grid_cells,
         const Vector<Float> grid_d,
         const Vector<int> kn_grid,
+        const Array_gpu<Float,1>& z_lev,
+        const Array_gpu<Float,1>& kn_z_lev,
+        const Array_gpu<int,1>& z_lut,
+        const Array_gpu<int,1>& kn_z_lut,
+        const Float lut_dz,
+        const Float zsize,
         const Array_gpu<Float,2>& tau_total,
         const Array_gpu<Float,2>& ssa_total,
         const Array_gpu<Float,2>& tau_cloud,
@@ -228,7 +248,7 @@ void Raytracer_lw::trace_rays(
 
     // first on the whole grid expect the extra layer
     bundle_optical_props<<<grid_3d, block_3d>>>(
-            grid_cells, grid_d,
+            grid_cells, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
@@ -290,7 +310,7 @@ void Raytracer_lw::trace_rays(
     Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(grid_cells.x, grid_cells.y, grid_cells.z, atmos_count.ptr());
 
     // domain sizes
-    const Vector<Float> grid_size = grid_d * grid_cells;
+    const Vector<Float> grid_size = {grid_d.x * grid_cells.x, grid_d.y * grid_cells.y, zsize};
 
     Int photons_per_thread;
     Int rt_kernel_grid_size = rt_lw_kernel_grid;
@@ -319,48 +339,36 @@ void Raytracer_lw::trace_rays(
     const Int qrng_gpt_offset = this->qrng_igpt * rt_kernel_grid_size * rt_kernel_block_size * photons_per_thread;
     ++this->qrng_igpt;
 
+    // Constant dz implies the old uniform null-cell walls, valid for any kn_grid.
+    const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
+
+    auto launch = [&](auto kernel)
+    {
+        kernel<<<grid, block>>>(
+                rng_offset,
+                photons_per_thread,
+                alias_prob.ptr(),
+                alias_idx.ptr(),
+                n_alias,
+                qrng_gpt_offset,
+                k_null_grid.ptr(),
+                tod_dn_count.ptr(),
+                tod_up_count.ptr(),
+                surface_dn_count.ptr(),
+                surface_up_count.ptr(),
+                atmos_count.ptr(),
+                k_ext.ptr(), scat_asy.ptr(),
+                emis_sfc.ptr(),
+                grid_size, grid_d, grid_cells, kn_grid,
+                z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
+                lut_dz, int(z_lut.size()),
+                this->qrng_vectors_gpu, this->qrng_constants_gpu);
+    };
+
     if (switch_independent_column)
-    {
-        ray_tracer_lw_kernel<true><<<grid, block>>>(
-                rng_offset,
-                photons_per_thread,
-                alias_prob.ptr(),
-                alias_idx.ptr(),
-                n_alias,
-                qrng_gpt_offset,
-                k_null_grid.ptr(),
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_dn_count.ptr(),
-                surface_up_count.ptr(),
-                atmos_count.ptr(),
-                k_ext.ptr(), scat_asy.ptr(),
-                emis_sfc.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid,
-                this->qrng_vectors_gpu, this->qrng_constants_gpu);
-    }
+        dz_constant ? launch(ray_tracer_lw_kernel<true, true>) : launch(ray_tracer_lw_kernel<true, false>);
     else
-    {
-        ray_tracer_lw_kernel<false><<<grid, block>>>(
-                rng_offset,
-                photons_per_thread,
-                alias_prob.ptr(),
-                alias_idx.ptr(),
-                n_alias,
-                qrng_gpt_offset,
-                k_null_grid.ptr(),
-                tod_dn_count.ptr(),
-                tod_up_count.ptr(),
-                surface_dn_count.ptr(),
-                surface_up_count.ptr(),
-                atmos_count.ptr(),
-                k_ext.ptr(), scat_asy.ptr(),
-                emis_sfc.ptr(),
-                grid_size, grid_d, grid_cells, kn_grid,
-                this->qrng_vectors_gpu, this->qrng_constants_gpu);
-
-
-    }
+        dz_constant ? launch(ray_tracer_lw_kernel<false, true>) : launch(ray_tracer_lw_kernel<false, false>);
     const Float power_per_photon = Float(total_power / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block));
 
     count_to_flux_2d<<<grid_2d, block_2d>>>(
@@ -376,7 +384,7 @@ void Raytracer_lw::trace_rays(
             flux_sfc_up.ptr());
 
     count_to_flux_3d<<<grid_3d, block_3d>>>(
-            grid_cells, grid_d,
+            grid_cells, z_lev.ptr(),
             power_per_photon,
             atmos_count.ptr(),
             flux_abs.ptr());
