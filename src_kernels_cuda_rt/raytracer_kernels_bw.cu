@@ -630,8 +630,11 @@ void ray_tracer_kernel_bw(
                                                                                 : Phase_kind::Lambertian;
 
                         // Direct sun contribution
-                        const Float p_sun = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, r_eff, 0, 0,
+                        Float p_sun = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, r_eff, 0, 0,
                                                                  surface_normal, surface_kind);
+                        if (surface_kind == Phase_kind::Lambertian)
+                            p_sun *= max(dot(sun_direction, surface_normal), Float(0.));
+
                         const Float trans_sun = transmission_direct_sun<dz_constant>(photon,n,rng,sun_direction,
                                                     k_null_grid,k_ext,
                                                     bg_tau_cum, z_lev_bg, bg_idx,
