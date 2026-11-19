@@ -87,6 +87,23 @@ namespace Raytracer_functions
     }
 
     __device__
+    inline Float fresnel_unpolarized(const Float cos_i, const Float n_rel)
+    {
+        const Float sin2_t = (Float(1.) - cos_i*cos_i) / (n_rel*n_rel);
+        const Float cos_t  = sqrt(max(Float(0.), Float(1.) - sin2_t));
+        const Float rs = (cos_i - n_rel*cos_t) / (cos_i + n_rel*cos_t);
+        const Float rp = (n_rel*cos_i - cos_t) / (n_rel*cos_i + cos_t);
+        return Float(0.5) * (rs*rs + rp*rp);
+    }
+
+    enum Surface_scattering : int
+    {
+        Surface_lambertian          = 0,  // Purely lambertian, albedo = surface_albedo
+        Surface_specular            = 1,  // Purely specular, albedo = Fresnel
+        Surface_specular_lambertian = 2,  // Specular reflection (Fresnel) with water-leaving fraction (lambertian, albedo = surface_albedo)
+    };
+
+    __device__
     inline int find_index(const Float* mie_cdf, const int size, const Float random_number)
     {
         int left = 0;

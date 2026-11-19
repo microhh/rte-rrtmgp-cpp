@@ -150,7 +150,7 @@ void solve_radiation(int argc, char** argv)
     //// Backward (shortwave only) ////
     const bool switch_bw_raytracing         = get_ini_value<bool>(settings, "backward", "bw_raytracing", true);
 
-    // read surface type from land_use_map variable and compute spectral albedo and reflection type (lambertian/specular) accordingly
+    // read surface type from land_use_map variable and compute spectral albedo
     const bool switch_lu_albedo             = get_ini_value<bool>(settings, "backward", "lu_albedo", false);
 
     // solve visible bands and convert to XYZ tristimulus values
@@ -422,9 +422,18 @@ void solve_radiation(int argc, char** argv)
     Array_gpu<Float,4> mie_phase_bw(mie_phase_bw_c);
     Array_gpu<Float,1> mie_phase_angs_bw(mie_phase_angs_bw_c);
 
-    Array<Float,1> lum_c({ncol});
-    lum_c.fill(Float(1.));
-    Array_gpu<Float,1> land_use_map(lum_c);
+    // read surface scattering type if presents (0: lambertian, 1: purely specular, 2: specular with a small water-leaving lambertian fraction)
+    // defaults to 0: lambertian
+    Array<int,1> surface_scattering_type({ncol});
+    if (input_nc.variable_exists("surface_scattering_type"))
+    {
+        surface_scattering_type = std::move(input_nc.get_variable<int>("surface_scattering_type", {ny, nx}));
+    }
+    else
+    {
+        surface_scattering_type.fill(0);
+    }
+    Array_gpu<int,1> surface_scattering_type_g(surface_scattering_type);
 
     ///// GPU arrays
     Array_gpu<Float,2> sw_tau_tot_g(sw_tau_tot);
@@ -840,7 +849,7 @@ void solve_radiation(int argc, char** argv)
                 sw_ssa_aer_g,
                 sw_asy_aer_g,
                 alb_sfc_g,
-                land_use_map,
+                surface_scattering_type_g,
                 acos(mu0({1,1})),
                 azi({1,1}),
                 sw_inc_flux_direct({1,1})/mu0({1,1}),
