@@ -101,7 +101,7 @@ namespace
         }
         else
         {
-            return Float(0.017) - Float(0.00024) * (wv - Float(700.));  // ~0.005 at 750 nm
+            return max(Float(0.), Float(0.017) - Float(0.00024) * (wv - Float(700.)));  // ~0.005 at 750 nm
         }
     }
 

@@ -220,7 +220,7 @@ void solve_radiation(int argc, char** argv)
     const Float min_mfp_grid_ratio        = get_ini_value<Float>(settings, "longwave", "min_mfp_grid_ratio", Float(1.0));
 
     const bool switch_bw_raytracing     = get_ini_value<bool>(settings, "backward", "bw_raytracing", true);
-    // read surface type from land_use_map variable and compute spectral albedo and reflection type (lambertian/specular) accordingly
+    // read surface type from land_use_map variable and compute spectral albedo
     const bool switch_lu_albedo         = get_ini_value<bool>(settings, "backward", "lu_albedo", false);
     // solve visible bands and convert to XYZ tristimulus values
     const bool switch_image             = get_ini_value<bool>(settings, "backward", "image", true);
