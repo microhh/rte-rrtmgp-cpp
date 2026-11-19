@@ -115,12 +115,12 @@ T get_ini_value(const toml::value& ini_file, const std::string& group, const std
 template<typename T>
 T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item, const T default_value)
 {
-    auto ini_group = toml::find(ini_file, group);
+    const toml::value empty_table{toml::table{}};
+    const auto& ini_group = toml::find_or(ini_file, group, empty_table);
     const T value = toml::find_or(ini_group, item, default_value);
     std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
     return value;
 }
-
 
 void solve_radiation(int argc, char** argv)
 {
