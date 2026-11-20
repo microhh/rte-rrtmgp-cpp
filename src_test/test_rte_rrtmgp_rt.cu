@@ -1108,6 +1108,7 @@ void solve_radiation(int argc, char** argv)
                     t_lay_gpu, t_lev_gpu,
                     col_dry_gpu,
                     alb_sfc_gpu,
+                    surface_scattering_type_gpu,
                     tsi_scaling_gpu, mu0_gpu, azi_gpu,
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu,

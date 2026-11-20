@@ -14,12 +14,6 @@ namespace
 
     enum class Phase_kind {Lambertian, Specular, Rayleigh, HG, Mie};
 
-    template<typename T> __device__
-    Vector<T> specular(const Vector<T> dir_in,const Vector<T> dir_n)
-    {
-        return dir_in - 2*dir_n*dot(dir_n,dir_in);
-    }
-
     __device__
     Float lambertian_phase()
     {
@@ -620,28 +614,12 @@ void ray_tracer_kernel_bw(
                         const int ij = i + j*grid_cells.x;
                         d_max = Float(0.);
 
-                        const Surface_props surface_props_ij = surface_properties[ij];
-
                         const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
 
-                        Float R_spec = Float(0.);
-                        Float R_diff = Float(0.);
-
-                        // surface reflectences depending on scattering type
-                        if (surface_props_ij.scattering_type == Surface_lambertian)
-                        {
-                            R_diff = surface_props_ij.albedo;
-                        }
-                        else if (surface_props_ij.scattering_type == Surface_specular)
-                        {
-                            R_spec = fresnel_unpolarized(cos_i, n_water);
-                        }
-                        else // scat_type == Surface_specular_lambertian
-                        {
-                            R_spec = fresnel_unpolarized(cos_i, n_water);
-                            R_diff = (Float(1.) - R_spec) * surface_props_ij.albedo;
-                        }
-
+                        // surface reflectances depending on scattering type
+                        const Surface_reflectance refl = surface_reflectance(surface_properties[ij], cos_i);
+                        const Float R_spec = refl.R_spec;
+                        const Float R_diff = refl.R_diff;
                         const Float R_tot = R_spec + R_diff;
 
                         auto trans_to = [&](const Vector<Float>& dir)
@@ -820,16 +798,16 @@ void ray_tracer_kernel_bw(
                                     g = min(Float(1.) - Float_epsilon, scat_asy[ijk].asy_aer);
                                     break;
                             }
-                            const Float cos_scat = scatter_type == 0 ? rayleigh(rng()) : // gases -> rayleigh,
-                                                                   1 ? ( (mie_cdf_table_size > 0) //clouds: Mie or HG
+                            const Float cos_scat = (scatter_type == 0) ? rayleigh(rng()) : // gases -> rayleigh,
+                                                   (scatter_type == 1) ? ( (mie_cdf_table_size > 0) //clouds: Mie or HG
                                                                             ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff, ijk, mie_cdf_table_size) )
                                                                             :  henyey(g, rng()))
                                                                    : henyey(g, rng()); //aerosols
                             const Float sin_scat = max(Float(0.), sqrt(Float(1.) - cos_scat*cos_scat + Float_epsilon));
 
                             // SUN SCATTERING GOES HERE
-                            const Phase_kind kind = scatter_type == 0 ? Phase_kind::Rayleigh :
-                                                                    1 ? (mie_phase_table_size > 0)
+                            const Phase_kind kind = (scatter_type == 0) ? Phase_kind::Rayleigh :
+                                                    (scatter_type == 1) ? (mie_phase_table_size > 0)
                                                                         ? Phase_kind::Mie
                                                                         : Phase_kind::HG
                                                                 : Phase_kind::HG;

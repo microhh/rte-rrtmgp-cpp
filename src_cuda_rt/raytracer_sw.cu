@@ -246,6 +246,29 @@ Raytracer::Raytracer()
 }
 
 
+namespace
+{
+    __global__
+    void bundle_surface_props(
+            const Vector<int> grid_cells,
+            const Float* __restrict__ sfc_albedo,
+            const int* __restrict__ sfc_scattering_type,
+            Surface_props* __restrict__ sfc_props)
+    {
+        const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
+        const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
+
+        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) )
+        {
+            const int idx = icol_x + icol_y*grid_cells.x;
+
+            sfc_props[idx].albedo          = sfc_albedo[idx];
+            sfc_props[idx].scattering_type = sfc_scattering_type[idx];
+        }
+    }
+}
+
+
 void Raytracer::trace_rays(
         const int igpt,
         const bool switch_independent_column,
@@ -271,6 +294,7 @@ void Raytracer::trace_rays(
         const Array_gpu<Float,2>& asy_aeros,
         const Array_gpu<Float,2>& r_eff,
         const Array_gpu<Float,2>& surface_albedo,
+        const Array_gpu<int,1>& surface_scattering_type,
         const Float zenith_angle,
         const Float azimuth_angle,
         const Float tod_inc_direct,
@@ -318,6 +342,12 @@ void Raytracer::trace_rays(
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
             tau_aeros.ptr(), ssa_aeros.ptr(), asy_aeros.ptr(),
             k_ext.ptr(), scat_asy.ptr());
+
+    // bundle surface properties in struct
+    Array_gpu<Surface_props,2> surface_properties({grid_cells.x, grid_cells.y});
+
+    bundle_surface_props<<<grid_2d, block_2d>>>(
+            grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_properties.ptr());
 
     const int block_kn_x = 8;
     const int block_kn_y = 8;
@@ -421,7 +451,7 @@ void Raytracer::trace_rays(
                 r_eff.ptr(),
                 tod_inc_direct,
                 tod_inc_diffuse,
-                surface_albedo.ptr(),
+                surface_properties.ptr(),
                 grid_size, grid_d, grid_cells, kn_grid,
                 z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
                 lut_dz, int(z_lut.size()),

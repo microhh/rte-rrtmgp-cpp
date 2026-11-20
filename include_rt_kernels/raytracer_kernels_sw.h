@@ -6,6 +6,7 @@
 
 using Raytracer_definitions::Vector;
 using Raytracer_definitions::Optics_scat;
+using Raytracer_definitions::Surface_props;
 
 
 #ifdef RTE_USE_SP
@@ -37,7 +38,7 @@ void ray_tracer_kernel(
         const Float* __restrict__ r_eff,
         const Float tod_inc_direct,
         const Float tod_inc_diffuse,
-        const Float* __restrict__ surface_albedo,
+        const Surface_props* __restrict__ surface_properties,
         const Vector<Float> grid_size,
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,

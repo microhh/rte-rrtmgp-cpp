@@ -46,6 +46,7 @@ class Raytracer
                 const Array_gpu<Float,2>& asy_aeros,
                 const Array_gpu<Float,2>& r_eff,
                 const Array_gpu<Float,2>& surface_albedo,
+                const Array_gpu<int,1>& surface_scattering_type,
                 const Float zenith_angle,
                 const Float azimuth_angle,
                 const Float tod_inc_direct,

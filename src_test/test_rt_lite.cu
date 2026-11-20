@@ -755,6 +755,7 @@ void solve_radiation(int argc, char** argv)
                    sw_asy_aer_g,
                    rel,
                    alb_sfc_g,
+                   surface_scattering_type_g,
                    acos(mu0({1,1})),
                    azi({1,1}),
                    sw_inc_flux_direct({1,1}),

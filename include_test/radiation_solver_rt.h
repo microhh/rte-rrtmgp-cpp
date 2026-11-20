@@ -141,6 +141,7 @@ class Radiation_solver_shortwave
                 const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
                 Array_gpu<Float,2>& col_dry,
                 const Array_gpu<Float,2>& alb_sfc,
+                const Array_gpu<int,1>& surface_scattering_type,
                 const Array_gpu<Float,1>& tsi_scaling,
                 const Array_gpu<Float,1>& mu0, const Array_gpu<Float,1>& azi,
                 const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
