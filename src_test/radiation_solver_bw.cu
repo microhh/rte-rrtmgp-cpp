@@ -48,27 +48,60 @@ namespace
     {
         if (wv < 500)
         {
-            return Float(3.0) + Float(0.0065) * (wv - Float(300.));
+            return Float(3.0) + Float(0.0075) * (wv - Float(300.));
         }
         else if (wv < 550)
         {
-            return Float(4.3) + Float(0.216) * (wv - Float(500.));
+            return Float(4.5) + Float(0.130) * (wv - Float(500.));
         }
         else if (wv < 580)
         {
-            return Float(15.1) - Float(0.13) * (wv - Float(550.));
+            return Float(11.0) - Float(0.077) * (wv - Float(550.));
         }
         else if (wv < 680)
         {
-            return Float(12.) - Float(0.083) * (wv - Float(580.));
+            return Float(8.69) - Float(0.0419) * (wv - Float(580.));
         }
         else if (wv < 750)
         {
-            return Float(4.5) - Float(0.5) * (wv - Float(680.));
+            return Float(4.5) + Float(0.405) * (wv - Float(680.));
         }
         else
         {
             return Float(45);
+        }
+    }
+
+    __device__
+    Float get_water_alb_proc(const Float wv)
+    {
+        if (wv < 450)
+        {
+            return Float(11.0) - Float(0.06) * (wv - Float(400.));
+        }
+        else if (wv < 500)
+        {
+            return Float(8.0) - Float(0.114) * (wv - Float(450.));
+        }
+        else if (wv < 550)
+        {
+            return Float(2.3) - Float(0.0348) * (wv - Float(500.));
+        }
+        else if (wv < 600)
+        {
+            return Float(0.56) - Float(0.0092) * (wv - Float(550.));
+        }
+        else if (wv < 650)
+        {
+            return Float(0.10) - Float(0.0011) * (wv - Float(600.));
+        }
+        else if (wv < 700)
+        {
+            return Float(0.045) - Float(0.00056) * (wv - Float(650.));
+        }
+        else
+        {
+            return max(Float(0.), Float(0.017) - Float(0.00024) * (wv - Float(700.)));  // ~0.005 at 750 nm
         }
     }
 
@@ -170,7 +203,7 @@ namespace
         {
             if (land_use_map[i] == 0)
             {
-                albedo[i] = Float(0.07);
+                albedo[i] =  mean_albedo(wv1, wv2, &get_water_alb_proc);
             }
             else if (land_use_map[i] >= 1 && land_use_map[i] <= 2)
             {
@@ -863,6 +896,7 @@ void Radiation_solver_bw_shortwave::solve_gpu(
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         const Array_gpu<Float,1>& land_use_map,
+        const Array_gpu<int,1>& surface_scattering_type,
         const Array_gpu<Float,2>& rh,
         const Aerosol_concs_gpu& aerosol_concs,
         const Camera& camera,
@@ -1117,7 +1151,7 @@ void Radiation_solver_bw_shortwave::solve_gpu(
                         dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
                         dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
                         albedo,
-                        land_use_map,
+                        surface_scattering_type,
                         zenith_angle,
                         azimuth_angle,
                         toa_src({1}),
@@ -1194,6 +1228,7 @@ void Radiation_solver_bw_shortwave::solve_gpu_bb(
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
         const Array_gpu<Float,1>& land_use_map,
+        const Array_gpu<int,1>& surface_scattering_type,
         const Array_gpu<Float,2>& rh,
         const Aerosol_concs_gpu& aerosol_concs,
         const Camera& camera,
@@ -1405,7 +1440,7 @@ void Radiation_solver_bw_shortwave::solve_gpu_bb(
                     dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
                     dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
                     albedo,
-                    land_use_map,
+                    surface_scattering_type,
                     zenith_angle,
                     azimuth_angle,
                     toa_src({1}),

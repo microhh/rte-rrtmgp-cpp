@@ -6,6 +6,7 @@
 
 using Raytracer_definitions::Vector;
 using Raytracer_definitions::Optics_scat;
+using Raytracer_definitions::Surface_props;
 
 
 #ifdef RTE_USE_SP
@@ -18,8 +19,13 @@ constexpr int rt_kernel_grid = 256;
 
 constexpr Float k_null_gas_min = Float(1.e-3);
 
-template<Bool independent_column, Bool dz_constant> __global__
-void ray_tracer_kernel(
+// Host-side launcher for the templated ray_tracer_kernel.
+void launch_ray_tracer_kernel(
+        const bool independent_column,
+        const bool dz_constant,
+        const dim3 grid,
+        const dim3 block,
+        const size_t shared_mem_bytes,
         const Int photons_to_shoot,
         const Int qrng_grid_x,
         const Int qrng_grid_y,
@@ -37,7 +43,7 @@ void ray_tracer_kernel(
         const Float* __restrict__ r_eff,
         const Float tod_inc_direct,
         const Float tod_inc_diffuse,
-        const Float* __restrict__ surface_albedo,
+        const Surface_props* __restrict__ surface_properties,
         const Vector<Float> grid_size,
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,

@@ -138,7 +138,7 @@ void ray_tracer_kernel(
         const Float* __restrict__ r_eff,
         const Float tod_inc_direct,
         const Float tod_inc_diffuse,
-        const Float* __restrict__ surface_albedo,
+        const Surface_props* __restrict__ surface_properties,
         const Vector<Float> grid_size,
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,
@@ -259,9 +259,14 @@ void ray_tracer_kernel(
                 // else
                 //     write_photon_out(&surface_down_diffuse_count[ij], weight);
 
+                // surface reflectances depending on scattering type
+                const Vector<Float> surface_normal = {Float(0.), Float(0.), Float(1.)};
+                const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
+                const Surface_reflectance refl = surface_reflectance(surface_properties[ij], cos_i);
+                const Float R_tot = refl.R_spec + refl.R_diff;
+
                 // Update weights and add upward surface flux
-                const Float local_albedo = surface_albedo[ij];
-                weight *= local_albedo;
+                weight *= R_tot;
                 write_photon_out(&surface_up_count[ij], weight);
 
                 if (weight < w_thres)
@@ -270,13 +275,23 @@ void ray_tracer_kernel(
                 // only with nonzero weight continue ray tracing, else start new ray
                 if (weight > Float(0.))
                 {
-                    const Float mu_surface = sqrt(rng());
-                    const Float azimuth_surface = Float(2.*M_PI)*rng();
-                    const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
+                    // choose specular or lambertian reflection, proportional to their share of the total reflectance
+                    // (R_spec check first: purely lambertian surfaces do not draw an extra random number)
+                    if (refl.R_spec > Float(0.) && rng() * R_tot < refl.R_spec)
+                    {
+                        photon.direction = specular(photon.direction, surface_normal);
+                    }
+                    else
+                    {
+                        const Float mu_surface = sqrt(rng());
+                        const Float azimuth_surface = Float(2.*M_PI)*rng();
+                        const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
 
-                    photon.direction.x = sin_theta*sin(azimuth_surface);
-                    photon.direction.y = sin_theta*cos(azimuth_surface);
-                    photon.direction.z = mu_surface;
+                        photon.direction.x = sin_theta*sin(azimuth_surface);
+                        photon.direction.y = sin_theta*cos(azimuth_surface);
+                        photon.direction.z = mu_surface;
+                    }
+                    // reflected photons always count as diffuse
                     photon.kind = Photon_kind::Diffuse;
                 }
                 else
@@ -414,8 +429,8 @@ void ray_tracer_kernel(
                     }
 
                     // 0 (gas): rayleigh, 1 (cloud): mie if mie_table_size>0 else HG, 2 (aerosols) HG
-                    const Float cos_scat = scatter_type == 0 ? rayleigh(rng()) : // gases -> rayleigh,
-                                                           1 ? ( (mie_table_size > 0) //clouds: Mie or HG
+                    const Float cos_scat = (scatter_type == 0) ? rayleigh(rng()) : // gases -> rayleigh,
+                                           (scatter_type == 1) ? ( (mie_table_size > 0) //clouds: Mie or HG
                                                                     ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff, ijk, mie_table_size) )
                                                                     :  henyey(g, rng()))
                                                            : henyey(g, rng()); //aerosols
@@ -464,30 +479,76 @@ void ray_tracer_kernel(
     }
 }
 
-template __global__ void ray_tracer_kernel<true, true>(
-        const Int, const Int, const Int, const Int,const Float*, Float*, Float*, Float*, Float*,
-        Float*, Float*, Float*, const Float*, const Optics_scat*, const Float*, const Float, const Float,
-        const Float*, const Vector<Float>, const Vector<Float>, const Vector<int>, const Vector<int>,
-        const Float*, const Float*, const int*, const int*, const Float, const int,
-        const Vector<Float>, curandDirectionVectors32_t*, unsigned int*, const Float*, const Float*, const int);
+void launch_ray_tracer_kernel(
+        const bool independent_column,
+        const bool dz_constant,
+        const dim3 grid,
+        const dim3 block,
+        const size_t shared_mem_bytes,
+        const Int photons_to_shoot,
+        const Int qrng_grid_x,
+        const Int qrng_grid_y,
+        const Int rng_gpt_offset,
+        const Float* __restrict__ k_null_grid,
+        Float* __restrict__ toa_down_count,
+        Float* __restrict__ tod_up_count,
+        Float* __restrict__ surface_down_direct_count,
+        Float* __restrict__ surface_down_diffuse_count,
+        Float* __restrict__ surface_up_count,
+        Float* __restrict__ atmos_direct_count,
+        Float* __restrict__ atmos_diffuse_count,
+        const Float* __restrict__ k_ext,
+        const Optics_scat* __restrict__ scat_asy,
+        const Float* __restrict__ r_eff,
+        const Float tod_inc_direct,
+        const Float tod_inc_diffuse,
+        const Surface_props* __restrict__ surface_properties,
+        const Vector<Float> grid_size,
+        const Vector<Float> grid_d,
+        const Vector<int> grid_cells,
+        const Vector<int> kn_grid,
+        const Float* __restrict__ z_lev,
+        const Float* __restrict__ kn_z_lev,
+        const int* __restrict__ z_lut,
+        const int* __restrict__ kn_z_lut,
+        const Float lut_dz,
+        const int lut_size,
+        const Vector<Float> sun_direction,
+        curandDirectionVectors32_t* qrng_vectors, unsigned int* qrng_constants,
+        const Float* __restrict__ mie_cdf,
+        const Float* __restrict__ mie_ang,
+        const int mie_table_size)
+{
+    auto launch = [&](auto kernel)
+    {
+        kernel<<<grid, block, shared_mem_bytes>>>(
+                photons_to_shoot,
+                qrng_grid_x,
+                qrng_grid_y,
+                rng_gpt_offset,
+                k_null_grid,
+                toa_down_count,
+                tod_up_count,
+                surface_down_direct_count,
+                surface_down_diffuse_count,
+                surface_up_count,
+                atmos_direct_count,
+                atmos_diffuse_count,
+                k_ext, scat_asy,
+                r_eff,
+                tod_inc_direct,
+                tod_inc_diffuse,
+                surface_properties,
+                grid_size, grid_d, grid_cells, kn_grid,
+                z_lev, kn_z_lev, z_lut, kn_z_lut,
+                lut_dz, lut_size,
+                sun_direction,
+                qrng_vectors, qrng_constants,
+                mie_cdf, mie_ang, mie_table_size);
+    };
 
-template __global__ void ray_tracer_kernel<true, false>(
-        const Int, const Int, const Int, const Int,const Float*, Float*, Float*, Float*, Float*,
-        Float*, Float*, Float*, const Float*, const Optics_scat*, const Float*, const Float, const Float,
-        const Float*, const Vector<Float>, const Vector<Float>, const Vector<int>, const Vector<int>,
-        const Float*, const Float*, const int*, const int*, const Float, const int,
-        const Vector<Float>, curandDirectionVectors32_t*, unsigned int*, const Float*, const Float*, const int);
-
-template __global__ void ray_tracer_kernel<false, true>(
-        const Int, const Int, const Int, const Int,const Float*, Float*, Float*, Float*, Float*,
-        Float*, Float*, Float*, const Float*, const Optics_scat*, const Float*, const Float, const Float,
-        const Float*, const Vector<Float>, const Vector<Float>, const Vector<int>, const Vector<int>,
-        const Float*, const Float*, const int*, const int*, const Float, const int,
-        const Vector<Float>, curandDirectionVectors32_t*, unsigned int*, const Float*, const Float*, const int);
-
-template __global__ void ray_tracer_kernel<false, false>(
-        const Int, const Int, const Int, const Int,const Float*, Float*, Float*, Float*, Float*,
-        Float*, Float*, Float*, const Float*, const Optics_scat*, const Float*, const Float, const Float,
-        const Float*, const Vector<Float>, const Vector<Float>, const Vector<int>, const Vector<int>,
-        const Float*, const Float*, const int*, const int*, const Float, const int,
-        const Vector<Float>, curandDirectionVectors32_t*, unsigned int*, const Float*, const Float*, const int);
+    if (independent_column)
+        dz_constant ? launch(ray_tracer_kernel<true, true>) : launch(ray_tracer_kernel<true, false>);
+    else
+        dz_constant ? launch(ray_tracer_kernel<false, true>) : launch(ray_tracer_kernel<false, false>);
+}

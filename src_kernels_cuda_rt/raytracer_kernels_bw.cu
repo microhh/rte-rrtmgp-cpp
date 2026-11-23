@@ -14,12 +14,6 @@ namespace
 
     enum class Phase_kind {Lambertian, Specular, Rayleigh, HG, Mie};
 
-    template<typename T> __device__
-    Vector<T> specular(const Vector<T> dir_in,const Vector<T> dir_n)
-    {
-        return dir_in - 2*dir_n*dot(dir_n,dir_in);
-    }
-
     __device__
     Float lambertian_phase()
     {
@@ -333,8 +327,7 @@ void ray_tracer_kernel_bw(
         const Float* __restrict__ k_ext_bg, const Optics_scat* __restrict__ scat_asy_bg,
         const Float* __restrict__ z_lev_bg,
         const Float* __restrict__ r_eff,
-        const Float* __restrict__ surface_albedo,
-        const Float* __restrict__ land_use_map,
+        const Surface_props* __restrict__ surface_properties,
         const Float mu,
         const Vector<Float> grid_size, const Vector<Float> grid_d,
         const Vector<int> grid_cells, const Vector<int> kn_grid,
@@ -621,54 +614,84 @@ void ray_tracer_kernel_bw(
                         const int ij = i + j*grid_cells.x;
                         d_max = Float(0.);
 
-                        // Update weights and add upward surface flux
-                        const Float local_albedo =  surface_albedo[ij];
-                        weight *= local_albedo;
+                        const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
 
-                        // only specular reflection for water surfaces and direct radiation, otherwise keep using Lambertian to diffuse a bit
-                        const Phase_kind surface_kind = (land_use_map[ij] == 0) ? ( (photon.kind == Photon_kind::Direct) ? Phase_kind::Specular : Phase_kind::Lambertian)
-                                                                                : Phase_kind::Lambertian;
+                        // surface reflectances depending on scattering type
+                        const Surface_reflectance refl = surface_reflectance(surface_properties[ij], cos_i);
+                        const Float R_spec = refl.R_spec;
+                        const Float R_diff = refl.R_diff;
+                        const Float R_tot = R_spec + R_diff;
 
-                        // Direct sun contribution
-                        const Float p_sun = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.),  mie_phase_ang_shared, mie_phase, r_eff, 0, 0,
-                                                                 surface_normal, surface_kind);
-                        const Float trans_sun = transmission_direct_sun<dz_constant>(photon,n,rng,sun_direction,
-                                                    k_null_grid,k_ext,
-                                                    bg_tau_cum, z_lev_bg, bg_idx,
-                                                    kn_grid, kn_grid_d, grid_d,
-                                                    grid_size, grid_cells,
-                                                    z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
-                                                    s_min, s_min_bg);
-                        atomicAdd(&camera_count_direct[ij_cam], weight * p_sun * trans_sun);
-
-                        if (tod_diffuse)
+                        auto trans_to = [&](const Vector<Float>& dir)
                         {
-                            // TOD diffuse contribution
-                            const Float mu_tod = sqrt(rng());
-                            const Float azi_tod = Float(2.*M_PI)*rng();
-                            const Float sin_theta = sqrt(Float(1.) - mu_tod*mu_tod + Float_epsilon);
+                            return transmission_direct_sun<dz_constant>(photon,n,rng,dir,
+                                        k_null_grid,k_ext,
+                                        bg_tau_cum, z_lev_bg, bg_idx,
+                                        kn_grid, kn_grid_d, grid_d,
+                                        grid_size, grid_cells,
+                                        z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
+                                        s_min, s_min_bg);
+                        };
 
-                            Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
+                        // TOD direct contribution
+                        Float p_sun_spec = Float(0.);
+                        Float p_sun_diff = Float(0.);
+                        const Float cos_sun = max(dot(sun_direction, surface_normal), Float(0.));
 
-                            const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, surface_kind);
-                            const Float trans_dif = transmission_direct_sun<dz_constant>(photon,n,rng,diffuse_direction,
-                                                        k_null_grid,k_ext,
-                                                        bg_tau_cum, z_lev_bg, bg_idx,
-                                                        kn_grid, kn_grid_d, grid_d,
-                                                        grid_size, grid_cells,
-                                                        z_lev, kn_z_lev, z_lut, kn_z_lut, lut_dz, lut_size,
-                                                        s_min, s_min_bg);
-                            atomicAdd(&camera_count_diffuse[ij_cam], weight * p_diffuse * trans_dif);
+                        if (R_spec > Float(0.))
+                        {
+                            p_sun_spec = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Specular);
+                        }
+                        if (R_diff > Float(0.))
+                        {
+                            p_sun_diff = cos_sun * probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Lambertian);
                         }
 
+                        const Float p_sun_tot = R_spec*p_sun_spec + R_diff*p_sun_diff;
+                        if (p_sun_tot > Float(0.))
+                        {
+                            const Float trans_sun = trans_to(sun_direction);
+                            atomicAdd(&camera_count_direct[ij_cam], weight * p_sun_tot * trans_sun);
+                        }
+
+                        // TOD diffuse contribution
+                        if (tod_diffuse)
+                        {
+                            if (R_spec > Float(0.))
+                            {
+                                Vector<Float> dir_spec;
+
+                                dir_spec = specular(photon.direction, surface_normal);
+
+                                atomicAdd(&camera_count_diffuse[ij_cam], weight * R_spec * Float(2.0) * trans_to(dir_spec));
+                            }
+
+                            if (R_diff > Float(0.))
+                            {
+                                const Float mu_tod = sqrt(rng());
+                                const Float azi_tod = Float(2.*M_PI)*rng();
+                                const Float sin_theta = sqrt(Float(1.) - mu_tod*mu_tod + Float_epsilon);
+
+                                const Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
+
+                                atomicAdd(&camera_count_diffuse[ij_cam], weight * R_diff * Float(2.0) * trans_to(diffuse_direction));
+                            }
+                        }
+                        weight *= R_tot;
                         if (weight < w_thres)
                             weight = (rng() > weight) ? Float(0.) : Float(1.);
 
                         // only with nonzero weight continue ray tracing, else start new ray
                         if (weight > Float(0.))
                         {
-                            if (surface_kind == Phase_kind::Lambertian)
+                            if (rng() * R_tot < R_spec)
                             {
+                                // specular
+                                photon.direction = specular(photon.direction, surface_normal);
+                            }
+                            else
+                            {
+                                // Lambertian lobe
                                 const Float mu_surface = sqrt(rng());
                                 const Float azimuth_surface = Float(2.*M_PI)*rng();
                                 const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
@@ -678,10 +701,7 @@ void ray_tracer_kernel_bw(
                                 photon.direction.z = mu_surface;
                                 photon.kind = Photon_kind::Diffuse;
                             }
-                            else if (surface_kind == Phase_kind::Specular)
-                            {
-                                photon.direction = specular(photon.direction,surface_normal);
-                            }
+
                         }
                         else
                         {
@@ -778,16 +798,16 @@ void ray_tracer_kernel_bw(
                                     g = min(Float(1.) - Float_epsilon, scat_asy[ijk].asy_aer);
                                     break;
                             }
-                            const Float cos_scat = scatter_type == 0 ? rayleigh(rng()) : // gases -> rayleigh,
-                                                                   1 ? ( (mie_cdf_table_size > 0) //clouds: Mie or HG
+                            const Float cos_scat = (scatter_type == 0) ? rayleigh(rng()) : // gases -> rayleigh,
+                                                   (scatter_type == 1) ? ( (mie_cdf_table_size > 0) //clouds: Mie or HG
                                                                             ? cos( mie_sample_angle(mie_cdf_shared, mie_ang, rng(), r_eff, ijk, mie_cdf_table_size) )
                                                                             :  henyey(g, rng()))
                                                                    : henyey(g, rng()); //aerosols
                             const Float sin_scat = max(Float(0.), sqrt(Float(1.) - cos_scat*cos_scat + Float_epsilon));
 
                             // SUN SCATTERING GOES HERE
-                            const Phase_kind kind = scatter_type == 0 ? Phase_kind::Rayleigh :
-                                                                    1 ? (mie_phase_table_size > 0)
+                            const Phase_kind kind = (scatter_type == 0) ? Phase_kind::Rayleigh :
+                                                    (scatter_type == 1) ? (mie_phase_table_size > 0)
                                                                         ? Phase_kind::Mie
                                                                         : Phase_kind::HG
                                                                 : Phase_kind::HG;
@@ -979,50 +999,69 @@ void ray_tracer_kernel_bw(
 
     }
 
-template __global__ void ray_tracer_kernel_bw<true, true>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Float*, const Float*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
+void launch_ray_tracer_kernel_bw(
+        const bool tod_diffuse,
+        const bool dz_constant,
+        const dim3 grid,
+        const dim3 block,
+        const size_t shared_mem_bytes,
+        const int igpt,
+        const Int photons_per_pixel,
+        const Grid_knull* __restrict__ k_null_grid,
+        Float* __restrict__ camera_count_direct,
+        Float* __restrict__ camera_count_diffuse,
+        Float* __restrict__ camera_shot,
+        Int* __restrict__ counter,
+        const Float* __restrict__ k_ext, const Optics_scat* __restrict__ scat_asy,
+        const Float* __restrict__ k_ext_bg, const Optics_scat* __restrict__ scat_asy_bg,
+        const Float* __restrict__ z_lev_bg,
+        const Float* __restrict__ r_eff,
+        const Surface_props* __restrict__ surface_properties,
+        const Float mu,
+        const Vector<Float> grid_size, const Vector<Float> grid_d,
+        const Vector<int> grid_cells, const Vector<int> kn_grid,
+        const Float* __restrict__ z_lev,
+        const Float* __restrict__ kn_z_lev,
+        const int* __restrict__ z_lut,
+        const int* __restrict__ kn_z_lut,
+        const Float lut_dz,
+        const int lut_size,
+        const Vector<Float> sun_direction, const Camera camera,
+        const int nbg,
+        const Float* __restrict__ mie_cdf,
+        const Float* __restrict__ mie_ang,
+        const Float* __restrict__ mie_phase,
+        const Float* __restrict__ mie_phase_ang,
+        const int mie_cdf_table_size,
+        const int mie_phase_table_size)
+{
+    auto launch = [&](auto kernel)
+    {
+        kernel<<<grid, block, shared_mem_bytes>>>(
+                igpt,
+                photons_per_pixel, k_null_grid,
+                camera_count_direct,
+                camera_count_diffuse,
+                camera_shot,
+                counter,
+                k_ext, scat_asy,
+                k_ext_bg, scat_asy_bg,
+                z_lev_bg,
+                r_eff,
+                surface_properties,
+                mu,
+                grid_size, grid_d, grid_cells, kn_grid,
+                z_lev, kn_z_lev, z_lut, kn_z_lut,
+                lut_dz, lut_size,
+                sun_direction, camera, nbg,
+                mie_cdf, mie_ang,
+                mie_phase, mie_phase_ang,
+                mie_cdf_table_size,
+                mie_phase_table_size);
+    };
 
-template __global__ void ray_tracer_kernel_bw<true, false>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Float*, const Float*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
-
-template __global__ void ray_tracer_kernel_bw<false, true>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Float*, const Float*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
-
-template __global__ void ray_tracer_kernel_bw<false, false>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Float*, const Float*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
+    if (tod_diffuse)
+        dz_constant ? launch(ray_tracer_kernel_bw<true, true>) : launch(ray_tracer_kernel_bw<true, false>);
+    else
+        dz_constant ? launch(ray_tracer_kernel_bw<false, true>) : launch(ray_tracer_kernel_bw<false, false>);
+}

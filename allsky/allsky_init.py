@@ -146,8 +146,8 @@ sfc_alb_dif = np.ones((n_col_y, n_col_x, n_bnd_sw))*0.06
 # total_solar_irradiance = 551.58
 
 nc_mu0 = nc_file.createVariable("mu0", float_type, ("y", "x"))
-nc_sfc_alb_dir = nc_file.createVariable("sfc_alb_dir", float_type, ("y", "x", "band_sw"))
-nc_sfc_alb_dif = nc_file.createVariable("sfc_alb_dif", float_type, ("y", "x", "band_sw"))
+nc_sfc_alb_dir = nc_file.createVariable("alb_sfc_dir", float_type, ("y", "x", "band_sw"))
+nc_sfc_alb_dif = nc_file.createVariable("alb_sfc_dif", float_type, ("y", "x", "band_sw"))
 # nc_tsi = nc_file.createVariable("tsi", float_type, ("y", "x"))
 
 nc_mu0[:,:] = mu0

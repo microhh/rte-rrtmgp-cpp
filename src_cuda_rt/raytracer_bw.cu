@@ -199,6 +199,25 @@ namespace
     }
 
     __global__
+    void bundle_surface_props(
+            const Vector<int> grid_cells,
+            const Float* __restrict__ sfc_albedo,
+            const int* __restrict__ sfc_scattering_type,
+            Surface_props* __restrict__ sfc_props)
+    {
+        const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
+        const int icol_y = blockIdx.y*blockDim.y + threadIdx.y;
+
+        if ( (icol_x < grid_cells.x) && (icol_y < grid_cells.y) )
+        {
+            const int idx = icol_x + icol_y*grid_cells.x;
+
+            sfc_props[idx].albedo          = sfc_albedo[idx];
+            sfc_props[idx].scattering_type = sfc_scattering_type[idx];
+        }
+    }
+
+    __global__
     void background_profile(
             const Vector<int> grid_cells, const int nbg,
             const Float* __restrict__ z_lev,
@@ -400,7 +419,7 @@ void Raytracer_bw::trace_rays(
         const Array_gpu<Float,2>& ssa_aeros,
         const Array_gpu<Float,2>& asy_aeros,
         const Array_gpu<Float,2>& surface_albedo,
-        const Array_gpu<Float,1>& land_use_map,
+        const Array_gpu<int,1>& surface_scattering_type,
         const Float zenith_angle,
         const Float azimuth_angle,
         const Float src_direct,
@@ -425,12 +444,21 @@ void Raytracer_bw::trace_rays(
     const int grid_col_y  = grid_cells.y/block_col_y + (grid_cells.y%block_col_y > 0);
     const int grid_z  = grid_cells.z/block_z + (grid_cells.z%block_z > 0);
 
-    dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
-    dim3 block_3d(block_col_x, block_col_y, block_z);
+    //bundles surface properties
+    dim3 grid_2d(grid_col_x, grid_col_y, 1);
+    dim3 block_2d(block_col_x, block_col_y, 1);
+
+    Array_gpu<Surface_props,2> surface_properties({grid_cells.x, grid_cells.y});
+
+    bundle_surface_props<<<grid_2d, block_2d>>>(
+        grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_properties.ptr());
 
     // bundle optical properties in struct
     Array_gpu<Float,3> k_ext({grid_cells.x, grid_cells.y, grid_cells.z});
     Array_gpu<Optics_scat,3> ssa_asy({grid_cells.x, grid_cells.y, grid_cells.z});
+
+    dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
+    dim3 block_3d(block_col_x, block_col_y, block_z);
 
     bundles_optical_props<<<grid_3d, block_3d>>>(
             grid_cells, nlay, z_lev.ptr(),
@@ -507,9 +535,9 @@ void Raytracer_bw::trace_rays(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    if (do_diffuse)
-    {
-        (dz_constant ? ray_tracer_kernel_bw<true, true> : ray_tracer_kernel_bw<true, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+    launch_ray_tracer_kernel_bw(
+            do_diffuse, dz_constant,
+            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -520,8 +548,7 @@ void Raytracer_bw::trace_rays(
             k_ext_bg.ptr(), ssa_asy_bg.ptr(),
             z_lev_bg.ptr(),
             r_eff.ptr(),
-            surface_albedo.ptr(),
-            land_use_map.ptr(),
+            surface_properties.ptr(),
             mu,
             grid_size, grid_d, grid_cells, kn_grid,
             z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
@@ -531,32 +558,6 @@ void Raytracer_bw::trace_rays(
             mie_phase.ptr(), mie_phase_ang.ptr(),
             mie_cdf_table_size,
             mie_phase_table_size);
-    }
-    else
-    {
-        (dz_constant ? ray_tracer_kernel_bw<false, true> : ray_tracer_kernel_bw<false, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
-            igpt-1,
-            photons_per_pixel, k_null_grid.ptr(),
-            camera_count_direct.ptr(),
-            camera_count_diffuse.ptr(),
-            shot_count.ptr(),
-            counter.ptr(),
-            k_ext.ptr(), ssa_asy.ptr(),
-            k_ext_bg.ptr(), ssa_asy_bg.ptr(),
-            z_lev_bg.ptr(),
-            r_eff.ptr(),
-            surface_albedo.ptr(),
-            land_use_map.ptr(),
-            mu,
-            grid_size, grid_d, grid_cells, kn_grid,
-            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-            lut_dz, int(z_lut.size()),
-            sun_direction, camera, nbg,
-            mie_cdf.ptr(), mie_ang.ptr(),
-            mie_phase.ptr(), mie_phase_ang.ptr(),
-            mie_cdf_table_size,
-            mie_phase_table_size);
-    }
 
     //// convert counts to fluxes
     const int block_cam_x = 8;
@@ -613,7 +614,7 @@ void Raytracer_bw::trace_rays_bb(
         const Array_gpu<Float,2>& ssa_aeros,
         const Array_gpu<Float,2>& asy_aeros,
         const Array_gpu<Float,2>& surface_albedo,
-        const Array_gpu<Float,1>& land_use_map,
+        const Array_gpu<int,1>& surface_scattering_type,
         const Float zenith_angle,
         const Float azimuth_angle,
         const Float src_direct,
@@ -633,6 +634,15 @@ void Raytracer_bw::trace_rays_bb(
     const int grid_col_x  = grid_cells.x/block_col_x + (grid_cells.x%block_col_x > 0);
     const int grid_col_y  = grid_cells.y/block_col_y + (grid_cells.y%block_col_y > 0);
     const int grid_z  = grid_cells.z/block_z + (grid_cells.z%block_z > 0);
+
+    //bundles surface properties
+    dim3 grid_2d(grid_col_x, grid_col_y, 1);
+    dim3 block_2d(block_col_x, block_col_y, 1);
+
+    Array_gpu<Surface_props,2> surface_properties({grid_cells.x, grid_cells.y});
+
+    bundle_surface_props<<<grid_2d, block_2d>>>(
+        grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_properties.ptr());
 
     dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
     dim3 block_3d(block_col_x, block_col_y, block_z);
@@ -714,9 +724,9 @@ void Raytracer_bw::trace_rays_bb(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    if (do_diffuse)
-    {
-        (dz_constant ? ray_tracer_kernel_bw<true, true> : ray_tracer_kernel_bw<true, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+    launch_ray_tracer_kernel_bw(
+            do_diffuse, dz_constant,
+            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -727,8 +737,7 @@ void Raytracer_bw::trace_rays_bb(
             k_ext_bg.ptr(), ssa_asy_bg.ptr(),
             z_lev_bg.ptr(),
             r_eff.ptr(),
-            surface_albedo.ptr(),
-            land_use_map.ptr(),
+            surface_properties.ptr(),
             mu,
             grid_size, grid_d, grid_cells, kn_grid,
             z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
@@ -738,32 +747,6 @@ void Raytracer_bw::trace_rays_bb(
             mie_phase.ptr(), mie_phase_ang.ptr(),
             mie_cdf_table_size,
             mie_phase_table_size);
-    }
-    else
-    {
-        (dz_constant ? ray_tracer_kernel_bw<false, true> : ray_tracer_kernel_bw<false, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
-            igpt-1,
-            photons_per_pixel, k_null_grid.ptr(),
-            camera_count_direct.ptr(),
-            camera_count_diffuse.ptr(),
-            shot_count.ptr(),
-            counter.ptr(),
-            k_ext.ptr(), ssa_asy.ptr(),
-            k_ext_bg.ptr(), ssa_asy_bg.ptr(),
-            z_lev_bg.ptr(),
-            r_eff.ptr(),
-            surface_albedo.ptr(),
-            land_use_map.ptr(),
-            mu,
-            grid_size, grid_d, grid_cells, kn_grid,
-            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-            lut_dz, int(z_lut.size()),
-            sun_direction, camera, nbg,
-            mie_cdf.ptr(), mie_ang.ptr(),
-            mie_phase.ptr(), mie_phase_ang.ptr(),
-            mie_cdf_table_size,
-            mie_phase_table_size);
-    }
 
     //// convert counts to fluxes
     const int block_cam_x = 8;

@@ -141,7 +141,8 @@ T get_ini_value(const toml::value& ini_file, const std::string& group, const std
 template<typename T>
 T get_ini_value(const toml::value& ini_file, const std::string& group, const std::string& item, const T default_value)
 {
-    auto ini_group = toml::find(ini_file, group);
+    const toml::value empty_table{toml::table{}};
+    const auto& ini_group = toml::find_or(ini_file, group, empty_table);
     const T value = toml::find_or(ini_group, item, default_value);
     std::cout << "[" << group << "]" << "[" << item << "] = " << value << std::endl;
     return value;
@@ -175,6 +176,8 @@ void solve_radiation(int argc, char** argv)
 
     const bool switch_aerosol_optics      = get_ini_value<bool>(settings, "aerosols", "aerosol_optics", false);
     const bool switch_delta_aerosol       = get_ini_value<bool>(settings, "aerosols", "delta_aerosol", false);
+
+    const Float input_sza = get_ini_value<Float>(settings, "solar_angles", "sza", -1.0);
 
     ////// READ THE ATMOSPHERIC DATA //////
     Status::print_message("Reading atmospheric input data from NetCDF.");
@@ -440,17 +443,22 @@ void solve_radiation(int argc, char** argv)
 
         Array<Float,1> mu0(input_nc.get_variable<Float>("mu0", {n_col_y, n_col_x}), {n_col});
 
+        // overwrite mu0 if solar angles are provided in ini
+        if (input_sza >= 0)
+            mu0.fill(cos(input_sza / Float(180.0) * M_PI));
+
+
         Array<Float,2> sfc_alb_dir({n_bnd_sw, n_col});
         Array<Float,2> sfc_alb_dif({n_bnd_sw, n_col});
-        if (input_nc.variable_exists("sfc_alb_dir") && input_nc.variable_exists("sfc_alb_dif"))
+        if (input_nc.variable_exists("alb_sfc_dir") && input_nc.variable_exists("alb_sfc_dif"))
         {
-            sfc_alb_dir = std::move(input_nc.get_variable<Float>("sfc_alb_dir", {n_col_y, n_col_x, n_bnd_sw}));
-            sfc_alb_dif = std::move(input_nc.get_variable<Float>("sfc_alb_dif", {n_col_y, n_col_x, n_bnd_sw}));
+            sfc_alb_dir = std::move(input_nc.get_variable<Float>("alb_sfc_dir", {n_col_y, n_col_x, n_bnd_sw}));
+            sfc_alb_dif = std::move(input_nc.get_variable<Float>("alb_sfc_dif", {n_col_y, n_col_x, n_bnd_sw}));
         }
         else
         {
-            sfc_alb_dir = std::move(input_nc.get_variable<Float>("sfc_alb", {n_col_y, n_col_x, n_bnd_sw}));
-            sfc_alb_dif = std::move(input_nc.get_variable<Float>("sfc_alb", {n_col_y, n_col_x, n_bnd_sw}));
+            sfc_alb_dir = std::move(input_nc.get_variable<Float>("alb_sfc", {n_col_y, n_col_x, n_bnd_sw}));
+            sfc_alb_dif = std::move(input_nc.get_variable<Float>("alb_sfc", {n_col_y, n_col_x, n_bnd_sw}));
         }
 
         Array<Float,1> tsi_scaling({n_col});

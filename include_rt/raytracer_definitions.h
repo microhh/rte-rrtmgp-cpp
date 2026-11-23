@@ -32,5 +32,13 @@ namespace Raytracer_definitions
         Photon_kind kind;
         int starting_idx;
     };
+
+    struct Surface_props
+    {
+        Float albedo;
+        int scattering_type;
+    };
+
+    constexpr Float n_water = 1.34;
 }
 #endif

@@ -30,7 +30,7 @@ def calc_p_q_T(z):
 
     i_above_zt = np.where(z > z_t)
     q[i_above_zt] = q_t
-    
+
     T_0 = 300.
     gamma = 6.7e-3
     Tv_0 = (1. + 0.608*q_0)*T_0
@@ -38,16 +38,16 @@ def calc_p_q_T(z):
     Tv_t = Tv_0 - gamma*z_t
     Tv[i_above_zt] = Tv_t
     T = Tv / (1. + 0.608*q)
-    
+
     g = 9.79764
     Rd = 287.04
     p0 = 101480.
 
     p = p0 * (Tv / Tv_0)**(g/(Rd*gamma))
-    
+
     p_tmp = p0 * (Tv_t/Tv_0)**(g/(Rd*gamma)) \
           * np.exp( -( (g*(z-z_t)) / (Rd*Tv_t) ) )
-    
+
     p[i_above_zt] = p_tmp[i_above_zt]
 
     return p, q, T
@@ -131,8 +131,8 @@ sfc_alb_dif = np.ones((n_col_y, n_col_x, n_bnd_sw))*0.07
 total_solar_irradiance = 551.58
 
 nc_mu0 = nc_file.createVariable("mu0", float_type, ("y", "x"))
-nc_sfc_alb_dir = nc_file.createVariable("sfc_alb_dir", float_type, ("y", "x", "band_sw"))
-nc_sfc_alb_dif = nc_file.createVariable("sfc_alb_dif", float_type, ("y", "x", "band_sw"))
+nc_sfc_alb_dir = nc_file.createVariable("alb_sfc_dir", float_type, ("y", "x", "band_sw"))
+nc_sfc_alb_dif = nc_file.createVariable("alb_sfc_dif", float_type, ("y", "x", "band_sw"))
 nc_tsi = nc_file.createVariable("tsi", float_type, ("y", "x"))
 
 nc_mu0[:,:] = mu0

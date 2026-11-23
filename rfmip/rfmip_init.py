@@ -42,8 +42,8 @@ for expt in range(expts):
     nc_surface_emissivity[:,:] = np.tile( (nc_file_rfmip.variables['surface_emissivity'][:]) [:,None], (1, band_lw) )
     nc_surface_temperature[:,:] = nc_file_rfmip.variables['surface_temperature'][expt,:]
 
-    nc_surface_albedo_dir = nc_file.createVariable('sfc_alb_dir', float_type, ('y', 'x', 'band_sw'))
-    nc_surface_albedo_dif = nc_file.createVariable('sfc_alb_dif', float_type, ('y', 'x', 'band_sw'))
+    nc_surface_albedo_dir = nc_file.createVariable('alb_sfc_dir', float_type, ('y', 'x', 'band_sw'))
+    nc_surface_albedo_dif = nc_file.createVariable('alb_sfc_dif', float_type, ('y', 'x', 'band_sw'))
 
     nc_surface_albedo_dir[:,:,:] = np.tile( (nc_file_rfmip.variables['surface_albedo'][:]) [:,None], (1, band_sw) )
     nc_surface_albedo_dif[:,:,:] = np.tile( (nc_file_rfmip.variables['surface_albedo'][:]) [:,None], (1, band_sw) )

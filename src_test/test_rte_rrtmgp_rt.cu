@@ -220,7 +220,7 @@ void solve_radiation(int argc, char** argv)
     const Float min_mfp_grid_ratio        = get_ini_value<Float>(settings, "longwave", "min_mfp_grid_ratio", Float(1.0));
 
     const bool switch_bw_raytracing     = get_ini_value<bool>(settings, "backward", "bw_raytracing", true);
-    // read surface type from land_use_map variable and compute spectral albedo and reflection type (lambertian/specular) accordingly
+    // read surface type from land_use_map variable and compute spectral albedo
     const bool switch_lu_albedo         = get_ini_value<bool>(settings, "backward", "lu_albedo", false);
     // solve visible bands and convert to XYZ tristimulus values
     const bool switch_image             = get_ini_value<bool>(settings, "backward", "image", true);
@@ -396,6 +396,18 @@ void solve_radiation(int argc, char** argv)
     {
         // default to grass with some soil
         land_use_map.fill(Float(1.3));
+    }
+
+    // read surface scattering type if presents (0: lambertian, 1: purely specular, 2: specular with a small water-leaving lambertian fraction)
+    // defaults to 0: lambertian
+    Array<int,1> surface_scattering_type({n_col});
+    if (input_nc.variable_exists("surface_scattering_type"))
+    {
+        surface_scattering_type = std::move(input_nc.get_variable<int>("surface_scattering_type", {n_col_y, n_col_x}));
+    }
+    else
+    {
+        surface_scattering_type.fill(0);
     }
 
     // Fetch the col_dry in case present.
@@ -709,6 +721,7 @@ void solve_radiation(int argc, char** argv)
 
     Array_gpu<Float,1> z_lev_gpu(z_lev);
     Array_gpu<Float,1> land_use_map_gpu(land_use_map);
+    Array_gpu<int,1> surface_scattering_type_gpu(surface_scattering_type);
 
     Gas_concs_gpu gas_concs_gpu(gas_concs);
 
@@ -1095,6 +1108,7 @@ void solve_radiation(int argc, char** argv)
                     t_lay_gpu, t_lev_gpu,
                     col_dry_gpu,
                     alb_sfc_gpu,
+                    surface_scattering_type_gpu,
                     tsi_scaling_gpu, mu0_gpu, azi_gpu,
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu,
@@ -1330,6 +1344,7 @@ void solve_radiation(int argc, char** argv)
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu,
                     land_use_map_gpu,
+                    surface_scattering_type_gpu,
                     rh_gpu,
                     aerosol_concs,
                     camera,
@@ -1384,6 +1399,7 @@ void solve_radiation(int argc, char** argv)
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu,
                     land_use_map_gpu,
+                    surface_scattering_type_gpu,
                     rh_gpu,
                     aerosol_concs,
                     camera,

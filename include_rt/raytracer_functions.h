@@ -87,6 +87,54 @@ namespace Raytracer_functions
     }
 
     __device__
+    inline Float fresnel_unpolarized(const Float cos_i, const Float n_rel)
+    {
+        const Float sin2_t = (Float(1.) - cos_i*cos_i) / (n_rel*n_rel);
+        const Float cos_t  = sqrt(max(Float(0.), Float(1.) - sin2_t));
+        const Float rs = (cos_i - n_rel*cos_t) / (cos_i + n_rel*cos_t);
+        const Float rp = (n_rel*cos_i - cos_t) / (n_rel*cos_i + cos_t);
+        return Float(0.5) * (rs*rs + rp*rp);
+    }
+
+    enum Surface_scattering : int
+    {
+        Surface_lambertian          = 0,  // Purely lambertian, albedo = surface_albedo
+        Surface_specular            = 1,  // Purely specular, albedo = Fresnel
+        Surface_specular_lambertian = 2,  // Specular reflection (Fresnel) with water-leaving fraction (lambertian, albedo = surface_albedo)
+    };
+
+    struct Surface_reflectance
+    {
+        Float R_spec; // specular (Fresnel) reflectance
+        Float R_diff; // lambertian reflectance
+    };
+
+    // Specular and lambertian surface reflectance for a photon hitting the surface with cos(incidence angle) cos_i
+    __device__
+    inline Surface_reflectance surface_reflectance(const Surface_props& props, const Float cos_i)
+    {
+        if (props.scattering_type == Surface_lambertian)
+        {
+            return {Float(0.), props.albedo};
+        }
+        else if (props.scattering_type == Surface_specular)
+        {
+            return {fresnel_unpolarized(cos_i, n_water), Float(0.)};
+        }
+        else // Surface_specular_lambertian
+        {
+            const Float R_spec = fresnel_unpolarized(cos_i, n_water);
+            return {R_spec, (Float(1.) - R_spec) * props.albedo};
+        }
+    }
+
+    template<typename T> __device__
+    inline Vector<T> specular(const Vector<T> dir_in, const Vector<T> dir_n)
+    {
+        return dir_in - Float(2.)*dir_n*dot(dir_n, dir_in);
+    }
+
+    __device__
     inline int find_index(const Float* mie_cdf, const int size, const Float random_number)
     {
         int left = 0;
