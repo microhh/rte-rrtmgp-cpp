@@ -23,6 +23,7 @@
 #include <curand_kernel.h>
 
 #include "radiation_solver_bw.h"
+#include "raytracer_vertical_grid.h"
 #include "status.h"
 #include "netcdf_interface.h"
 
@@ -143,54 +144,10 @@ namespace
     }
 
 
-    struct Vertical_grid_gpu
+    Vertical_grid_gpu build_vertical_grid_from_gpu(const Array_gpu<Float,1>& z_lev_col, const int nz, const int kn_z)
     {
-        Array_gpu<Float,1> z_lev;
-        Array_gpu<Float,1> kn_z_lev;
-        Array_gpu<int,1> z_lut;
-        Array_gpu<int,1> kn_z_lut;
-        Float lut_dz;
-        Float zsize;
-    };
-
-    Vertical_grid_gpu build_vertical_grid(const Array_gpu<Float,1>& z_lev_col, const int nz, const int kn_z)
-    {
-        const Array<Float,1> z_lev_c(z_lev_col);
-        Array<Float,1> z_lev({nz+1});
-        for (int k=0; k<nz+1; ++k)
-            z_lev({k+1}) = z_lev_c({k+1});
-
-        Array<Float,1> kn_z_lev({kn_z+1});
-        const Float fz = Float(nz) / Float(kn_z);
-        for (int k=0; k<kn_z; ++k)
-            kn_z_lev({k+1}) = z_lev({static_cast<int>(k*fz)+1});
-        kn_z_lev({kn_z+1}) = z_lev({nz+1});
-
-        Float dz_min = z_lev({2}) - z_lev({1});
-        for (int k=1; k<nz; ++k)
-            dz_min = std::min(dz_min, z_lev({k+2}) - z_lev({k+1}));
-
-        const Float zsize = z_lev({nz+1});
-        const int lut_size = static_cast<int>(std::ceil(zsize/dz_min));
-        const Float lut_dz = zsize / lut_size;
-
-        Array<int,1> z_lut({lut_size});
-        Array<int,1> kn_z_lut({lut_size});
-        for (int i=0; i<lut_size; ++i)
-        {
-            const Float z = i*lut_dz;
-            int k = 0;
-            while (k < nz-1 && z >= z_lev({k+2}))
-                ++k;
-            z_lut({i+1}) = k;
-            k = 0;
-            while (k < kn_z-1 && z >= kn_z_lev({k+2}))
-                ++k;
-            kn_z_lut({i+1}) = k;
-        }
-
-        return {Array_gpu<Float,1>(z_lev), Array_gpu<Float,1>(kn_z_lev),
-                Array_gpu<int,1>(z_lut), Array_gpu<int,1>(kn_z_lut), lut_dz, zsize};
+        const Array<Float,1> z_lev(z_lev_col);
+        return build_vertical_grid(z_lev, nz, kn_z);
     }
 
     __global__
@@ -923,7 +880,7 @@ void Radiation_solver_bw_shortwave::solve_gpu(
     const int cam_ns = XYZ.dim(3);
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
-    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev, grid_cells.z, kn_grid.z);
+    const Vertical_grid_gpu vgrid = build_vertical_grid_from_gpu(z_lev, grid_cells.z, kn_grid.z);
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
@@ -1252,7 +1209,7 @@ void Radiation_solver_bw_shortwave::solve_gpu_bb(
     const int cam_ny = radiance.dim(2);
     const Bool top_at_1 = p_lay({1, 1}) < p_lay({1, n_lay});
 
-    const Vertical_grid_gpu vgrid = build_vertical_grid(z_lev, grid_cells.z, kn_grid.z);
+    const Vertical_grid_gpu vgrid = build_vertical_grid_from_gpu(z_lev, grid_cells.z, kn_grid.z);
 
     optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
     cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
