@@ -535,9 +535,9 @@ void Raytracer_bw::trace_rays(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    if (do_diffuse)
-    {
-        (dz_constant ? ray_tracer_kernel_bw<true, true> : ray_tracer_kernel_bw<true, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+    launch_ray_tracer_kernel_bw(
+            do_diffuse, dz_constant,
+            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -558,31 +558,6 @@ void Raytracer_bw::trace_rays(
             mie_phase.ptr(), mie_phase_ang.ptr(),
             mie_cdf_table_size,
             mie_phase_table_size);
-    }
-    else
-    {
-        (dz_constant ? ray_tracer_kernel_bw<false, true> : ray_tracer_kernel_bw<false, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
-            igpt-1,
-            photons_per_pixel, k_null_grid.ptr(),
-            camera_count_direct.ptr(),
-            camera_count_diffuse.ptr(),
-            shot_count.ptr(),
-            counter.ptr(),
-            k_ext.ptr(), ssa_asy.ptr(),
-            k_ext_bg.ptr(), ssa_asy_bg.ptr(),
-            z_lev_bg.ptr(),
-            r_eff.ptr(),
-            surface_properties.ptr(),
-            mu,
-            grid_size, grid_d, grid_cells, kn_grid,
-            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-            lut_dz, int(z_lut.size()),
-            sun_direction, camera, nbg,
-            mie_cdf.ptr(), mie_ang.ptr(),
-            mie_phase.ptr(), mie_phase_ang.ptr(),
-            mie_cdf_table_size,
-            mie_phase_table_size);
-    }
 
     //// convert counts to fluxes
     const int block_cam_x = 8;
@@ -749,9 +724,9 @@ void Raytracer_bw::trace_rays_bb(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    if (do_diffuse)
-    {
-        (dz_constant ? ray_tracer_kernel_bw<true, true> : ray_tracer_kernel_bw<true, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
+    launch_ray_tracer_kernel_bw(
+            do_diffuse, dz_constant,
+            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -772,31 +747,6 @@ void Raytracer_bw::trace_rays_bb(
             mie_phase.ptr(), mie_phase_ang.ptr(),
             mie_cdf_table_size,
             mie_phase_table_size);
-    }
-    else
-    {
-        (dz_constant ? ray_tracer_kernel_bw<false, true> : ray_tracer_kernel_bw<false, false>)<<<grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size)>>>(
-            igpt-1,
-            photons_per_pixel, k_null_grid.ptr(),
-            camera_count_direct.ptr(),
-            camera_count_diffuse.ptr(),
-            shot_count.ptr(),
-            counter.ptr(),
-            k_ext.ptr(), ssa_asy.ptr(),
-            k_ext_bg.ptr(), ssa_asy_bg.ptr(),
-            z_lev_bg.ptr(),
-            r_eff.ptr(),
-            surface_properties.ptr(),
-            mu,
-            grid_size, grid_d, grid_cells, kn_grid,
-            z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
-            lut_dz, int(z_lut.size()),
-            sun_direction, camera, nbg,
-            mie_cdf.ptr(), mie_ang.ptr(),
-            mie_phase.ptr(), mie_phase_ang.ptr(),
-            mie_cdf_table_size,
-            mie_phase_table_size);
-    }
 
     //// convert counts to fluxes
     const int block_cam_x = 8;

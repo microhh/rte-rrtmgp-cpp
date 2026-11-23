@@ -18,9 +18,12 @@ constexpr int rt_lw_kernel_grid = 256;
 
 constexpr Float k_null_gas_min = Float(1.e-3);
 
-template<Bool independent_column, Bool dz_constant>
-__global__
-void ray_tracer_lw_kernel(
+// Host-side launcher for the templated ray_tracer_lw_kernel
+void launch_ray_tracer_lw_kernel(
+        const bool independent_column,
+        const bool dz_constant,
+        const dim3 grid,
+        const dim3 block,
         const Int rng_offset,
         const Int photons_to_shoot,
         const double* __restrict__ alias_prob,

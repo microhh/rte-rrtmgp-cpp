@@ -432,9 +432,9 @@ void Raytracer::trace_rays(
     // Constant dz implies the old uniform null-cell walls, valid for any kn_grid.
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
-    auto launch = [&](auto kernel)
-    {
-        kernel<<<grid, block,sizeof(Float)*mie_table_size>>>(
+    launch_ray_tracer_kernel(
+                switch_independent_column, dz_constant,
+                grid, block, sizeof(Float)*mie_table_size,
                 photons_per_thread,
                 qrng_grid_x,
                 qrng_grid_y,
@@ -458,12 +458,7 @@ void Raytracer::trace_rays(
                 sun_direction,
                 this->qrng_vectors_gpu, this->qrng_constants_gpu,
                 mie_cdf.ptr(), mie_ang.ptr(), mie_table_size);
-    };
 
-    if (switch_independent_column)
-        dz_constant ? launch(ray_tracer_kernel<true, true>) : launch(ray_tracer_kernel<true, false>);
-    else
-        dz_constant ? launch(ray_tracer_kernel<false, true>) : launch(ray_tracer_kernel<false, false>);
     // convert counts to fluxes
 
     const Float toa_src = tod_inc_direct + tod_inc_diffuse;

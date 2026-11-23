@@ -88,8 +88,13 @@ struct Camera
 };
 
 
-template<Bool tod_diffuse, Bool dz_constant> __global__
-void ray_tracer_kernel_bw(
+// Host-side launcher for the templated ray_tracer_kernel_bw
+void launch_ray_tracer_kernel_bw(
+        const bool tod_diffuse,
+        const bool dz_constant,
+        const dim3 grid,
+        const dim3 block,
+        const size_t shared_mem_bytes,
         const int igpt,
         const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,

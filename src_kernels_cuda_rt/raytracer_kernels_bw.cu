@@ -999,50 +999,69 @@ void ray_tracer_kernel_bw(
 
     }
 
-template __global__ void ray_tracer_kernel_bw<true, true>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Surface_props*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
+void launch_ray_tracer_kernel_bw(
+        const bool tod_diffuse,
+        const bool dz_constant,
+        const dim3 grid,
+        const dim3 block,
+        const size_t shared_mem_bytes,
+        const int igpt,
+        const Int photons_per_pixel,
+        const Grid_knull* __restrict__ k_null_grid,
+        Float* __restrict__ camera_count_direct,
+        Float* __restrict__ camera_count_diffuse,
+        Float* __restrict__ camera_shot,
+        Int* __restrict__ counter,
+        const Float* __restrict__ k_ext, const Optics_scat* __restrict__ scat_asy,
+        const Float* __restrict__ k_ext_bg, const Optics_scat* __restrict__ scat_asy_bg,
+        const Float* __restrict__ z_lev_bg,
+        const Float* __restrict__ r_eff,
+        const Surface_props* __restrict__ surface_properties,
+        const Float mu,
+        const Vector<Float> grid_size, const Vector<Float> grid_d,
+        const Vector<int> grid_cells, const Vector<int> kn_grid,
+        const Float* __restrict__ z_lev,
+        const Float* __restrict__ kn_z_lev,
+        const int* __restrict__ z_lut,
+        const int* __restrict__ kn_z_lut,
+        const Float lut_dz,
+        const int lut_size,
+        const Vector<Float> sun_direction, const Camera camera,
+        const int nbg,
+        const Float* __restrict__ mie_cdf,
+        const Float* __restrict__ mie_ang,
+        const Float* __restrict__ mie_phase,
+        const Float* __restrict__ mie_phase_ang,
+        const int mie_cdf_table_size,
+        const int mie_phase_table_size)
+{
+    auto launch = [&](auto kernel)
+    {
+        kernel<<<grid, block, shared_mem_bytes>>>(
+                igpt,
+                photons_per_pixel, k_null_grid,
+                camera_count_direct,
+                camera_count_diffuse,
+                camera_shot,
+                counter,
+                k_ext, scat_asy,
+                k_ext_bg, scat_asy_bg,
+                z_lev_bg,
+                r_eff,
+                surface_properties,
+                mu,
+                grid_size, grid_d, grid_cells, kn_grid,
+                z_lev, kn_z_lev, z_lut, kn_z_lut,
+                lut_dz, lut_size,
+                sun_direction, camera, nbg,
+                mie_cdf, mie_ang,
+                mie_phase, mie_phase_ang,
+                mie_cdf_table_size,
+                mie_phase_table_size);
+    };
 
-template __global__ void ray_tracer_kernel_bw<true, false>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Surface_props*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
-
-template __global__ void ray_tracer_kernel_bw<false, true>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Surface_props*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
-
-template __global__ void ray_tracer_kernel_bw<false, false>(
-    const int, const Int, const Grid_knull*,
-    Float*, Float*, Float*, Int*,
-    const Float*, const Optics_scat*, const Float*, const Optics_scat*,
-    const Float*, const Float*, const Surface_props*,
-    const Float, const Vector<Float>, const Vector<Float>,
-    const Vector<int>, const Vector<int>,
-    const Float*, const Float*, const int*, const int*, const Float, const int,
-    const Vector<Float>, const Camera,
-    const int, const Float*, const Float*, const Float*, const Float*,
-    const int, const int);
+    if (tod_diffuse)
+        dz_constant ? launch(ray_tracer_kernel_bw<true, true>) : launch(ray_tracer_kernel_bw<true, false>);
+    else
+        dz_constant ? launch(ray_tracer_kernel_bw<false, true>) : launch(ray_tracer_kernel_bw<false, false>);
+}

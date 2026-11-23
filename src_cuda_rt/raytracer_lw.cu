@@ -342,9 +342,9 @@ void Raytracer_lw::trace_rays(
     // Constant dz implies the old uniform null-cell walls, valid for any kn_grid.
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
-    auto launch = [&](auto kernel)
-    {
-        kernel<<<grid, block>>>(
+    launch_ray_tracer_lw_kernel(
+                switch_independent_column, dz_constant,
+                grid, block,
                 rng_offset,
                 photons_per_thread,
                 alias_prob.ptr(),
@@ -363,12 +363,7 @@ void Raytracer_lw::trace_rays(
                 z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
                 lut_dz, int(z_lut.size()),
                 this->qrng_vectors_gpu, this->qrng_constants_gpu);
-    };
 
-    if (switch_independent_column)
-        dz_constant ? launch(ray_tracer_lw_kernel<true, true>) : launch(ray_tracer_lw_kernel<true, false>);
-    else
-        dz_constant ? launch(ray_tracer_lw_kernel<false, true>) : launch(ray_tracer_lw_kernel<false, false>);
     const Float power_per_photon = Float(total_power / (photons_per_thread * rt_lw_kernel_grid * rt_lw_kernel_block));
 
     count_to_flux_2d<<<grid_2d, block_2d>>>(
