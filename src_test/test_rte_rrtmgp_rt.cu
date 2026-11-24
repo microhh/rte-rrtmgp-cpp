@@ -220,6 +220,9 @@ void solve_radiation(int argc, char** argv)
     const Float min_mfp_grid_ratio        = get_ini_value<Float>(settings, "longwave", "min_mfp_grid_ratio", Float(1.0));
 
     const bool switch_bw_raytracing     = get_ini_value<bool>(settings, "backward", "bw_raytracing", true);
+    // backward ray tracing of shortwave and/or longwave radiances (only if bw_raytracing is enabled)
+    const bool switch_bw_shortwave      = switch_bw_raytracing && get_ini_value<bool>(settings, "backward", "shortwave", true);
+    const bool switch_bw_longwave       = switch_bw_raytracing && get_ini_value<bool>(settings, "backward", "longwave", true);
     // read surface type from land_use_map variable and compute spectral albedo
     const bool switch_lu_albedo         = get_ini_value<bool>(settings, "backward", "lu_albedo", false);
     // solve visible bands and convert to XYZ tristimulus values
@@ -303,9 +306,9 @@ void solve_radiation(int argc, char** argv)
         lw_photon_count = Int(1) << lw_photon_power;
     }
 
-    if (switch_longwave && switch_bw_raytracing)
+    if (switch_bw_raytracing && !(switch_bw_shortwave || switch_bw_longwave))
     {
-        Status::print_warning("No longwave radiation implemented in the backward ray tracer");
+        Status::print_warning("Backward ray tracing enabled, but both backward shortwave and longwave are disabled");
     }
 
     if (switch_tilted_columns)
@@ -507,13 +510,13 @@ void solve_radiation(int argc, char** argv)
     int n_bnd_lw = 0;
     int n_gpt_sw = 0;
     int n_bnd_sw = 0;
-    if (switch_longwave)
+    if (switch_longwave || switch_bw_longwave)
     {
         Netcdf_file coef_nc_lw("coefficients_lw.nc", Netcdf_mode::Read);
         n_bnd_lw = std::max(coef_nc_lw.get_dimension_size("bnd"), n_bnd_lw);
         n_gpt_lw = std::max(coef_nc_lw.get_dimension_size("gpt"), n_gpt_lw);
     }
-    if (switch_shortwave || switch_bw_raytracing)
+    if (switch_shortwave || switch_bw_shortwave)
     {
         Netcdf_file coef_nc_sw("coefficients_sw.nc", Netcdf_mode::Read);
         n_bnd_sw = std::max(coef_nc_sw.get_dimension_size("bnd"), n_bnd_sw);
@@ -525,14 +528,14 @@ void solve_radiation(int argc, char** argv)
     Array<Float,2> emis_sfc;
     Array<Float,1> t_sfc;
 
-    if (switch_shortwave || switch_bw_raytracing)
+    if (switch_shortwave || switch_bw_shortwave)
     {
         alb_sfc.set_dims({n_bnd_sw, n_col});
 
         alb_sfc = input_nc.get_variable<Float>("alb_sfc", {n_col_y, n_col_x, n_bnd_sw});
     }
 
-    if (switch_longwave)
+    if (switch_longwave || switch_bw_longwave)
     {
         emis_sfc.set_dims({n_bnd_lw, n_col});
         t_sfc.set_dims({n_col});
@@ -695,10 +698,10 @@ void solve_radiation(int argc, char** argv)
     nc_mu0.insert(acos(mu0({1}))/M_PI * Float(180.), {0});
     nc_azi.insert(azi({1})/M_PI * Float(180.), {0});
 
-    if (switch_longwave)
+    if (switch_longwave || switch_bw_longwave)
         Netcdf_file coef_nc_lw("coefficients_lw.nc", Netcdf_mode::Read);
 
-    if (switch_shortwave || switch_bw_raytracing)
+    if (switch_shortwave || switch_bw_shortwave)
         Netcdf_file coef_nc_sw("coefficients_sw.nc", Netcdf_mode::Read);
 
     ////// COPY MOST VARIABLES TO GPU //////
@@ -1236,7 +1239,13 @@ void solve_radiation(int argc, char** argv)
     }
 
     ////// RUN THE BACKWARD SOLVER //////
-    if  (switch_bw_raytracing)
+    if (switch_bw_raytracing)
+    {
+        nc_grp_backward.add_dimension("px", camera.nx);
+        nc_grp_backward.add_dimension("py", camera.ny);
+    }
+
+    if (switch_bw_shortwave)
     {
          // Initialize the solver.
         Status::print_message("Initializing the shortwave backward solver.");
@@ -1431,10 +1440,7 @@ void solve_radiation(int argc, char** argv)
         }
 
         // Store the output.
-        Status::print_message("Storing the backward output.");
-
-        nc_grp_backward.add_dimension("px", camera.nx);
-        nc_grp_backward.add_dimension("py", camera.ny);
+        Status::print_message("Storing the shortwave backward output.");
 
         if (switch_bw_raytracing)
         {
@@ -1484,6 +1490,70 @@ void solve_radiation(int argc, char** argv)
             nc_var_csza.insert(zen_cam_cpu.v(), {0, 0});
             nc_var_csza.add_attribute("long_name", "zenith angle of camera pixel");
         }
+    }
+
+    if (switch_bw_longwave)
+    {
+        // Initialize the solver.
+        Status::print_message("Initializing the longwave backward solver.");
+
+        Radiation_solver_bw_longwave rad_lw(gas_concs_gpu, "coefficients_lw.nc", "cloud_coefficients_lw.nc", "aerosol_optics_lw.nc");
+
+        Array_gpu<Float,2> lw_radiance({camera.nx, camera.ny});
+
+        const Vector<int> grid_cells = {n_col_x, n_col_y, n_z_in};
+
+        cudaDeviceSynchronize();
+        cudaEvent_t start;
+        cudaEvent_t stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+
+        cudaEventRecord(start, 0);
+
+        rad_lw.solve_gpu(
+                switch_cloud_optics,
+                switch_aerosol_optics,
+                switch_delta_cloud,
+                switch_delta_aerosol,
+                switch_lw_scattering,
+                switch_bw_longwave,
+                grid_cells,
+                grid_d,
+                kn_grid,
+                bw_photons_per_pixel,
+                gas_concs_gpu,
+                p_lay_gpu, p_lev_gpu,
+                t_lay_gpu, t_lev_gpu,
+                z_lev_gpu,
+                col_dry_gpu,
+                t_sfc_gpu, emis_sfc_gpu,
+                lwp_gpu, iwp_gpu,
+                rel_gpu, dei_gpu,
+                rh_gpu,
+                aerosol_concs_gpu,
+                camera,
+                lw_radiance);
+
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float duration = 0.f;
+        cudaEventElapsedTime(&duration, start, stop);
+
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+
+        Status::print_message("Duration longwave backward solver: " + std::to_string(duration) + " (ms)");
+
+        // Store the output.
+        Status::print_message("Storing the longwave backward output.");
+
+        Array<Float,2> lw_radiance_cpu(lw_radiance);
+
+        auto nc_var = nc_grp_backward.add_variable<Float>("lw_radiance", {"py","px"});
+        nc_var.insert(lw_radiance_cpu.v(), {0, 0});
+        nc_var.add_attribute("long_name", "longwave radiance");
+        nc_var.add_attribute("units", "W m-2 sr-1");
     }
 
     Status::print_message("###### Finished RTE+RRTMGP solver ######");
