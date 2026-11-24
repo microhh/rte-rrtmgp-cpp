@@ -35,6 +35,8 @@
 #include "rte_lw_rt.h"
 #include "rte_sw_rt.h"
 #include "cub/cub.cuh"
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include "subset_kernels_cuda.h"
 #include "gas_optics_rrtmgp_kernels_cuda_rt.h"
 #include "gpt_combine_kernels_cuda_rt.h"
@@ -687,8 +689,8 @@ void Radiation_solver_longwave::solve_gpu(
         Float max_kext_gas = 0;
 
         const Tau_to_kext to_kext{optical_props->get_tau().ptr(), dz_rt_gpu.ptr(), n_col};
-        cub::CountingInputIterator<int> counting(0);
-        cub::TransformInputIterator<Float, Tau_to_kext, cub::CountingInputIterator<int>>
+        thrust::counting_iterator<int> counting(0);
+        thrust::transform_iterator<Tau_to_kext, thrust::counting_iterator<int>, Float>
                 kext_it(counting, to_kext);
 
         // Get required temp storage size
@@ -887,6 +889,7 @@ void Radiation_solver_longwave::solve_gpu(
 
         }
         Tools_gpu::free_gpu<Float>(max_kext_gas_g);
+        cudaFree(d_temp_storage);
     }
     Status::print_message("Solved "+ std::to_string(monte_carlo_gpoints)+" out of "+std::to_string(n_gpt)+" g-points in 3D with Monte Carlo");
 }
