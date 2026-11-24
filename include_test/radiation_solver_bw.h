@@ -29,6 +29,8 @@
 #include "rte_sw_rt.h"
 #include "raytracer_bw.h"
 #include "raytracer_kernels_bw.h"
+#include "raytracer_bw_lw.h"
+#include "raytracer_kernels_bw_lw.h"
 #include "source_functions_rt.h"
 #include <curand_kernel.h>
 
@@ -40,26 +42,34 @@ class Radiation_solver_bw_longwave
         Radiation_solver_bw_longwave(
                 const Gas_concs_gpu& gas_concs,
                 const std::string& file_name_gas,
+                const std::string& file_name_aerosol,
                 const std::string& file_name_cloud);
 
 
         #ifdef __CUDACC__
         void solve_gpu(
-                const bool switch_fluxes,
-                const bool switch_cloud_optics,
-                const bool switch_output_optical,
-                const bool switch_output_bnd_fluxes,
-                const Gas_concs_gpu& gas_concs,
-                const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
-                const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
-                Array_gpu<Float,2>& col_dry,
-                const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
-                const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
-                const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
-                Array_gpu<Float,3>& tau, Array_gpu<Float,3>& lay_source,
-                Array_gpu<Float,3>& lev_source_inc, Array_gpu<Float,3>& lev_source_dec, Array_gpu<Float,2>& sfc_source,
-                Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-                Array_gpu<Float,3>& lw_bnd_flux_up, Array_gpu<Float,3>& lw_bnd_flux_dn, Array_gpu<Float,3>& lw_bnd_flux_net);
+            const bool switch_cloud_optics,
+            const bool switch_aerosol_optics,
+            const bool switch_delta_cloud,
+            const bool switch_delta_aerosol,
+            const bool switch_lw_scattering,
+            const bool switch_raytracing,
+            const Vector<int>& grid_cells,
+            const Vector<Float>& grid_d,
+            const Vector<int>& kn_grid,
+            const int photons_per_pixel,
+            const Gas_concs_gpu& gas_concs,
+            const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
+            const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
+            const Array_gpu<Float,1>& z_lev,
+            Array_gpu<Float,2>& col_dry,
+            const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
+            const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
+            const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
+            const Array_gpu<Float,2>& rh,
+            const Aerosol_concs_gpu& aerosol_concs,
+            const Camera& camera,
+            Array_gpu<Float,2>& radiance);
 
         int get_n_gpt_gpu() const { return this->kdist_gpu->get_ngpt(); };
         int get_n_bnd_gpu() const { return this->kdist_gpu->get_nband(); };
@@ -76,13 +86,16 @@ class Radiation_solver_bw_longwave
         #ifdef __CUDACC__
         std::unique_ptr<Gas_optics_rrtmgp_rt> kdist_gpu;
         std::unique_ptr<Cloud_optics_rt> cloud_optics_gpu;
+        std::unique_ptr<Aerosol_optics_rt> aerosol_optics_gpu;
         Rte_lw_rt rte_lw;
+        Raytracer_bw_lw raytracer;
 
         std::unique_ptr<Optical_props_arry_rt> optical_props;
 
         std::unique_ptr<Source_func_lw_rt> sources;
 
-        std::unique_ptr<Optical_props_1scl_rt> cloud_optical_props;
+        std::unique_ptr<Optical_props_2str_rt> cloud_optical_props;
+        std::unique_ptr<Optical_props_2str_rt> aerosol_optical_props;
         #endif
 };
 

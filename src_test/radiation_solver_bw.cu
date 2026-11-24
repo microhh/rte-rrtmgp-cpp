@@ -515,11 +515,11 @@ namespace
     }
 }
 
-
 Radiation_solver_bw_longwave::Radiation_solver_bw_longwave(
         const Gas_concs_gpu& gas_concs,
         const std::string& file_name_gas,
-        const std::string& file_name_cloud)
+        const std::string& file_name_cloud,
+        const std::string& file_name_aerosol)
 {
     // Construct the gas optics classes for the solver.
     this->kdist_gpu = std::make_unique<Gas_optics_rrtmgp_rt>(
@@ -527,27 +527,226 @@ Radiation_solver_bw_longwave::Radiation_solver_bw_longwave(
 
     this->cloud_optics_gpu = std::make_unique<Cloud_optics_rt>(
             load_and_init_cloud_optics(file_name_cloud));
+
+    this->aerosol_optics_gpu = std::make_unique<Aerosol_optics_rt>(
+            load_and_init_aerosol_optics(file_name_aerosol));
 }
 
-
 void Radiation_solver_bw_longwave::solve_gpu(
-        const bool switch_fluxes,
         const bool switch_cloud_optics,
-        const bool switch_output_optical,
-        const bool switch_output_bnd_fluxes,
+        const bool switch_aerosol_optics,
+        const bool switch_delta_cloud,
+        const bool switch_delta_aerosol,
+        const bool switch_lw_scattering,
+        const bool switch_raytracing,
+        const Vector<int>& grid_cells,
+        const Vector<Float>& grid_d,
+        const Vector<int>& kn_grid,
+        const int photons_per_pixel,
         const Gas_concs_gpu& gas_concs,
         const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
+        const Array_gpu<Float,1>& z_lev,
         Array_gpu<Float,2>& col_dry,
         const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
         const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
         const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
-        Array_gpu<Float,3>& tau, Array_gpu<Float,3>& lay_source,
-        Array_gpu<Float,3>& lev_source_inc, Array_gpu<Float,3>& lev_source_dec, Array_gpu<Float,2>& sfc_source,
-        Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
-        Array_gpu<Float,3>& lw_bnd_flux_up, Array_gpu<Float,3>& lw_bnd_flux_dn, Array_gpu<Float,3>& lw_bnd_flux_net)
+        const Array_gpu<Float,2>& rh,
+        const Aerosol_concs_gpu& aerosol_concs,
+        const Camera& camera,
+        Array_gpu<Float,2>& radiance)
 {
-    throw std::runtime_error("Longwave backward raytracing is not implemented");
+    const int n_col = p_lay.dim(1);
+    const int n_lay = p_lay.dim(2);
+    const int n_lev = p_lev.dim(2);
+    const int n_gpt = this->kdist_gpu->get_ngpt();
+    const int n_bnd = this->kdist_gpu->get_nband();
+
+    const int cam_nx = radiance.dim(1);
+    const int cam_ny = radiance.dim(2);
+
+    const Vertical_grid_gpu vgrid = build_vertical_grid_from_gpu(z_lev, grid_cells.z, kn_grid.z);
+
+    optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *kdist_gpu);
+    cloud_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *cloud_optics_gpu);
+    aerosol_optical_props = std::make_unique<Optical_props_2str_rt>(n_col, n_lay, *aerosol_optics_gpu);
+    sources = std::make_unique<Source_func_lw_rt>(n_col, n_lay, *kdist_gpu);
+
+    if (col_dry.size() == 0)
+    {
+        col_dry.set_dims({n_col, n_lay});
+        Gas_optics_rrtmgp_rt::get_col_dry(col_dry, gas_concs.get_vmr("h2o"), p_lev);
+    }
+
+    Array_gpu<Float,2> flux_camera({cam_nx, cam_ny});
+
+    Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(cam_nx, cam_ny, radiance.ptr());
+
+    const Array<int, 2>& band_limits_gpt(this->kdist_gpu->get_band_lims_gpoint());
+
+    int previous_band = 0;
+    if (switch_raytracing)
+    {
+        for (int igpt=1; igpt<=n_gpt; ++igpt)
+        {
+            int band = 0;
+            for (int ibnd=1; ibnd<=n_bnd; ++ibnd)
+            {
+                if (igpt <= band_limits_gpt({2, ibnd}))
+                {
+                    band = ibnd;
+                    break;
+                }
+            }
+
+            Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, optical_props->get_tau().ptr());
+
+            constexpr int n_col_block = 1<<14; // 2^14
+
+            auto gas_optics_subset = [&](
+                    const int col_s, const int n_col_subset)
+            {
+                // Run the gas_optics on a subset.
+                kdist_gpu->gas_optics(
+                        igpt,
+                        col_s,
+                        n_col_subset,
+                        n_col,
+                        p_lay,
+                        p_lev,
+                        t_lay,
+                        t_lev,
+                        t_sfc,
+                        gas_concs,
+                        optical_props,
+                        *sources,
+                        col_dry);
+            };
+
+            const int n_blocks = n_col / n_col_block;
+            const int n_col_residual = n_col % n_col_block;
+
+            for (int n=0; n<n_blocks; ++n)
+            {
+                const int col_s = n*n_col_block;
+                gas_optics_subset(col_s, n_col_block);
+            }
+
+            if (n_col_residual > 0)
+            {
+                const int col_s = n_blocks*n_col_block;
+                gas_optics_subset(col_s, n_col_residual);
+            }
+
+            if (switch_cloud_optics)
+            {
+                if (band > previous_band)
+                {
+                    cloud_optics_gpu->cloud_optics(
+                            band,
+                            lwp,
+                            iwp,
+                            rel,
+                            dei,
+                            switch_lw_scattering,
+                            *cloud_optical_props);
+
+                    if (switch_delta_cloud)
+                        cloud_optical_props->delta_scale();
+                }
+                // Add the cloud optical props to the gas optical properties.
+                add_to(
+                        dynamic_cast<Optical_props_2str_rt&>(*optical_props),
+                        dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props));
+            }
+            else
+            {
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_tau().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_ssa().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, cloud_optical_props->get_g().ptr());
+            }
+
+            if (switch_aerosol_optics)
+            {
+                if (band > previous_band)
+                {
+                    Aerosol_concs_gpu aerosol_concs_subset(aerosol_concs, 1, n_col);
+                    aerosol_optics_gpu->aerosol_optics(
+                            band,
+                            aerosol_concs_subset,
+                            rh, p_lev,
+                            switch_lw_scattering,
+                            *aerosol_optical_props);
+
+                    if (switch_delta_aerosol)
+                        aerosol_optical_props->delta_scale();
+                }
+
+                // Add the aerosol optical props to the gas optical properties.
+                add_to(
+                        dynamic_cast<Optical_props_2str_rt&>(*optical_props),
+                        dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props));
+            }
+            else
+            {
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_tau().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_ssa().ptr());
+                Gas_optics_rrtmgp_kernels_cuda_rt::zero_array(n_col, n_lay, aerosol_optical_props->get_g().ptr());
+            }
+
+            raytracer.trace_rays(
+                    igpt,
+                    photons_per_pixel, n_lay,
+                    grid_cells, grid_d, kn_grid,
+                    z_lev,
+                    vgrid.kn_z_lev,
+                    vgrid.z_lut,
+                    vgrid.kn_z_lut,
+                    vgrid.lut_dz,
+                    vgrid.zsize,
+                    dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_tau(),
+                    dynamic_cast<Optical_props_2str_rt&>(*optical_props).get_ssa(),
+                    dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_tau(),
+                    dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_ssa(),
+                    dynamic_cast<Optical_props_2str_rt&>(*cloud_optical_props).get_g(),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_tau(),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_ssa(),
+                    dynamic_cast<Optical_props_2str_rt&>(*aerosol_optical_props).get_g(),
+                    (*sources).get_lay_source(),
+                    (*sources).get_sfc_source(),
+                    emis_sfc.subset({{ {band, band}, {1, n_col}}}),
+                    Float(0.),
+                    camera,
+                    flux_camera);
+
+            raytracer.add_camera(
+                    camera,
+                    flux_camera,
+                    radiance);
+
+            previous_band = band;
+        }
+    }
+}
+
+//void Radiation_solver_bw_longwave::solve_gpu(
+//        const bool switch_fluxes,
+//        const bool switch_cloud_optics,
+//        const bool switch_output_optical,
+//        const bool switch_output_bnd_fluxes,
+//        const Gas_concs_gpu& gas_concs,
+//        const Array_gpu<Float,2>& p_lay, const Array_gpu<Float,2>& p_lev,
+//        const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
+//        Array_gpu<Float,2>& col_dry,
+//        const Array_gpu<Float,1>& t_sfc, const Array_gpu<Float,2>& emis_sfc,
+//        const Array_gpu<Float,2>& lwp, const Array_gpu<Float,2>& iwp,
+//        const Array_gpu<Float,2>& rel, const Array_gpu<Float,2>& dei,
+//        Array_gpu<Float,3>& tau, Array_gpu<Float,3>& lay_source,
+//        Array_gpu<Float,3>& lev_source_inc, Array_gpu<Float,3>& lev_source_dec, Array_gpu<Float,2>& sfc_source,
+//        Array_gpu<Float,2>& lw_flux_up, Array_gpu<Float,2>& lw_flux_dn, Array_gpu<Float,2>& lw_flux_net,
+//        Array_gpu<Float,3>& lw_bnd_flux_up, Array_gpu<Float,3>& lw_bnd_flux_dn, Array_gpu<Float,3>& lw_bnd_flux_net)
+//{
+//    throw std::runtime_error("Longwave backward raytracing is not implemented");
 
     /*
     const int n_col = p_lay.dim(1);
@@ -667,7 +866,7 @@ void Radiation_solver_bw_longwave::solve_gpu(
         }
     }
     */
-}
+//}
 
 // color matchin functions from https://jcgt.org/published/0002/02/01/paper.pdf
 
@@ -1351,6 +1550,7 @@ void Radiation_solver_bw_shortwave::solve_gpu_bb(
             const Float zenith_angle = std::acos(mu0({1}));
             const Float azimuth_angle = azi({1});
 
+            // TODO: do we want spectral albedo in broadband bw version?
             Array_gpu<Float,2> albedo;
             if (switch_lu_albedo)
             {
