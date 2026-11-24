@@ -185,9 +185,10 @@ void ray_tracer_kernel_bw_lw(
             // 1D raytracing between TOD and TOA?
             if (photon.position.z > grid_size.z)
             {
-                const Float dn = max(Float_epsilon, tau / k_ext_bg[bg_idx]);
+                const bool bg_empty = !(k_ext_bg[bg_idx] > Float(0.));
+                const Float dn = bg_empty ? Float(0.) : max(Float_epsilon, tau / k_ext_bg[bg_idx]);
                 d_max = abs( (photon.direction.z>0) ? (z_lev_bg[bg_idx+1] - photon.position.z) / photon.direction.z : (z_lev_bg[bg_idx] - photon.position.z) / photon.direction.z );
-                if (dn >= d_max)
+                if (bg_empty || dn >= d_max)
                 {
                     photon.position.z = (photon.direction.z > 0) ? z_lev_bg[bg_idx+1] + s_min_bg : z_lev_bg[bg_idx] - s_min_bg;
                     photon.position.y += photon.direction.y * d_max;
