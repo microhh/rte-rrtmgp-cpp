@@ -64,7 +64,7 @@ namespace
 
             if (k_null_min == k_null_max) k_null_min = k_null_max * Float(0.99);
             k_null_grid[ijk_grid].k_min = k_null_min;
-            k_null_grid[ijk_grid].k_max = k_null_max;
+            k_null_grid[ijk_grid].k_max = max(k_null_max, k_ext_null_min);
         }
     }
 
@@ -91,7 +91,7 @@ namespace
             const Float ksca_aer = kext_aer * ssa_aer[idx];
 
             k_ext[idx] = tau_tot[idx] / grid_dz;
-            scat_asy[idx].k_sca_gas = kext_tot*ssa_tot[idx] - ksca_cld - ksca_aer;
+            scat_asy[idx].k_sca_gas = max(kext_tot*ssa_tot[idx] - ksca_cld - ksca_aer, Float(0.));
             scat_asy[idx].k_sca_cld = ksca_cld;
             scat_asy[idx].k_sca_aer = ksca_aer;
             scat_asy[idx].asy_cld = asy_cld[idx];
@@ -120,7 +120,7 @@ namespace
 
             const Float ksca_cld = kext_cld * ssa_cld[idx];
             const Float ksca_aer = kext_aer * ssa_aer[idx];
-            const Float ksca_gas = kext_tot * ssa_tot[idx] - ksca_cld - ksca_aer;
+            const Float ksca_gas = max(kext_tot * ssa_tot[idx] - ksca_cld - ksca_aer, Float(0.));
 
             k_ext_bg[i] = kext_tot;
             scat_asy_bg[i].k_sca_gas = ksca_gas;
@@ -252,7 +252,7 @@ void Raytracer_bw_lw::trace_rays(
     dim3 block_kn(block_kn_x, block_kn_y, block_kn_z);
 
     Array_gpu<Grid_knull,3> k_null_grid({kn_grid.x, kn_grid.y, kn_grid.z});
-    const Float k_ext_null_min = Float(1e-3);
+    const Float k_ext_null_min = Float(1e-6);
 
     create_knull_grid<<<grid_kn, block_kn>>>(
             grid_cells, kn_grid, k_ext_null_min,

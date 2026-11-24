@@ -417,8 +417,8 @@ void ray_tracer_kernel_bw_lw(
 
                     // Compute probability not being absorbed and store weighted absorption probability
                     const Float k_sca_tot = scat_asy[ijk].k_sca_gas + scat_asy[ijk].k_sca_cld + scat_asy[ijk].k_sca_aer;
-                    const Float ssa_tot = k_sca_tot / k_ext[ijk];
-                    const Float f_abs = (Float(1.) - ssa_tot) * (k_ext[ijk]/k_ext_null);
+                    const Float k_abs = max(k_ext[ijk] - k_sca_tot, Float(0.));
+                    const Float f_abs = k_abs / k_ext_null;
 
                     atomicAdd(&camera_count[ij_cam], weight * f_abs * lay_source[ijk]);
 
@@ -432,7 +432,7 @@ void ray_tracer_kernel_bw_lw(
                     if (weight > Float(0.))
                     {
                         // Null collision.
-                        if (rng() >= ssa_tot / (ssa_tot - Float(1.) + k_ext_null / k_ext[ijk]))
+                        if (rng() * (k_ext_null - k_abs) >= k_sca_tot)
                         {
                             d_max -= dn;
                         }
