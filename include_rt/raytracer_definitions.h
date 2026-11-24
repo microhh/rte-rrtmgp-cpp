@@ -39,6 +39,13 @@ namespace Raytracer_definitions
         int scattering_type;
     };
 
+    // max/min extinction per null-collision grid cell
+    struct Grid_knull
+    {
+        Float k_max;
+        Float k_min;
+    };
+
     constexpr Float n_water = 1.34;
 }
 #endif
