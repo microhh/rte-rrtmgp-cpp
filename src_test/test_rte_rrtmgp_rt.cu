@@ -1319,7 +1319,7 @@ void solve_radiation(int argc, char** argv)
 
         Array_gpu<Float,1> tsi_scaling_gpu(tsi_scaling);
 
-        auto run_solver_bb = [&]()
+        auto run_solver = [&]()
         {
             cudaDeviceSynchronize();
             cudaEvent_t start;
@@ -1329,7 +1329,7 @@ void solve_radiation(int argc, char** argv)
 
             cudaEventRecord(start, 0);
 
-            rad_sw.solve_gpu_bb(
+            rad_sw.solve_gpu(
                     switch_cloud_optics,
                     switch_cloud_mie,
                     switch_aerosol_optics,
@@ -1432,7 +1432,7 @@ void solve_radiation(int argc, char** argv)
 
         if (switch_broadband)
         {
-           run_solver_bb();
+           run_solver();
         }
         if (switch_image)
         {

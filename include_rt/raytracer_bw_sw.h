@@ -57,7 +57,7 @@ class Raytracer_bw_sw
                 const Camera& camera,
                 Array_gpu<Float,2>& flux_camera);
 
-        void trace_rays_bb(
+        void trace_rays(
                 const int igpt,
                 const int photons_per_pixel,
                 const int nlay,

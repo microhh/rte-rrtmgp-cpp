@@ -168,7 +168,7 @@ namespace
     }
 
     __global__
-    void bundles_optical_props_bb(
+    void bundles_optical_props(
             const Vector<int> grid_cells, const int nlay, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
@@ -259,7 +259,7 @@ namespace
     }
 
     __global__
-    void background_profile_bb(
+    void background_profile(
             const Vector<int> grid_cells, const int nbg,
             const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
@@ -587,7 +587,7 @@ void Raytracer_bw_sw::trace_rays_xyz(
     }
 }
 
-void Raytracer_bw_sw::trace_rays_bb(
+void Raytracer_bw_sw::trace_rays(
         const int igpt,
         const int photons_per_pixel,
         const int nlay,
@@ -651,7 +651,7 @@ void Raytracer_bw_sw::trace_rays_bb(
     Array_gpu<Float,3> k_ext({grid_cells.x, grid_cells.y, grid_cells.z});
     Array_gpu<Optics_scat,3> ssa_asy({grid_cells.x, grid_cells.y, grid_cells.z});
 
-    bundles_optical_props_bb<<<grid_3d, block_3d>>>(
+    bundles_optical_props<<<grid_3d, block_3d>>>(
             grid_cells, nlay, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
@@ -688,7 +688,7 @@ void Raytracer_bw_sw::trace_rays_bb(
     dim3 grid_1d(grid_1d_z);
     dim3 block_1d(block_1d_z);
 
-    background_profile_bb<<<grid_1d, block_1d>>>(
+    background_profile<<<grid_1d, block_1d>>>(
             grid_cells, nbg, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),

@@ -783,7 +783,7 @@ void solve_radiation(int argc, char** argv)
 
         cudaEventRecord(start, 0);
 
-        raytracer_bw_sw.trace_rays_bb(
+        raytracer_bw_sw.trace_rays(
                 0,
                 bw_photons_per_pixel, nlay,
                 grid_cells, grid_d, kn_grid,
