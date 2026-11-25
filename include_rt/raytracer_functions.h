@@ -159,7 +159,7 @@ namespace Raytracer_functions
         // interpolation over effective radius. Currently, r_eff should range between 2.5 and 21.5 (similar to RRTMGP)
         const Float r_pos = r_eff[ijk] - Float(2.5);
         const int r_idx = min(max(int(floor(r_pos)), 0), 18);
-        const Float r_rest = min(max(r_pos - Float(r_idx), Float(0.), Float(1.)));
+        const Float r_rest = min(max(r_pos - Float(r_idx), Float(0.)), Float(1.));
 
         const int i = min(max(0, find_index(mie_cdf, n_mie, random_number)), n_mie - 2);
 
@@ -179,7 +179,7 @@ namespace Raytracer_functions
         // interpolation over effective radius. Currently, r_eff should range between 2.5 and 21.5 (similar to RRTMGP)
         const Float r_pos = r_eff[ijk] - Float(2.5);
         const int r_idx = min(max(int(floor(r_pos)), 0), 18);
-        const Float r_rest = min(max(r_pos - Float(r_idx), Float(0.), Float(1.)));
+        const Float r_rest = min(max(r_pos - Float(r_idx), Float(0.)), Float(1.));
 
         // interpolation between 1800 equally spaced scattering angles between 0 and PI (both inclusive).
         constexpr Float d_pi = Float(1.74629942e-03);

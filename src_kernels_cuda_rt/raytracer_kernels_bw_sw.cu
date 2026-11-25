@@ -910,11 +910,11 @@ void ray_tracer_kernel_bw_sw(
 
             if (camera.cam_type == 0)
             {
-                const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
-                const Float photon_azimuth = j * Float(2.) * M_PI;
-                const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
+                const Float photon_zenith = i * Float(.5) * camera.fov / Float(180.) * Float(M_PI);
+                const Float photon_azimuth = j * Float(2.) * Float(M_PI);
+                const Vector<Float> dir_tmp = {cos(photon_zenith), sin(photon_zenith) * cos(photon_azimuth), sin(photon_zenith) * sin(photon_azimuth)};
 
-                direction = {dot(camera.mx,  dir_tmp), dot(camera.my,  dir_tmp), dot(camera.mz,  dir_tmp) * Float(-1)};
+                direction = {dot(camera.mx,  dir_tmp), dot(camera.my,  dir_tmp), dot(camera.mz,  dir_tmp)};
                 position = camera.position + s_eps;
             }
             else if (camera.cam_type == 1)
@@ -924,9 +924,9 @@ void ray_tracer_kernel_bw_sw(
             }
             else
             {
-                direction = {Float(0.), Float(0.), Float(-1)};
-                position = {i * grid_size.x / camera.nx,
-                            j * grid_size.y / camera.ny,
+                direction = {camera.mx.x, camera.my.x, camera.mz.x};
+                position = {i * grid_size.x,
+                            j * grid_size.y,
                             grid_size.z - 2*s_eps};
             }
 
