@@ -715,7 +715,7 @@ void solve_radiation(int argc, char** argv)
             Status::print_message("Duration shortwave solver (broadband version): " + std::to_string(duration) + " (ms)");
         };
 
-        auto run_solver = [&](const bool tune_step)
+        auto run_solver_xyz = [&](const bool tune_step)
         {
             Array_gpu<Float,2> p_lay_gpu(p_lay);
             Array_gpu<Float,2> p_lev_gpu(p_lev);
@@ -745,7 +745,7 @@ void solve_radiation(int argc, char** argv)
 
             cudaEventRecord(start, 0);
 
-            rad_sw.solve_gpu(
+            rad_sw.solve_gpu_xyz(
                     tune_step,
                     switch_cloud_optics,
                     switch_cloud_mie,
@@ -805,16 +805,16 @@ void solve_radiation(int argc, char** argv)
         if (switch_image)
         {
             // tune step
-            run_solver(true);
+            run_solver_xyz(true);
 
             // actual solve
-            run_solver(false);
+            run_solver_xyz(false);
 
             // Profiling step;
             if (switch_profiling)
             {
                 cudaProfilerStart();
-                run_solver(false);
+                run_solver_xyz(false);
                 cudaProfilerStop();
             }
         }

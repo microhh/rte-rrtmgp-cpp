@@ -1028,7 +1028,7 @@ void Radiation_solver_bw_shortwave::load_mie_tables(
 }
 
 
-void Radiation_solver_bw_shortwave::solve_gpu(
+void Radiation_solver_bw_shortwave::solve_gpu_xyz(
         const bool switch_cloud_optics,
         const bool switch_cloud_mie,
         const bool switch_aerosol_optics,
@@ -1283,7 +1283,7 @@ void Radiation_solver_bw_shortwave::solve_gpu(
                     mie_phase_sub = mie_phase.subset({{ {1, n_mie}, {1, n_re}, {iwv+1,iwv+1}, {band, band} }});
                 }
 
-                raytracer.trace_rays(
+                raytracer.trace_rays_xyz(
                         igpt,
                         photons_per_pixel, n_lay,
                         grid_cells, grid_d, kn_grid,

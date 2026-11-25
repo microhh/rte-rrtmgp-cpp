@@ -128,7 +128,7 @@ namespace
 
 
     __global__
-    void bundles_optical_props(
+    void bundles_optical_props_xyz(
             const Vector<int> grid_cells, const int nlay, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
@@ -218,7 +218,7 @@ namespace
     }
 
     __global__
-    void background_profile(
+    void background_profile_xyz(
             const Vector<int> grid_cells, const int nbg,
             const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
@@ -392,7 +392,7 @@ void Raytracer_bw_sw::normalize_xyz_camera(
 }
 
 
-void Raytracer_bw_sw::trace_rays(
+void Raytracer_bw_sw::trace_rays_xyz(
         const int igpt,
         const int photons_per_pixel,
         const int nlay,
@@ -460,7 +460,7 @@ void Raytracer_bw_sw::trace_rays(
     dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
     dim3 block_3d(block_col_x, block_col_y, block_z);
 
-    bundles_optical_props<<<grid_3d, block_3d>>>(
+    bundles_optical_props_xyz<<<grid_3d, block_3d>>>(
             grid_cells, nlay, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
@@ -497,7 +497,7 @@ void Raytracer_bw_sw::trace_rays(
     dim3 grid_1d(grid_1d_z);
     dim3 block_1d(block_1d_z);
 
-    background_profile<<<grid_1d, block_1d>>>(
+    background_profile_xyz<<<grid_1d, block_1d>>>(
             grid_cells, nbg, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),

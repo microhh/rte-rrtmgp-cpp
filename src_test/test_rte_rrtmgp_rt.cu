@@ -1374,7 +1374,7 @@ void solve_radiation(int argc, char** argv)
             Status::print_message("Duration shortwave backward solver (broadband version): " + std::to_string(duration) + " (ms)");
         };
 
-        auto run_solver = [&]()
+        auto run_solver_xyz = [&]()
         {
             cudaDeviceSynchronize();
             cudaEvent_t start;
@@ -1384,7 +1384,7 @@ void solve_radiation(int argc, char** argv)
 
             cudaEventRecord(start, 0);
 
-            rad_sw.solve_gpu(
+            rad_sw.solve_gpu_xyz(
                     switch_cloud_optics,
                     switch_cloud_mie,
                     switch_aerosol_optics,
@@ -1436,7 +1436,7 @@ void solve_radiation(int argc, char** argv)
         }
         if (switch_image)
         {
-            run_solver();
+            run_solver_xyz();
         }
 
         // Store the output.

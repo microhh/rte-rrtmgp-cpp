@@ -18,7 +18,7 @@ class Raytracer_bw_sw
     public:
         Raytracer_bw_sw();
 
-        void trace_rays(
+        void trace_rays_xyz(
                 const int igpt,
                 const int photons_per_pixel,
                 const int nlay,

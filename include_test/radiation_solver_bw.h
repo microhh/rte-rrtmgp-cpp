@@ -116,7 +116,7 @@ class Radiation_solver_bw_shortwave
                 const bool switch_image);
 
         #ifdef __CUDACC__
-        void solve_gpu(
+        void solve_gpu_xyz(
                 const bool switch_cloud_optics,
                 const bool switch_cloud_mie,
                 const bool switch_aerosol_optics,
