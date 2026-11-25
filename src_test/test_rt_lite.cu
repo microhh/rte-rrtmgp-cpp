@@ -27,7 +27,7 @@
 #include "array.h"
 #include "raytracer_sw.h"
 #include "raytracer_lw.h"
-#include "raytracer_bw.h"
+#include "raytracer_bw_sw.h"
 #include "raytracer_vertical_grid.h"
 #include "types.h"
 #include "rte_solver_kernels_cuda_rt.h"
@@ -767,7 +767,7 @@ void solve_radiation(int argc, char** argv)
     ////// backward solver
     if (switch_bw_raytracing)
     {
-        Raytracer_bw raytracer_bw;
+        Raytracer_bw_sw raytracer_bw_sw;
         const Vector<int> grid_cells = {nx, ny, n_z_in};
 
         Array_gpu<Float,1> z_lev_g(z_lev);
@@ -783,7 +783,7 @@ void solve_radiation(int argc, char** argv)
 
         cudaEventRecord(start, 0);
 
-        raytracer_bw.trace_rays_bb(
+        raytracer_bw_sw.trace_rays_bb(
                 0,
                 bw_photons_per_pixel, nlay,
                 grid_cells, grid_d, kn_grid,

@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include "raytracer_kernels_bw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "raytracer_definitions.h"
 
 
@@ -315,7 +315,7 @@ namespace
 }
 
 template<Bool tod_diffuse, Bool dz_constant>__global__
-void ray_tracer_kernel_bw(
+void ray_tracer_kernel_bw_sw(
         const int igpt,
         const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
@@ -383,7 +383,7 @@ void ray_tracer_kernel_bw(
     const Vector<Float> kn_grid_d = grid_size / kn_grid;
     const Float z_top = z_lev_bg[kbg];
 
-    Random_number_generator<Float> rng(n+bw_kernel_block*bw_kernel_grid*igpt);
+    Random_number_generator<Float> rng(n+bw_sw_kernel_block*bw_sw_kernel_grid*igpt);
 
     const Float s_min = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
     const Float s_min_bg = max(max(grid_size.x, grid_size.y), z_top) * Float_epsilon;
@@ -997,7 +997,7 @@ void ray_tracer_kernel_bw(
 
     }
 
-void launch_ray_tracer_kernel_bw(
+void launch_ray_tracer_kernel_bw_sw(
         const bool tod_diffuse,
         const bool dz_constant,
         const dim3 grid,
@@ -1059,7 +1059,7 @@ void launch_ray_tracer_kernel_bw(
     };
 
     if (tod_diffuse)
-        dz_constant ? launch(ray_tracer_kernel_bw<true, true>) : launch(ray_tracer_kernel_bw<true, false>);
+        dz_constant ? launch(ray_tracer_kernel_bw_sw<true, true>) : launch(ray_tracer_kernel_bw_sw<true, false>);
     else
-        dz_constant ? launch(ray_tracer_kernel_bw<false, true>) : launch(ray_tracer_kernel_bw<false, false>);
+        dz_constant ? launch(ray_tracer_kernel_bw_sw<false, true>) : launch(ray_tracer_kernel_bw_sw<false, false>);
 }

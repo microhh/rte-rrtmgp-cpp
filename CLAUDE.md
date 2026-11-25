@@ -82,7 +82,7 @@ Core physics classes exist in both CPU (`src/`, `include/`) and CUDA (`src_cuda/
 
 ### Ray tracer (CUDA only)
 
-Monte Carlo ray tracer in `src_cuda_rt/` and `include_rt/` supports forward (`Raytracer`), longwave (`Raytracer_lw`), and backward/adjoint (`Raytracer_bw`) modes. Uses cuRAND for random number generation. Helper functions for scattering (Rayleigh, Henyey-Greenstein) are in `raytracer_functions.h`.
+Monte Carlo ray tracer in `src_cuda_rt/` and `include_rt/` supports forward (`Raytracer`), longwave (`Raytracer_lw`), and backward/adjoint shortwave (`Raytracer_bw_sw`) and longwave (`Raytracer_bw_lw`) modes. Uses cuRAND for random number generation. Helper functions for scattering (Rayleigh, Henyey-Greenstein) are in `raytracer_functions.h`.
 
 ### Test executables
 

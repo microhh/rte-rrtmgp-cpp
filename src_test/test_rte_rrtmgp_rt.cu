@@ -28,7 +28,7 @@
 #include "raytracer_kernels_sw.h"
 #include "radiation_solver_rt.h"
 #include "aerosol_optics_rt.h"
-#include "raytracer_kernels_bw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "radiation_solver_bw.h"
 #include "gas_concs.h"
 #include "types.h"

@@ -25,7 +25,7 @@
 #include "status.h"
 #include "netcdf_interface.h"
 #include "array.h"
-#include "raytracer_kernels_bw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "radiation_solver_bw.h"
 #include "aerosol_optics_rt.h"
 #include "gas_concs.h"

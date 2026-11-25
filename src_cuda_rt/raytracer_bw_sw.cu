@@ -4,8 +4,8 @@
 #include "optical_props_rt.h"
 #include "array.h"
 
-#include "raytracer_bw.h"
-#include "raytracer_kernels_bw.h"
+#include "raytracer_bw_sw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "gas_optics_rrtmgp_kernels_cuda_rt.h"
 
 
@@ -323,11 +323,11 @@ static bool vertical_spacing_is_constant(const Array_gpu<Float,1>& z_lev_gpu, co
 }
 
 
-Raytracer_bw::Raytracer_bw()
+Raytracer_bw_sw::Raytracer_bw_sw()
 {
 }
 
-void Raytracer_bw::add_camera(
+void Raytracer_bw_sw::add_camera(
     const Camera& camera,
     const Array_gpu<Float,2>& flux_camera,
     Array_gpu<Float,2>& radiance)
@@ -347,7 +347,7 @@ void Raytracer_bw::add_camera(
             radiance.ptr());
 }
 
-void Raytracer_bw::add_xyz_camera(
+void Raytracer_bw_sw::add_xyz_camera(
     const Camera& camera,
     const Array_gpu<Float,1>& xyz_factor,
     const Array_gpu<Float,2>& flux_camera,
@@ -370,7 +370,7 @@ void Raytracer_bw::add_xyz_camera(
 }
 
 
-void Raytracer_bw::normalize_xyz_camera(
+void Raytracer_bw_sw::normalize_xyz_camera(
     const Camera& camera,
     const Float total_source,
     Array_gpu<Float,3>& XYZ)
@@ -392,7 +392,7 @@ void Raytracer_bw::normalize_xyz_camera(
 }
 
 
-void Raytracer_bw::trace_rays(
+void Raytracer_bw_sw::trace_rays(
         const int igpt,
         const int photons_per_pixel,
         const int nlay,
@@ -526,7 +526,7 @@ void Raytracer_bw::trace_rays(
                                          std::sin(zenith_angle) * std::cos(azimuth_angle),
                                          std::cos(zenith_angle)};
 
-    dim3 grid{bw_kernel_grid}, block{bw_kernel_block};
+    dim3 grid{bw_sw_kernel_grid}, block{bw_sw_kernel_block};
 
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
@@ -535,7 +535,7 @@ void Raytracer_bw::trace_rays(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    launch_ray_tracer_kernel_bw(
+    launch_ray_tracer_kernel_bw_sw(
             do_diffuse, dz_constant,
             grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
@@ -587,7 +587,7 @@ void Raytracer_bw::trace_rays(
     }
 }
 
-void Raytracer_bw::trace_rays_bb(
+void Raytracer_bw_sw::trace_rays_bb(
         const int igpt,
         const int photons_per_pixel,
         const int nlay,
@@ -715,7 +715,7 @@ void Raytracer_bw::trace_rays_bb(
                                          std::sin(zenith_angle) * std::cos(azimuth_angle),
                                          std::cos(zenith_angle)};
 
-    dim3 grid{bw_kernel_grid}, block{bw_kernel_block};
+    dim3 grid{bw_sw_kernel_grid}, block{bw_sw_kernel_block};
 
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
@@ -724,7 +724,7 @@ void Raytracer_bw::trace_rays_bb(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    launch_ray_tracer_kernel_bw(
+    launch_ray_tracer_kernel_bw_sw(
             do_diffuse, dz_constant,
             grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
@@ -777,7 +777,7 @@ void Raytracer_bw::trace_rays_bb(
     }
 }
 
-void Raytracer_bw::accumulate_clouds(
+void Raytracer_bw_sw::accumulate_clouds(
         const Vector<Float>& grid_d,
         const Vector<int>& grid_cells,
         const Array_gpu<Float,1>& z_lev,

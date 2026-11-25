@@ -1,10 +1,10 @@
-#ifndef RAYTRACER_BW_H
-#define RAYTRACER_BW_H
+#ifndef RAYTRACER_BW_SW_H
+#define RAYTRACER_BW_SW_H
 
 #include <memory>
 #include "types.h"
 #include <curand_kernel.h>
-#include "raytracer_kernels_bw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "optical_props_rt.h"
 
 // Forward declarations.
@@ -13,10 +13,10 @@ class Optical_props_rt;
 class Optical_props_arry_rt;
 
 #ifdef __CUDACC__
-class Raytracer_bw
+class Raytracer_bw_sw
 {
     public:
-        Raytracer_bw();
+        Raytracer_bw_sw();
 
         void trace_rays(
                 const int igpt,

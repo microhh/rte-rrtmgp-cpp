@@ -1,5 +1,5 @@
-#ifndef RAYTRACER_KERNELS_BW_H
-#define RAYTRACER_KERNELS_BW_H
+#ifndef RAYTRACER_KERNELS_BW_SW_H
+#define RAYTRACER_KERNELS_BW_SW_H
 
 #include <curand_kernel.h>
 
@@ -19,11 +19,11 @@ using namespace Raytracer_functions;
 
 
 #ifdef RTE_USE_SP
-constexpr int bw_kernel_block= 128;
-constexpr int bw_kernel_grid = 2048;
+constexpr int bw_sw_kernel_block= 128;
+constexpr int bw_sw_kernel_grid = 2048;
 #else
-constexpr int bw_kernel_block = 256;
-constexpr int bw_kernel_grid = 256;
+constexpr int bw_sw_kernel_block = 256;
+constexpr int bw_sw_kernel_grid = 256;
 #endif
 
 // sun has a half angle of .266 degrees
@@ -34,8 +34,8 @@ constexpr Float sun_hemisphere_sa_fraction = Float(1.0822393359255502e-05);
 
 
 
-// Host-side launcher for the templated ray_tracer_kernel_bw
-void launch_ray_tracer_kernel_bw(
+// Host-side launcher for the templated ray_tracer_kernel_bw_sw
+void launch_ray_tracer_kernel_bw_sw(
         const bool tod_diffuse,
         const bool dz_constant,
         const dim3 grid,

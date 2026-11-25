@@ -27,8 +27,8 @@
 #include "aerosol_optics_rt.h"
 #include "rte_lw_rt.h"
 #include "rte_sw_rt.h"
-#include "raytracer_bw.h"
-#include "raytracer_kernels_bw.h"
+#include "raytracer_bw_sw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "raytracer_bw_lw.h"
 #include "raytracer_kernels_bw_lw.h"
 #include "source_functions_rt.h"
@@ -205,7 +205,7 @@ class Radiation_solver_bw_shortwave
         std::unique_ptr<Cloud_optics_rt> cloud_optics_gpu;
         std::unique_ptr<Aerosol_optics_rt> aerosol_optics_gpu;
         Rte_sw_rt rte_sw;
-        Raytracer_bw raytracer;
+        Raytracer_bw_sw raytracer;
 
         std::unique_ptr<Optical_props_arry_rt> optical_props;
 
