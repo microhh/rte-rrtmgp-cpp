@@ -134,6 +134,87 @@ namespace Raytracer_functions
         return dir_in - Float(2.)*dir_n*dot(dir_n, dir_in);
     }
 
+    // minumum sigma2 value use Cox-Munk microfacet distribution, otherwise assume perfectly flat surface
+    constexpr Float sigma2_min = Float(1e-5);
+
+    __device__
+    inline bool is_rough(const Surface_props& props)
+    {
+        return (props.scattering_type != Surface_lambertian) && (props.sigma2 > sigma2_min);
+    }
+
+    // Beckmann face normal ditribution / isotropic Cox-Munk PDF normalized such that int D cos_n dOmega equals 1
+    __device__
+    inline Float cox_munk_D(const Float cos_n, const Float sigma2)
+    {
+        const Float sq_cos_n = cos_n*cos_n;
+        const Float sq_tan_n = (Float(1.) - sq_cos_n) / sq_cos_n;
+
+        return exp(-sq_tan_n/sigma2) / (Float(M_PI)*sigma2*sq_cos_n*sq_cos_n);
+    }
+
+    // Smith masking function, approximated proposed by Walter et al. (2007) "Microfacet Models for Refraction through Rough Surfaces"
+    __device__
+    inline Float cox_munk_G(const Float mu, const Float sigma2)
+    {
+        if (mu <= Float(0.))
+            return Float(0.);
+
+        const Float a = mu / max(sqrt(sigma2*(Float(1.) - mu*mu)), Float(1e-12));
+
+        if (a >= Float(1.6))
+            return Float(1.);
+
+        return (Float(3.535) * a + Float(2.181) * a * a) / (Float(1.) + Float(2.276) * a + Float(2.577) * a * a);
+    }
+
+    // sample cox_munk/beckmann brdf with Smith shadowing function. See e.g. Walter et al. (2007)
+    __device__
+    inline Float cox_munk_brdf_cos(const Vector<Float>& dir_in, const Vector<Float>& dir_out, const Float sigma2)
+    {
+        const Float mu_in  = -dir_in.z;
+        const Float mu_out =  dir_out.z;
+
+        if (mu_in <= Float(0.) || mu_out <= Float(0.))
+            return Float(0.);
+
+        const Vector<Float> half = normalize(dir_out - dir_in);
+        const Float cos_half = max(dot(dir_out, half), Float(0.));
+
+        return fresnel_unpolarized(cos_half, n_water) * cox_munk_D(half.z, sigma2)
+             * cox_munk_G(mu_in, sigma2) * cox_munk_G(mu_out, sigma2) / (Float(4.)*mu_in);
+    }
+
+    struct Facet_sample
+    {
+        Vector<Float> direction; // reflected direction
+        Float weight;            // reflectance factor; 0 if back-facing facet or reflected into the surface
+    };
+
+    template<typename RNG> __device__
+    inline Facet_sample sample_cox_munk(const Vector<Float>& dir_in, const Float sigma2, RNG& rng)
+    {
+        // Walter et al. 2007 eq 28 & 29
+        const Float slope = sqrt(-sigma2 * log(max(rng(), Float_epsilon)));
+        const Float phi = Float(2.*M_PI) * rng();
+
+        const Vector<Float> n = normalize(Vector<Float>{-slope*cos(phi), -slope*sin(phi), Float(1.)});
+
+        // check if facet faces away from photon
+        const Float cos_in = -dot(dir_in, n);
+        if (cos_in <= Float(0.))
+            return {dir_in, Float(0.)};
+
+        const Vector<Float> dir_out = specular(dir_in, n);
+        if (dir_out.z <= Float(0.))
+            return {dir_out, Float(0.)};
+
+        const Float w = fresnel_unpolarized(cos_in, n_water)
+                      * cox_munk_G(-dir_in.z, sigma2) * cox_munk_G(dir_out.z, sigma2)
+                      * cos_in / (n.z * -dir_in.z);
+        return {dir_out, w};
+    }
+
     __device__
     inline int find_index(const Float* mie_cdf, const int size, const Float random_number)
     {

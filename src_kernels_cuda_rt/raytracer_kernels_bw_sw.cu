@@ -613,13 +613,20 @@ void ray_tracer_kernel_bw_sw(
                         const int ij = i + j*grid_cells.x;
                         d_max = Float(0.);
 
+                        const Surface_props& sfc = surface_properties[ij];
                         const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
 
                         // surface reflectances depending on scattering type
-                        const Surface_reflectance refl = surface_reflectance(surface_properties[ij], cos_i);
+                        const Surface_reflectance refl = surface_reflectance(sfc, cos_i);
                         const Float R_spec = refl.R_spec;
                         const Float R_diff = refl.R_diff;
                         const Float R_tot = R_spec + R_diff;
+                        const bool rough = is_rough(sfc);
+
+                        // specular reflection: flat mirror, or one Cox-Munk facet sample
+                        Facet_sample facet = {specular(photon.direction, surface_normal), R_spec};
+                        if (rough && R_spec > Float(0.))
+                            facet = sample_cox_munk(photon.direction, sfc.sigma2, rng);
 
                         auto trans_to = [&](const Vector<Float>& dir)
                         {
@@ -639,14 +646,16 @@ void ray_tracer_kernel_bw_sw(
 
                         if (R_spec > Float(0.))
                         {
-                            p_sun_spec = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Specular);
+                            p_sun_spec = rough
+                                ? cox_munk_brdf_cos(photon.direction, sun_direction, sfc.sigma2) * sun_solid_angle
+                                : R_spec * probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Specular);
                         }
                         if (R_diff > Float(0.))
                         {
                             p_sun_diff = cos_sun * probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Lambertian);
                         }
 
-                        const Float p_sun_tot = R_spec*p_sun_spec + R_diff*p_sun_diff;
+                        const Float p_sun_tot = p_sun_spec + R_diff*p_sun_diff;
                         if (p_sun_tot > Float(0.))
                         {
                             const Float trans_sun = trans_to(sun_direction);
@@ -656,13 +665,9 @@ void ray_tracer_kernel_bw_sw(
                         // TOD diffuse contribution
                         if (tod_diffuse)
                         {
-                            if (R_spec > Float(0.))
+                            if (facet.weight > Float(0.))
                             {
-                                Vector<Float> dir_spec;
-
-                                dir_spec = specular(photon.direction, surface_normal);
-
-                                atomicAdd(&camera_count_diffuse[ij_cam], weight * R_spec * Float(2.0) * trans_to(dir_spec));
+                                atomicAdd(&camera_count_diffuse[ij_cam], weight * facet.weight * Float(2.0) * trans_to(facet.direction));
                             }
 
                             if (R_diff > Float(0.))
@@ -676,17 +681,20 @@ void ray_tracer_kernel_bw_sw(
                                 atomicAdd(&camera_count_diffuse[ij_cam], weight * R_diff * Float(2.0) * trans_to(diffuse_direction));
                             }
                         }
-                        weight *= R_tot;
+
+                        const bool spec_branch = (R_spec > Float(0.)) && (rng() * R_tot < R_spec);
+                        weight *= spec_branch ? R_tot * facet.weight / R_spec : R_tot;
+
                         if (weight < w_thres)
                             weight = (rng() > weight) ? Float(0.) : Float(1.);
 
                         // only with nonzero weight continue ray tracing, else start new ray
                         if (weight > Float(0.))
                         {
-                            if (rng() * R_tot < R_spec)
+                            if (spec_branch)
                             {
-                                // specular
-                                photon.direction = specular(photon.direction, surface_normal);
+                                // specular (flat or rough)
+                                photon.direction = facet.direction;
                             }
                             else
                             {

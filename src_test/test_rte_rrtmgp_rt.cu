@@ -413,6 +413,18 @@ void solve_radiation(int argc, char** argv)
         surface_scattering_type.fill(0);
     }
 
+    // read Cox-Munk mean square surface slope if present (sigma2 = 0.003 + 0.00512*U12, U12 in m/s);
+    // only used for scattering types 1 and 2. Defaults to 0: flat surface
+    Array<Float,1> surface_sigma2({n_col});
+    if (input_nc.variable_exists("surface_sigma2"))
+    {
+        surface_sigma2 = std::move(input_nc.get_variable<Float>("surface_sigma2", {n_col_y, n_col_x}));
+    }
+    else
+    {
+        surface_sigma2.fill(Float(0.));
+    }
+
     // Fetch the col_dry in case present.
     Array<Float,2> col_dry;
     if (input_nc.variable_exists("col_dry"))
@@ -725,6 +737,7 @@ void solve_radiation(int argc, char** argv)
     Array_gpu<Float,1> z_lev_gpu(z_lev);
     Array_gpu<Float,1> land_use_map_gpu(land_use_map);
     Array_gpu<int,1> surface_scattering_type_gpu(surface_scattering_type);
+    Array_gpu<Float,1> surface_sigma2_gpu(surface_sigma2);
 
     Gas_concs_gpu gas_concs_gpu(gas_concs);
 
@@ -1112,6 +1125,7 @@ void solve_radiation(int argc, char** argv)
                     col_dry_gpu,
                     alb_sfc_gpu,
                     surface_scattering_type_gpu,
+                    surface_sigma2_gpu,
                     tsi_scaling_gpu, mu0_gpu, azi_gpu,
                     lwp_gpu, iwp_gpu,
                     rel_gpu, dei_gpu,
@@ -1354,6 +1368,7 @@ void solve_radiation(int argc, char** argv)
                     rel_gpu, dei_gpu,
                     land_use_map_gpu,
                     surface_scattering_type_gpu,
+                    surface_sigma2_gpu,
                     rh_gpu,
                     aerosol_concs,
                     camera,
@@ -1409,6 +1424,7 @@ void solve_radiation(int argc, char** argv)
                     rel_gpu, dei_gpu,
                     land_use_map_gpu,
                     surface_scattering_type_gpu,
+                    surface_sigma2_gpu,
                     rh_gpu,
                     aerosol_concs,
                     camera,

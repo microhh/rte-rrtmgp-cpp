@@ -253,6 +253,7 @@ namespace
             const Vector<int> grid_cells,
             const Float* __restrict__ sfc_albedo,
             const int* __restrict__ sfc_scattering_type,
+            const Float* __restrict__ sfc_sigma2,
             Surface_props* __restrict__ sfc_props)
     {
         const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -264,6 +265,7 @@ namespace
 
             sfc_props[idx].albedo          = sfc_albedo[idx];
             sfc_props[idx].scattering_type = sfc_scattering_type[idx];
+            sfc_props[idx].sigma2          = sfc_sigma2[idx];
         }
     }
 }
@@ -295,6 +297,7 @@ void Raytracer::trace_rays(
         const Array_gpu<Float,2>& r_eff,
         const Array_gpu<Float,2>& surface_albedo,
         const Array_gpu<int,1>& surface_scattering_type,
+        const Array_gpu<Float,1>& surface_sigma2,
         const Float zenith_angle,
         const Float azimuth_angle,
         const Float tod_inc_direct,
@@ -347,7 +350,7 @@ void Raytracer::trace_rays(
     Array_gpu<Surface_props,2> surface_properties({grid_cells.x, grid_cells.y});
 
     bundle_surface_props<<<grid_2d, block_2d>>>(
-            grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_properties.ptr());
+            grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_sigma2.ptr(), surface_properties.ptr());
 
     const int block_kn_x = 8;
     const int block_kn_y = 8;

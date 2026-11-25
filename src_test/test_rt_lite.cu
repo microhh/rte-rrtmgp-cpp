@@ -392,6 +392,19 @@ void solve_radiation(int argc, char** argv)
     }
     Array_gpu<int,1> surface_scattering_type_g(surface_scattering_type);
 
+    // read Cox-Munk mean square surface slope if present (sigma2 = 0.003 + 0.00512*U12, U12 in m/s);
+    // only used for scattering types 1 and 2. Defaults to 0: flat surface
+    Array<Float,1> surface_sigma2({ncol});
+    if (input_nc.variable_exists("surface_sigma2"))
+    {
+        surface_sigma2 = std::move(input_nc.get_variable<Float>("surface_sigma2", {ny, nx}));
+    }
+    else
+    {
+        surface_sigma2.fill(Float(0.));
+    }
+    Array_gpu<Float,1> surface_sigma2_g(surface_sigma2);
+
     ///// GPU arrays
     Array_gpu<Float,2> sw_tau_tot_g(sw_tau_tot);
     Array_gpu<Float,2> sw_ssa_tot_g(sw_ssa_tot);
@@ -713,6 +726,7 @@ void solve_radiation(int argc, char** argv)
                    rel,
                    alb_sfc_g,
                    surface_scattering_type_g,
+                   surface_sigma2_g,
                    acos(mu0({1,1})),
                    azi({1,1}),
                    sw_inc_flux_direct({1,1}),
@@ -808,6 +822,7 @@ void solve_radiation(int argc, char** argv)
                 sw_asy_aer_g,
                 alb_sfc_g,
                 surface_scattering_type_g,
+                surface_sigma2_g,
                 acos(mu0({1,1})),
                 azi({1,1}),
                 sw_inc_flux_direct({1,1})/mu0({1,1}),
