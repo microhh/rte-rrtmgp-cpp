@@ -431,8 +431,6 @@ void Raytracer_bw_sw::trace_rays_xyz(
         const Camera& camera,
         Array_gpu<Float,2>& flux_camera)
 {
-    const Float mu = std::abs(std::cos(zenith_angle));
-
     const Float f_diffuse = src_diffuse / (src_direct + src_diffuse);
 
     // set of block and grid dimensions used in data processing kernels - requires some proper tuning later
@@ -537,7 +535,7 @@ void Raytracer_bw_sw::trace_rays_xyz(
     const Bool do_diffuse = f_diffuse>Float(0.);
     launch_ray_tracer_kernel_bw_sw(
             do_diffuse, dz_constant,
-            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
+            grid, block, (nbg+1)*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -549,7 +547,6 @@ void Raytracer_bw_sw::trace_rays_xyz(
             z_lev_bg.ptr(),
             r_eff.ptr(),
             surface_properties.ptr(),
-            mu,
             grid_size, grid_d, grid_cells, kn_grid,
             z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
             lut_dz, int(z_lut.size()),
@@ -622,8 +619,6 @@ void Raytracer_bw_sw::trace_rays(
         const Camera& camera,
         Array_gpu<Float,2>& flux_camera)
 {
-    const Float mu = std::abs(std::cos(zenith_angle));
-
     const Float f_diffuse = src_diffuse / (src_direct + src_diffuse);
 
     // set of block and grid dimensions used in data processing kernels - requires some proper tuning later
@@ -726,7 +721,7 @@ void Raytracer_bw_sw::trace_rays(
     const Bool do_diffuse = f_diffuse>Float(0.);
     launch_ray_tracer_kernel_bw_sw(
             do_diffuse, dz_constant,
-            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
+            grid, block, (nbg+1)*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -738,7 +733,6 @@ void Raytracer_bw_sw::trace_rays(
             z_lev_bg.ptr(),
             r_eff.ptr(),
             surface_properties.ptr(),
-            mu,
             grid_size, grid_d, grid_cells, kn_grid,
             z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
             lut_dz, int(z_lut.size()),

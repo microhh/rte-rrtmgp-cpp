@@ -77,7 +77,11 @@ namespace
 
             if (photon.position.z > grid_size.z)
             {
-                return exp(Float(-1.) * (tau_min + bg_tau_cum[bg_idx]));
+                const Float zl_bot = z_lev_bg[bg_idx];
+                const Float zl_top = z_lev_bg[bg_idx+1];
+                const Float z_frac = min(max((zl_top - photon.position.z) / (zl_top - zl_bot), Float(0.)), Float(1.));
+                const Float vertical_tau_bg = bg_tau_cum[bg_idx+1] + z_frac*(bg_tau_cum[bg_idx] - bg_tau_cum[bg_idx+1]);
+                return exp(Float(-1.) * (tau_min + vertical_tau_bg / max(sun_dir.z, Float_epsilon)));
             }
             // main grid (dynamical)
             else
@@ -328,7 +332,6 @@ void ray_tracer_kernel_bw_sw(
         const Float* __restrict__ z_lev_bg,
         const Float* __restrict__ r_eff,
         const Surface_props* __restrict__ surface_properties,
-        const Float mu,
         const Vector<Float> grid_size, const Vector<Float> grid_d,
         const Vector<int> grid_cells, const Vector<int> kn_grid,
         const Float* __restrict__ z_lev,
@@ -364,11 +367,10 @@ void ray_tracer_kernel_bw_sw(
             }
         }
 
-        Float bg_tau = Float(0.);
+        bg_tau_cum[kbg] = Float(0.);
         for (int k=kbg-1; k >= 0; --k)
         {
-            bg_tau += k_ext_bg[k] * abs(z_lev_bg[k+1]-z_lev_bg[k]) / mu;
-            bg_tau_cum[k] = bg_tau;
+            bg_tau_cum[k] = bg_tau_cum[k+1] + k_ext_bg[k] * abs(z_lev_bg[k+1]-z_lev_bg[k]);
         }
     }
 
@@ -377,8 +379,6 @@ void ray_tracer_kernel_bw_sw(
     Vector<Float> surface_normal = {0, 0, 1};
 
     const int n = blockDim.x * blockIdx.x + threadIdx.x;
-
-    const Float bg_transmissivity = exp(-bg_tau_cum[0]);
 
     const Vector<Float> kn_grid_d = grid_size / kn_grid;
     const Float z_top = z_lev_bg[kbg];
@@ -1015,7 +1015,6 @@ void launch_ray_tracer_kernel_bw_sw(
         const Float* __restrict__ z_lev_bg,
         const Float* __restrict__ r_eff,
         const Surface_props* __restrict__ surface_properties,
-        const Float mu,
         const Vector<Float> grid_size, const Vector<Float> grid_d,
         const Vector<int> grid_cells, const Vector<int> kn_grid,
         const Float* __restrict__ z_lev,
@@ -1047,7 +1046,6 @@ void launch_ray_tracer_kernel_bw_sw(
                 z_lev_bg,
                 r_eff,
                 surface_properties,
-                mu,
                 grid_size, grid_d, grid_cells, kn_grid,
                 z_lev, kn_z_lev, z_lut, kn_z_lut,
                 lut_dz, lut_size,

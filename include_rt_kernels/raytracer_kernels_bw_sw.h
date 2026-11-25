@@ -53,7 +53,6 @@ void launch_ray_tracer_kernel_bw_sw(
         const Float* __restrict__ z_lev_bg,
         const Float* __restrict__ r_eff,
         const Surface_props* __restrict__ surface_properties,
-        const Float mu,
         const Vector<Float> grid_size,
         const Vector<Float> grid_d,
         const Vector<int> grid_cells,
