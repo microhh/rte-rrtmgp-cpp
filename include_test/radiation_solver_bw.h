@@ -111,7 +111,7 @@ class Radiation_solver_bw_shortwave
 
         void load_mie_tables(
                 const std::string& file_name_mie_bb,
-                const std::string& file_name_mie_im,
+                const std::string& file_name_mie_xyz,
                 const bool switch_broadband,
                 const bool switch_image);
 
@@ -217,10 +217,10 @@ class Radiation_solver_bw_shortwave
         Array_gpu<Float,4> mie_angs_bb;
         Array_gpu<Float,4> mie_phase_bb;
 
-        Array_gpu<Float,1> mie_phase_angs;
-        Array_gpu<Float,3> mie_cdfs;
-        Array_gpu<Float,4> mie_angs;
-        Array_gpu<Float,4> mie_phase;
+        Array_gpu<Float,1> mie_phase_angs_xyz;
+        Array_gpu<Float,3> mie_cdfs_xyz;
+        Array_gpu<Float,4> mie_angs_xyz;
+        Array_gpu<Float,4> mie_phase_xyz;
 
         #endif
 };
