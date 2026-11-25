@@ -828,7 +828,7 @@ void ray_tracer_kernel_bw_sw(
 
                                 Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
 
-                                const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(4.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
+                                const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(4.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, ijk, mie_phase_table_size, surface_normal, kind);
                                 const Float trans_dif = transmission_direct_sun<dz_constant>(photon,n,rng,diffuse_direction,
                                                             k_null_grid,k_ext,
                                                             bg_tau_cum, z_lev_bg, bg_idx,
