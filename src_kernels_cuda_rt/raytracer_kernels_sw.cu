@@ -260,29 +260,17 @@ void ray_tracer_kernel(
                 //     write_photon_out(&surface_down_diffuse_count[ij], weight);
 
                 // surface reflectances depending on scattering type
-                const Vector<Float> surface_normal = {Float(0.), Float(0.), Float(1.)};
                 const Surface_props& sfc = surface_properties[ij];
-                const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
-                const Surface_reflectance refl = surface_reflectance(sfc, cos_i);
-                const Float R_tot = refl.R_spec + refl.R_diff;
+                const Surface_interaction si = surface_interaction(sfc, photon.direction, rng);
+                const Float R_tot = si.R_spec + si.R_diff;
 
-                //  specular or lambertian reflection
-                const bool spec_branch = (refl.R_spec > Float(0.)) && (rng() * R_tot < refl.R_spec);
+                // specular or lambertian reflection, proportional to their share; weight R_tot either way
+                const bool spec_branch = (si.R_spec > Float(0.)) && (rng() * R_tot < si.R_spec);
 
                 Vector<Float> dir_out;
                 if (spec_branch)
                 {
-                    if (is_rough(sfc))
-                    {
-                        const Facet_sample facet = sample_cox_munk(photon.direction, sfc.sigma2, rng);
-                        dir_out = facet.direction;
-                        weight *= R_tot * facet.weight / refl.R_spec;
-                    }
-                    else
-                    {
-                        dir_out = specular(photon.direction, surface_normal);
-                        weight *= R_tot;
-                    }
+                    dir_out = si.dir_spec;
                 }
                 else
                 {
@@ -290,8 +278,8 @@ void ray_tracer_kernel(
                     const Float azimuth_surface = Float(2.*M_PI)*rng();
                     const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
                     dir_out = {sin_theta*sin(azimuth_surface), sin_theta*cos(azimuth_surface), mu_surface};
-                    weight *= R_tot;
                 }
+                weight *= R_tot;
 
                 // add upward surface flux
                 write_photon_out(&surface_up_count[ij], weight);

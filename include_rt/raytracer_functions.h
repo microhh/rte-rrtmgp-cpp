@@ -168,7 +168,30 @@ namespace Raytracer_functions
         return (Float(3.535) * a + Float(2.181) * a * a) / (Float(1.) + Float(2.276) * a + Float(2.577) * a * a);
     }
 
-    // sample cox_munk/beckmann brdf with Smith shadowing function. See e.g. Walter et al. (2007)
+    // Smith Lambda for Beckmann / isotropic Cox-Munk, from the Walter et al. (2007) eq. 27 fit
+    // via Lambda = (1 - G1)/G1 (Heitz 2014, below eq. 69)
+    __device__
+    inline Float cox_munk_Lambda(const Float mu, const Float sigma2)
+    {
+        const Float a = mu / max(sqrt(sigma2*(Float(1.) - mu*mu)), Float(1e-12));
+
+        if (a >= Float(1.6))
+            return Float(0.);
+
+        return (Float(1.) - Float(1.259) * a + Float(0.396) * a * a) / (Float(3.535) * a + Float(2.181) * a * a);
+    }
+
+    // height-correlated Smith masking-shadowing function, Heitz (2014) eq. 99
+    __device__
+    inline Float cox_munk_G2(const Float mu_in, const Float mu_out, const Float sigma2)
+    {
+        if (mu_in <= Float(0.) || mu_out <= Float(0.))
+            return Float(0.);
+
+        return Float(1.) / (Float(1.) + cox_munk_Lambda(mu_in, sigma2) + cox_munk_Lambda(mu_out, sigma2));
+    }
+
+    // cox_munk/beckmann brdf times mu_out with height-correlated Smith shadowing. Walter et al. (2007) eq. 20, Heitz (2014) eq. 99
     __device__
     inline Float cox_munk_brdf_cos(const Vector<Float>& dir_in, const Vector<Float>& dir_out, const Float sigma2)
     {
@@ -182,37 +205,59 @@ namespace Raytracer_functions
         const Float cos_half = max(dot(dir_out, half), Float(0.));
 
         return fresnel_unpolarized(cos_half, n_water) * cox_munk_D(half.z, sigma2)
-             * cox_munk_G(mu_in, sigma2) * cox_munk_G(mu_out, sigma2) / (Float(4.)*mu_in);
+             * cox_munk_G2(mu_in, mu_out, sigma2) / (Float(4.)*mu_in);
     }
 
-    struct Facet_sample
+    struct Surface_interaction
     {
-        Vector<Float> direction; // reflected direction
-        Float weight;            // reflectance factor; 0 if back-facing facet or reflected into the surface
+        Vector<Float> dir_spec; // specular direction: mirror about the (sampled) facet normal
+        Float R_spec;           // flat: F(mu_in)               rough: F G2 cos_in/(n_z mu_in)
+        Float R_diff;           // flat: (1-F(mu_in)) albedo    rough: (1-F) G1_in cos_in/(n_z mu_in) albedo
     };
 
+    // Partition of a photon hitting the surface into specular and lambertian (water-leaving) parts.
+    // Rough surfaces: facet normal n ~ D(n) n_z (Walter et al. 2007, eqs. 28-29), and both parts use the
+    // local Fresnel F(cos_in) of that facet, so their expectations are consistent with each other and with
+    // cox_munk_brdf_cos. Expectation of R_spec is the directional albedo of the rough specular BRDF.
     template<typename RNG> __device__
-    inline Facet_sample sample_cox_munk(const Vector<Float>& dir_in, const Float sigma2, RNG& rng)
+    inline Surface_interaction surface_interaction(const Surface_props& sfc, const Vector<Float>& dir_in, RNG& rng)
     {
-        // Walter et al. 2007 eq 28 & 29
-        const Float slope = sqrt(-sigma2 * log(max(rng(), Float_epsilon)));
-        const Float phi = Float(2.*M_PI) * rng();
+        const Vector<Float> z_hat = {Float(0.), Float(0.), Float(1.)};
+        const Float mu_in = -dir_in.z;
 
+        if (!is_rough(sfc))
+        {
+            const Surface_reflectance refl = surface_reflectance(sfc, max(mu_in, Float(0.)));
+            return {specular(dir_in, z_hat), refl.R_spec, refl.R_diff};
+        }
+
+        const Surface_interaction none = {dir_in, Float(0.), Float(0.)};
+        if (mu_in <= Float(0.))
+            return none;
+
+        // isotropic gaussian slopes, slope^2 ~ Exp(mean sigma2)
+        const Float slope = sqrt(-sfc.sigma2 * log(max(rng(), Float_epsilon)));
+        const Float phi = Float(2.*M_PI) * rng();
         const Vector<Float> n = normalize(Vector<Float>{-slope*cos(phi), -slope*sin(phi), Float(1.)});
 
-        // check if facet faces away from photon
+        // back-facing facet: zero visible area (exact zero)
         const Float cos_in = -dot(dir_in, n);
         if (cos_in <= Float(0.))
-            return {dir_in, Float(0.)};
+            return none;
 
+        const Float F    = fresnel_unpolarized(cos_in, n_water);
+        const Float geom = cos_in / (n.z * mu_in); // beam-intercepted facet area relative to its footprint
         const Vector<Float> dir_out = specular(dir_in, n);
-        if (dir_out.z <= Float(0.))
-            return {dir_out, Float(0.)};
 
-        const Float w = fresnel_unpolarized(cos_in, n_water)
-                      * cox_munk_G(-dir_in.z, sigma2) * cox_munk_G(dir_out.z, sigma2)
-                      * cos_in / (n.z * -dir_in.z);
-        return {dir_out, w};
+        // specular: G2 = 0 if reflected into the surface (second bounce not modelled)
+        const Float R_spec = F * cox_munk_G2(mu_in, dir_out.z, sfc.sigma2) * geom;
+
+        // lambertian: transmitted through this facet, only shadowed on the way in
+        const Float R_diff = (sfc.scattering_type == Surface_specular_lambertian)
+                           ? (Float(1.) - F) * cox_munk_G(mu_in, sfc.sigma2) * geom * sfc.albedo
+                           : Float(0.);
+
+        return {dir_out, R_spec, R_diff};
     }
 
     __device__

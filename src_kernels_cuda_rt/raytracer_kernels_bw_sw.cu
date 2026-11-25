@@ -614,19 +614,14 @@ void ray_tracer_kernel_bw_sw(
                         d_max = Float(0.);
 
                         const Surface_props& sfc = surface_properties[ij];
-                        const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
+                        const bool rough    = is_rough(sfc);
+                        const bool has_spec = (sfc.scattering_type != Surface_lambertian);
 
-                        // surface reflectances depending on scattering type
-                        const Surface_reflectance refl = surface_reflectance(sfc, cos_i);
-                        const Float R_spec = refl.R_spec;
-                        const Float R_diff = refl.R_diff;
-                        const Float R_tot = R_spec + R_diff;
-                        const bool rough = is_rough(sfc);
-
-                        // specular reflection: flat mirror, or one Cox-Munk facet sample
-                        Facet_sample facet = {specular(photon.direction, surface_normal), R_spec};
-                        if (rough && R_spec > Float(0.))
-                            facet = sample_cox_munk(photon.direction, sfc.sigma2, rng);
+                        // one (facet) sample, reused for the NEE diffuse part, TOD diffuse and continuation
+                        const Surface_interaction si = surface_interaction(sfc, photon.direction, rng);
+                        const Float R_spec = si.R_spec;
+                        const Float R_diff = si.R_diff;
+                        const Float R_tot  = R_spec + R_diff;
 
                         auto trans_to = [&](const Vector<Float>& dir)
                         {
@@ -644,7 +639,9 @@ void ray_tracer_kernel_bw_sw(
                         Float p_sun_diff = Float(0.);
                         const Float cos_sun = max(dot(sun_direction, surface_normal), Float(0.));
 
-                        if (R_spec > Float(0.))
+                        // gate on surface type, not on the sample: a rough facet sample can have R_spec = 0
+                        // while the BRDF towards the sun is nonzero
+                        if (has_spec)
                         {
                             p_sun_spec = rough
                                 ? cox_munk_brdf_cos(photon.direction, sun_direction, sfc.sigma2) * sun_solid_angle
@@ -665,9 +662,9 @@ void ray_tracer_kernel_bw_sw(
                         // TOD diffuse contribution
                         if (tod_diffuse)
                         {
-                            if (facet.weight > Float(0.))
+                            if (R_spec > Float(0.))
                             {
-                                atomicAdd(&camera_count_diffuse[ij_cam], weight * facet.weight * Float(2.0) * trans_to(facet.direction));
+                                atomicAdd(&camera_count_diffuse[ij_cam], weight * R_spec * Float(2.0) * trans_to(si.dir_spec));
                             }
 
                             if (R_diff > Float(0.))
@@ -683,7 +680,7 @@ void ray_tracer_kernel_bw_sw(
                         }
 
                         const bool spec_branch = (R_spec > Float(0.)) && (rng() * R_tot < R_spec);
-                        weight *= spec_branch ? R_tot * facet.weight / R_spec : R_tot;
+                        weight *= R_tot;
 
                         if (weight < w_thres)
                             weight = (rng() > weight) ? Float(0.) : Float(1.);
@@ -694,7 +691,7 @@ void ray_tracer_kernel_bw_sw(
                             if (spec_branch)
                             {
                                 // specular (flat or rough)
-                                photon.direction = facet.direction;
+                                photon.direction = si.dir_spec;
                             }
                             else
                             {
