@@ -614,10 +614,11 @@ void ray_tracer_kernel_bw_sw(
                         d_max = Float(0.);
 
                         const Surface_props& sfc = surface_properties[ij];
-                        const bool rough    = is_rough(sfc);
-                        const bool has_spec = (sfc.scattering_type != Surface_lambertian);
 
-                        // one (facet) sample, reused for the NEE diffuse part, TOD diffuse and continuation
+                        const bool rough_surface = is_rough(sfc);
+                        const bool do_specular = (sfc.scattering_type != Surface_lambertian);
+
+                        // Surface reflectances, and direction of specular reflection, for flat or rough surfaces (is_rough is called again in function).
                         const Surface_interaction si = surface_interaction(sfc, photon.direction, rng);
                         const Float R_spec = si.R_spec;
                         const Float R_diff = si.R_diff;
@@ -634,17 +635,14 @@ void ray_tracer_kernel_bw_sw(
                                         s_min, s_min_bg);
                         };
 
-                        // TOD direct contribution
                         Float p_sun_spec = Float(0.);
                         Float p_sun_diff = Float(0.);
                         const Float cos_sun = max(dot(sun_direction, surface_normal), Float(0.));
 
-                        // gate on surface type, not on the sample: a rough facet sample can have R_spec = 0
-                        // while the BRDF towards the sun is nonzero
-                        if (has_spec)
+                        if (do_specular)
                         {
-                            p_sun_spec = rough
-                                ? cox_munk_brdf_cos(photon.direction, sun_direction, sfc.sigma2) * sun_solid_angle
+                            p_sun_spec = rough_surface
+                                ? cox_munk_brdf(photon.direction, sun_direction, sfc.sigma2) * sun_solid_angle // Fresnel reflectivity included in cox_munk_brdf
                                 : R_spec * probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Specular);
                         }
                         if (R_diff > Float(0.))
@@ -695,7 +693,7 @@ void ray_tracer_kernel_bw_sw(
                             }
                             else
                             {
-                                // Lambertian lobe
+                                // Lambertian
                                 const Float mu_surface = sqrt(rng());
                                 const Float azimuth_surface = Float(2.*M_PI)*rng();
                                 const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);

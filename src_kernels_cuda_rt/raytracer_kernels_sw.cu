@@ -264,7 +264,7 @@ void ray_tracer_kernel(
                 const Surface_interaction si = surface_interaction(sfc, photon.direction, rng);
                 const Float R_tot = si.R_spec + si.R_diff;
 
-                // specular or lambertian reflection, proportional to their share; weight R_tot either way
+                // specular or lambertian reflection
                 const bool spec_branch = (si.R_spec > Float(0.)) && (rng() * R_tot < si.R_spec);
 
                 Vector<Float> dir_out;
@@ -291,7 +291,7 @@ void ray_tracer_kernel(
                 if (weight > Float(0.))
                 {
                     photon.direction = dir_out;
-                    // reflected photons always count as diffuse
+
                     photon.kind = Photon_kind::Diffuse;
                 }
                 else

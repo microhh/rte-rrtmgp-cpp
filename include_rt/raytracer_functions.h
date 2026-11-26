@@ -109,22 +109,22 @@ namespace Raytracer_functions
         Float R_diff; // lambertian reflectance
     };
 
-    // Specular and lambertian surface reflectance for a photon hitting the surface with cos(incidence angle) cos_i
+    // Specular and lambertian surface reflectances for a flat surface
     __device__
-    inline Surface_reflectance surface_reflectance(const Surface_props& props, const Float cos_i)
+    inline Surface_reflectance surface_reflectance(const Surface_props& sfc, const Float cos_i)
     {
-        if (props.scattering_type == Surface_lambertian)
+        if (sfc.scattering_type == Surface_lambertian)
         {
-            return {Float(0.), props.albedo};
+            return {Float(0.), sfc.albedo};
         }
-        else if (props.scattering_type == Surface_specular)
+        else if (sfc.scattering_type == Surface_specular)
         {
             return {fresnel_unpolarized(cos_i, n_water), Float(0.)};
         }
         else // Surface_specular_lambertian
         {
             const Float R_spec = fresnel_unpolarized(cos_i, n_water);
-            return {R_spec, (Float(1.) - R_spec) * props.albedo};
+            return {R_spec, (Float(1.) - R_spec) * sfc.albedo};
         }
     }
 
@@ -134,7 +134,7 @@ namespace Raytracer_functions
         return dir_in - Float(2.)*dir_n*dot(dir_n, dir_in);
     }
 
-    // minumum sigma2 value use Cox-Munk microfacet distribution, otherwise assume perfectly flat surface
+    // minimum sigma2 value use Cox-Munk microfacet distribution, otherwise assume perfectly flat surface
     constexpr Float sigma2_min = Float(1e-5);
 
     __device__
@@ -143,7 +143,7 @@ namespace Raytracer_functions
         return (props.scattering_type != Surface_lambertian) && (props.sigma2 > sigma2_min);
     }
 
-    // Beckmann face normal ditribution / isotropic Cox-Munk PDF normalized such that int D cos_n dOmega equals 1
+    // Beckmann face normal diribution / isotropic Cox-Munk PDF
     __device__
     inline Float cox_munk_D(const Float cos_n, const Float sigma2)
     {
@@ -169,7 +169,7 @@ namespace Raytracer_functions
     }
 
     // Smith Lambda for Beckmann / isotropic Cox-Munk, from the Walter et al. (2007) eq. 27 fit
-    // via Lambda = (1 - G1)/G1 (Heitz 2014, below eq. 69)
+    // Lambda = (1 - G1)/G1 (Heitz 2014, see e.g. eq 69 and 99)
     __device__
     inline Float cox_munk_Lambda(const Float mu, const Float sigma2)
     {
@@ -191,9 +191,10 @@ namespace Raytracer_functions
         return Float(1.) / (Float(1.) + cox_munk_Lambda(mu_in, sigma2) + cox_munk_Lambda(mu_out, sigma2));
     }
 
-    // cox_munk/beckmann brdf times mu_out with height-correlated Smith shadowing. Walter et al. (2007) eq. 20, Heitz (2014) eq. 99
+    // cox_munk/beckmann brdf with height-correlated Smith shadowing. Walter et al. (2007) eq. 20, Heitz (2014) eq. 99
+    // multiplied with cos(dir_out.z), illumination direction
     __device__
-    inline Float cox_munk_brdf_cos(const Vector<Float>& dir_in, const Vector<Float>& dir_out, const Float sigma2)
+    inline Float cox_munk_brdf(const Vector<Float>& dir_in, const Vector<Float>& dir_out, const Float sigma2)
     {
         const Float mu_in  = -dir_in.z;
         const Float mu_out =  dir_out.z;
@@ -210,15 +211,12 @@ namespace Raytracer_functions
 
     struct Surface_interaction
     {
-        Vector<Float> dir_spec; // specular direction: mirror about the (sampled) facet normal
-        Float R_spec;           // flat: F(mu_in)               rough: F G2 cos_in/(n_z mu_in)
-        Float R_diff;           // flat: (1-F(mu_in)) albedo    rough: (1-F) G1_in cos_in/(n_z mu_in) albedo
+        Vector<Float> dir_spec; // specular direction:
+        Float R_spec;           // specular albedo: F(mu_in) for flat surface, F*G2*cos_in/(n_z*mu_in) for rough surface
+        Float R_diff;           // diffuse/lambertian albedo: flat: (1-F(mu_in)) albedo    rough: (1-F) G1_in cos_in/(n_z mu_in) albedo
     };
 
-    // Partition of a photon hitting the surface into specular and lambertian (water-leaving) parts.
-    // Rough surfaces: facet normal n ~ D(n) n_z (Walter et al. 2007, eqs. 28-29), and both parts use the
-    // local Fresnel F(cos_in) of that facet, so their expectations are consistent with each other and with
-    // cox_munk_brdf_cos. Expectation of R_spec is the directional albedo of the rough specular BRDF.
+    // Specular and lambertian surface reflectances, and direction of specular reflection, either for a flat surface or for a rough surface.
     template<typename RNG> __device__
     inline Surface_interaction surface_interaction(const Surface_props& sfc, const Vector<Float>& dir_in, RNG& rng)
     {
@@ -235,12 +233,13 @@ namespace Raytracer_functions
         if (mu_in <= Float(0.))
             return none;
 
-        // isotropic gaussian slopes, slope^2 ~ Exp(mean sigma2)
+        // sample facet orientation from isotropic gaussian slopes distribution
+        // Walter et al. 2007, eq 28 & 29
         const Float slope = sqrt(-sfc.sigma2 * log(max(rng(), Float_epsilon)));
         const Float phi = Float(2.*M_PI) * rng();
         const Vector<Float> n = normalize(Vector<Float>{-slope*cos(phi), -slope*sin(phi), Float(1.)});
 
-        // back-facing facet: zero visible area (exact zero)
+        // back-facing facets are invisible
         const Float cos_in = -dot(dir_in, n);
         if (cos_in <= Float(0.))
             return none;
@@ -249,10 +248,10 @@ namespace Raytracer_functions
         const Float geom = cos_in / (n.z * mu_in); // beam-intercepted facet area relative to its footprint
         const Vector<Float> dir_out = specular(dir_in, n);
 
-        // specular: G2 = 0 if reflected into the surface (second bounce not modelled)
+        // specular reflectivity (Walter et al., 2017 eq 41, including F(cos_in)
         const Float R_spec = F * cox_munk_G2(mu_in, dir_out.z, sfc.sigma2) * geom;
 
-        // lambertian: transmitted through this facet, only shadowed on the way in
+        // lambertian/water-leaving reflectivity: transmitted through this facet, only shadowed on the way in
         const Float R_diff = (sfc.scattering_type == Surface_specular_lambertian)
                            ? (Float(1.) - F) * cox_munk_G(mu_in, sfc.sigma2) * geom * sfc.albedo
                            : Float(0.);
