@@ -260,13 +260,28 @@ void ray_tracer_kernel(
                 //     write_photon_out(&surface_down_diffuse_count[ij], weight);
 
                 // surface reflectances depending on scattering type
-                const Vector<Float> surface_normal = {Float(0.), Float(0.), Float(1.)};
-                const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
-                const Surface_reflectance refl = surface_reflectance(surface_properties[ij], cos_i);
-                const Float R_tot = refl.R_spec + refl.R_diff;
+                const Surface_props& sfc = surface_properties[ij];
+                const Surface_interaction si = surface_interaction(sfc, photon.direction, rng);
+                const Float R_tot = si.R_spec + si.R_diff;
 
-                // Update weights and add upward surface flux
+                // specular or lambertian reflection
+                const bool spec_branch = (si.R_spec > Float(0.)) && (rng() * R_tot < si.R_spec);
+
+                Vector<Float> dir_out;
+                if (spec_branch)
+                {
+                    dir_out = si.dir_spec;
+                }
+                else
+                {
+                    const Float mu_surface = sqrt(rng());
+                    const Float azimuth_surface = Float(2.*M_PI)*rng();
+                    const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
+                    dir_out = {sin_theta*sin(azimuth_surface), sin_theta*cos(azimuth_surface), mu_surface};
+                }
                 weight *= R_tot;
+
+                // add upward surface flux
                 write_photon_out(&surface_up_count[ij], weight);
 
                 if (weight < w_thres)
@@ -275,23 +290,8 @@ void ray_tracer_kernel(
                 // only with nonzero weight continue ray tracing, else start new ray
                 if (weight > Float(0.))
                 {
-                    // choose specular or lambertian reflection, proportional to their share of the total reflectance
-                    // (R_spec check first: purely lambertian surfaces do not draw an extra random number)
-                    if (refl.R_spec > Float(0.) && rng() * R_tot < refl.R_spec)
-                    {
-                        photon.direction = specular(photon.direction, surface_normal);
-                    }
-                    else
-                    {
-                        const Float mu_surface = sqrt(rng());
-                        const Float azimuth_surface = Float(2.*M_PI)*rng();
-                        const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
+                    photon.direction = dir_out;
 
-                        photon.direction.x = sin_theta*sin(azimuth_surface);
-                        photon.direction.y = sin_theta*cos(azimuth_surface);
-                        photon.direction.z = mu_surface;
-                    }
-                    // reflected photons always count as diffuse
                     photon.kind = Photon_kind::Diffuse;
                 }
                 else

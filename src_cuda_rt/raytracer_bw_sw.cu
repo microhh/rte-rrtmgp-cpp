@@ -4,8 +4,8 @@
 #include "optical_props_rt.h"
 #include "array.h"
 
-#include "raytracer_bw.h"
-#include "raytracer_kernels_bw.h"
+#include "raytracer_bw_sw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "gas_optics_rrtmgp_kernels_cuda_rt.h"
 
 
@@ -128,7 +128,7 @@ namespace
 
 
     __global__
-    void bundles_optical_props(
+    void bundles_optical_props_xyz(
             const Vector<int> grid_cells, const int nlay, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
@@ -168,7 +168,7 @@ namespace
     }
 
     __global__
-    void bundles_optical_props_bb(
+    void bundles_optical_props(
             const Vector<int> grid_cells, const int nlay, const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
             const Float* __restrict__ tau_cld, const Float* __restrict__ ssa_cld, const Float* __restrict__ asy_cld,
@@ -203,6 +203,7 @@ namespace
             const Vector<int> grid_cells,
             const Float* __restrict__ sfc_albedo,
             const int* __restrict__ sfc_scattering_type,
+            const Float* __restrict__ sfc_sigma2,
             Surface_props* __restrict__ sfc_props)
     {
         const int icol_x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -214,11 +215,12 @@ namespace
 
             sfc_props[idx].albedo          = sfc_albedo[idx];
             sfc_props[idx].scattering_type = sfc_scattering_type[idx];
+            sfc_props[idx].sigma2          = sfc_sigma2[idx];
         }
     }
 
     __global__
-    void background_profile(
+    void background_profile_xyz(
             const Vector<int> grid_cells, const int nbg,
             const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
@@ -259,7 +261,7 @@ namespace
     }
 
     __global__
-    void background_profile_bb(
+    void background_profile(
             const Vector<int> grid_cells, const int nbg,
             const Float* __restrict__ z_lev,
             const Float* __restrict__ tau_tot, const Float* __restrict__ ssa_tot,
@@ -323,11 +325,11 @@ static bool vertical_spacing_is_constant(const Array_gpu<Float,1>& z_lev_gpu, co
 }
 
 
-Raytracer_bw::Raytracer_bw()
+Raytracer_bw_sw::Raytracer_bw_sw()
 {
 }
 
-void Raytracer_bw::add_camera(
+void Raytracer_bw_sw::add_camera(
     const Camera& camera,
     const Array_gpu<Float,2>& flux_camera,
     Array_gpu<Float,2>& radiance)
@@ -347,7 +349,7 @@ void Raytracer_bw::add_camera(
             radiance.ptr());
 }
 
-void Raytracer_bw::add_xyz_camera(
+void Raytracer_bw_sw::add_xyz_camera(
     const Camera& camera,
     const Array_gpu<Float,1>& xyz_factor,
     const Array_gpu<Float,2>& flux_camera,
@@ -370,7 +372,7 @@ void Raytracer_bw::add_xyz_camera(
 }
 
 
-void Raytracer_bw::normalize_xyz_camera(
+void Raytracer_bw_sw::normalize_xyz_camera(
     const Camera& camera,
     const Float total_source,
     Array_gpu<Float,3>& XYZ)
@@ -392,7 +394,7 @@ void Raytracer_bw::normalize_xyz_camera(
 }
 
 
-void Raytracer_bw::trace_rays(
+void Raytracer_bw_sw::trace_rays_xyz(
         const int igpt,
         const int photons_per_pixel,
         const int nlay,
@@ -420,6 +422,7 @@ void Raytracer_bw::trace_rays(
         const Array_gpu<Float,2>& asy_aeros,
         const Array_gpu<Float,2>& surface_albedo,
         const Array_gpu<int,1>& surface_scattering_type,
+        const Array_gpu<Float,1>& surface_sigma2,
         const Float zenith_angle,
         const Float azimuth_angle,
         const Float src_direct,
@@ -431,8 +434,6 @@ void Raytracer_bw::trace_rays(
         const Camera& camera,
         Array_gpu<Float,2>& flux_camera)
 {
-    const Float mu = std::abs(std::cos(zenith_angle));
-
     const Float f_diffuse = src_diffuse / (src_direct + src_diffuse);
 
     // set of block and grid dimensions used in data processing kernels - requires some proper tuning later
@@ -451,7 +452,7 @@ void Raytracer_bw::trace_rays(
     Array_gpu<Surface_props,2> surface_properties({grid_cells.x, grid_cells.y});
 
     bundle_surface_props<<<grid_2d, block_2d>>>(
-        grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_properties.ptr());
+        grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_sigma2.ptr(), surface_properties.ptr());
 
     // bundle optical properties in struct
     Array_gpu<Float,3> k_ext({grid_cells.x, grid_cells.y, grid_cells.z});
@@ -460,7 +461,7 @@ void Raytracer_bw::trace_rays(
     dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
     dim3 block_3d(block_col_x, block_col_y, block_z);
 
-    bundles_optical_props<<<grid_3d, block_3d>>>(
+    bundles_optical_props_xyz<<<grid_3d, block_3d>>>(
             grid_cells, nlay, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
@@ -497,7 +498,7 @@ void Raytracer_bw::trace_rays(
     dim3 grid_1d(grid_1d_z);
     dim3 block_1d(block_1d_z);
 
-    background_profile<<<grid_1d, block_1d>>>(
+    background_profile_xyz<<<grid_1d, block_1d>>>(
             grid_cells, nbg, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
@@ -526,7 +527,7 @@ void Raytracer_bw::trace_rays(
                                          std::sin(zenith_angle) * std::cos(azimuth_angle),
                                          std::cos(zenith_angle)};
 
-    dim3 grid{bw_kernel_grid}, block{bw_kernel_block};
+    dim3 grid{bw_sw_kernel_grid}, block{bw_sw_kernel_block};
 
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
@@ -535,9 +536,9 @@ void Raytracer_bw::trace_rays(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    launch_ray_tracer_kernel_bw(
+    launch_ray_tracer_kernel_bw_sw(
             do_diffuse, dz_constant,
-            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
+            grid, block, (nbg+1)*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -549,7 +550,6 @@ void Raytracer_bw::trace_rays(
             z_lev_bg.ptr(),
             r_eff.ptr(),
             surface_properties.ptr(),
-            mu,
             grid_size, grid_d, grid_cells, kn_grid,
             z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
             lut_dz, int(z_lut.size()),
@@ -587,7 +587,7 @@ void Raytracer_bw::trace_rays(
     }
 }
 
-void Raytracer_bw::trace_rays_bb(
+void Raytracer_bw_sw::trace_rays(
         const int igpt,
         const int photons_per_pixel,
         const int nlay,
@@ -615,6 +615,7 @@ void Raytracer_bw::trace_rays_bb(
         const Array_gpu<Float,2>& asy_aeros,
         const Array_gpu<Float,2>& surface_albedo,
         const Array_gpu<int,1>& surface_scattering_type,
+        const Array_gpu<Float,1>& surface_sigma2,
         const Float zenith_angle,
         const Float azimuth_angle,
         const Float src_direct,
@@ -622,8 +623,6 @@ void Raytracer_bw::trace_rays_bb(
         const Camera& camera,
         Array_gpu<Float,2>& flux_camera)
 {
-    const Float mu = std::abs(std::cos(zenith_angle));
-
     const Float f_diffuse = src_diffuse / (src_direct + src_diffuse);
 
     // set of block and grid dimensions used in data processing kernels - requires some proper tuning later
@@ -642,7 +641,7 @@ void Raytracer_bw::trace_rays_bb(
     Array_gpu<Surface_props,2> surface_properties({grid_cells.x, grid_cells.y});
 
     bundle_surface_props<<<grid_2d, block_2d>>>(
-        grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_properties.ptr());
+        grid_cells, surface_albedo.ptr(), surface_scattering_type.ptr(), surface_sigma2.ptr(), surface_properties.ptr());
 
     dim3 grid_3d(grid_col_x, grid_col_y, grid_z);
     dim3 block_3d(block_col_x, block_col_y, block_z);
@@ -651,7 +650,7 @@ void Raytracer_bw::trace_rays_bb(
     Array_gpu<Float,3> k_ext({grid_cells.x, grid_cells.y, grid_cells.z});
     Array_gpu<Optics_scat,3> ssa_asy({grid_cells.x, grid_cells.y, grid_cells.z});
 
-    bundles_optical_props_bb<<<grid_3d, block_3d>>>(
+    bundles_optical_props<<<grid_3d, block_3d>>>(
             grid_cells, nlay, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
@@ -688,7 +687,7 @@ void Raytracer_bw::trace_rays_bb(
     dim3 grid_1d(grid_1d_z);
     dim3 block_1d(block_1d_z);
 
-    background_profile_bb<<<grid_1d, block_1d>>>(
+    background_profile<<<grid_1d, block_1d>>>(
             grid_cells, nbg, z_lev.ptr(),
             tau_total.ptr(), ssa_total.ptr(),
             tau_cloud.ptr(), ssa_cloud.ptr(), asy_cloud.ptr(),
@@ -715,7 +714,7 @@ void Raytracer_bw::trace_rays_bb(
                                          std::sin(zenith_angle) * std::cos(azimuth_angle),
                                          std::cos(zenith_angle)};
 
-    dim3 grid{bw_kernel_grid}, block{bw_kernel_block};
+    dim3 grid{bw_sw_kernel_grid}, block{bw_sw_kernel_block};
 
     const int mie_cdf_table_size = mie_cdf.size();
     const int mie_phase_table_size = mie_phase_ang.size();
@@ -724,9 +723,9 @@ void Raytracer_bw::trace_rays_bb(
     const bool dz_constant = vertical_spacing_is_constant(z_lev, grid_cells.z);
 
     const Bool do_diffuse = f_diffuse>Float(0.);
-    launch_ray_tracer_kernel_bw(
+    launch_ray_tracer_kernel_bw_sw(
             do_diffuse, dz_constant,
-            grid, block, nbg*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
+            grid, block, (nbg+1)*sizeof(Float)+ sizeof(Float)*(mie_cdf_table_size+mie_phase_table_size),
             igpt-1,
             photons_per_pixel, k_null_grid.ptr(),
             camera_count_direct.ptr(),
@@ -738,7 +737,6 @@ void Raytracer_bw::trace_rays_bb(
             z_lev_bg.ptr(),
             r_eff.ptr(),
             surface_properties.ptr(),
-            mu,
             grid_size, grid_d, grid_cells, kn_grid,
             z_lev.ptr(), kn_z_lev.ptr(), z_lut.ptr(), kn_z_lut.ptr(),
             lut_dz, int(z_lut.size()),
@@ -777,7 +775,7 @@ void Raytracer_bw::trace_rays_bb(
     }
 }
 
-void Raytracer_bw::accumulate_clouds(
+void Raytracer_bw_sw::accumulate_clouds(
         const Vector<Float>& grid_d,
         const Vector<int>& grid_cells,
         const Array_gpu<Float,1>& z_lev,

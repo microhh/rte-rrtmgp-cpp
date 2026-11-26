@@ -109,22 +109,22 @@ namespace Raytracer_functions
         Float R_diff; // lambertian reflectance
     };
 
-    // Specular and lambertian surface reflectance for a photon hitting the surface with cos(incidence angle) cos_i
+    // Specular and lambertian surface reflectances for a flat surface
     __device__
-    inline Surface_reflectance surface_reflectance(const Surface_props& props, const Float cos_i)
+    inline Surface_reflectance surface_reflectance(const Surface_props& sfc, const Float cos_i)
     {
-        if (props.scattering_type == Surface_lambertian)
+        if (sfc.scattering_type == Surface_lambertian)
         {
-            return {Float(0.), props.albedo};
+            return {Float(0.), sfc.albedo};
         }
-        else if (props.scattering_type == Surface_specular)
+        else if (sfc.scattering_type == Surface_specular)
         {
             return {fresnel_unpolarized(cos_i, n_water), Float(0.)};
         }
         else // Surface_specular_lambertian
         {
             const Float R_spec = fresnel_unpolarized(cos_i, n_water);
-            return {R_spec, (Float(1.) - R_spec) * props.albedo};
+            return {R_spec, (Float(1.) - R_spec) * sfc.albedo};
         }
     }
 
@@ -132,6 +132,131 @@ namespace Raytracer_functions
     inline Vector<T> specular(const Vector<T> dir_in, const Vector<T> dir_n)
     {
         return dir_in - Float(2.)*dir_n*dot(dir_n, dir_in);
+    }
+
+    // minimum sigma2 value use Cox-Munk microfacet distribution, otherwise assume perfectly flat surface
+    constexpr Float sigma2_min = Float(1e-5);
+
+    __device__
+    inline bool is_rough(const Surface_props& props)
+    {
+        return (props.scattering_type != Surface_lambertian) && (props.sigma2 > sigma2_min);
+    }
+
+    // Beckmann face normal diribution / isotropic Cox-Munk PDF
+    __device__
+    inline Float cox_munk_D(const Float cos_n, const Float sigma2)
+    {
+        const Float sq_cos_n = cos_n*cos_n;
+        const Float sq_tan_n = (Float(1.) - sq_cos_n) / sq_cos_n;
+
+        return exp(-sq_tan_n/sigma2) / (Float(M_PI)*sigma2*sq_cos_n*sq_cos_n);
+    }
+
+    // Smith masking function, approximated proposed by Walter et al. (2007) "Microfacet Models for Refraction through Rough Surfaces"
+    __device__
+    inline Float cox_munk_G(const Float mu, const Float sigma2)
+    {
+        if (mu <= Float(0.))
+            return Float(0.);
+
+        const Float a = mu / max(sqrt(sigma2*(Float(1.) - mu*mu)), Float(1e-12));
+
+        if (a >= Float(1.6))
+            return Float(1.);
+
+        return (Float(3.535) * a + Float(2.181) * a * a) / (Float(1.) + Float(2.276) * a + Float(2.577) * a * a);
+    }
+
+    // Smith Lambda for Beckmann / isotropic Cox-Munk, from the Walter et al. (2007) eq. 27 fit
+    // Lambda = (1 - G1)/G1 (Heitz 2014, see e.g. eq 69 and 99)
+    __device__
+    inline Float cox_munk_Lambda(const Float mu, const Float sigma2)
+    {
+        const Float a = mu / max(sqrt(sigma2*(Float(1.) - mu*mu)), Float(1e-12));
+
+        if (a >= Float(1.6))
+            return Float(0.);
+
+        return (Float(1.) - Float(1.259) * a + Float(0.396) * a * a) / (Float(3.535) * a + Float(2.181) * a * a);
+    }
+
+    // height-correlated Smith masking-shadowing function, Heitz (2014) eq. 99
+    __device__
+    inline Float cox_munk_G2(const Float mu_in, const Float mu_out, const Float sigma2)
+    {
+        if (mu_in <= Float(0.) || mu_out <= Float(0.))
+            return Float(0.);
+
+        return Float(1.) / (Float(1.) + cox_munk_Lambda(mu_in, sigma2) + cox_munk_Lambda(mu_out, sigma2));
+    }
+
+    // cox_munk/beckmann brdf with height-correlated Smith shadowing. Walter et al. (2007) eq. 20, Heitz (2014) eq. 99
+    // multiplied with cos(dir_out.z), illumination direction
+    __device__
+    inline Float cox_munk_brdf(const Vector<Float>& dir_in, const Vector<Float>& dir_out, const Float sigma2)
+    {
+        const Float mu_in  = -dir_in.z;
+        const Float mu_out =  dir_out.z;
+
+        if (mu_in <= Float(0.) || mu_out <= Float(0.))
+            return Float(0.);
+
+        const Vector<Float> half = normalize(dir_out - dir_in);
+        const Float cos_half = max(dot(dir_out, half), Float(0.));
+
+        return fresnel_unpolarized(cos_half, n_water) * cox_munk_D(half.z, sigma2)
+             * cox_munk_G2(mu_in, mu_out, sigma2) / (Float(4.)*mu_in);
+    }
+
+    struct Surface_interaction
+    {
+        Vector<Float> dir_spec; // specular direction:
+        Float R_spec;           // specular albedo: F(mu_in) for flat surface, F*G2*cos_in/(n_z*mu_in) for rough surface
+        Float R_diff;           // diffuse/lambertian albedo: flat: (1-F(mu_in)) albedo    rough: (1-F) G1_in cos_in/(n_z mu_in) albedo
+    };
+
+    // Specular and lambertian surface reflectances, and direction of specular reflection, either for a flat surface or for a rough surface.
+    template<typename RNG> __device__
+    inline Surface_interaction surface_interaction(const Surface_props& sfc, const Vector<Float>& dir_in, RNG& rng)
+    {
+        const Vector<Float> z_hat = {Float(0.), Float(0.), Float(1.)};
+        const Float mu_in = -dir_in.z;
+
+        if (!is_rough(sfc))
+        {
+            const Surface_reflectance refl = surface_reflectance(sfc, max(mu_in, Float(0.)));
+            return {specular(dir_in, z_hat), refl.R_spec, refl.R_diff};
+        }
+
+        const Surface_interaction none = {dir_in, Float(0.), Float(0.)};
+        if (mu_in <= Float(0.))
+            return none;
+
+        // sample facet orientation from isotropic gaussian slopes distribution
+        // Walter et al. 2007, eq 28 & 29
+        const Float slope = sqrt(-sfc.sigma2 * log(max(rng(), Float_epsilon)));
+        const Float phi = Float(2.*M_PI) * rng();
+        const Vector<Float> n = normalize(Vector<Float>{-slope*cos(phi), -slope*sin(phi), Float(1.)});
+
+        // back-facing facets are invisible
+        const Float cos_in = -dot(dir_in, n);
+        if (cos_in <= Float(0.))
+            return none;
+
+        const Float F    = fresnel_unpolarized(cos_in, n_water);
+        const Float geom = cos_in / (n.z * mu_in); // beam-intercepted facet area relative to its footprint
+        const Vector<Float> dir_out = specular(dir_in, n);
+
+        // specular reflectivity (Walter et al., 2017 eq 41, including F(cos_in)
+        const Float R_spec = F * cox_munk_G2(mu_in, dir_out.z, sfc.sigma2) * geom;
+
+        // lambertian/water-leaving reflectivity: transmitted through this facet, only shadowed on the way in
+        const Float R_diff = (sfc.scattering_type == Surface_specular_lambertian)
+                           ? (Float(1.) - F) * cox_munk_G(mu_in, sfc.sigma2) * geom * sfc.albedo
+                           : Float(0.);
+
+        return {dir_out, R_spec, R_diff};
     }
 
     __device__
@@ -157,8 +282,9 @@ namespace Raytracer_functions
     inline Float mie_sample_angle(const Float* mie_cdf, const Float* mie_lut, const Float random_number, const Float* r_eff, const int ijk, const int n_mie)
     {
         // interpolation over effective radius. Currently, r_eff should range between 2.5 and 21.5 (similar to RRTMGP)
-        const int r_idx = min(max(int(r_eff[ijk]-2.5), 0), 18);
-        const Float r_rest = fmod(r_eff[ijk]-Float(2.5),Float(1.));
+        const Float r_pos = r_eff[ijk] - Float(2.5);
+        const int r_idx = min(max(int(floor(r_pos)), 0), 18);
+        const Float r_rest = min(max(r_pos - Float(r_idx), Float(0.)), Float(1.));
 
         const int i = min(max(0, find_index(mie_cdf, n_mie, random_number)), n_mie - 2);
 
@@ -176,8 +302,9 @@ namespace Raytracer_functions
     inline Float mie_interpolate_phase_table(const Float* mie_phase, const Float* mie_lut, const Float scat_ang, const Float* r_eff, const int ijk, const int n_mie)
     {
         // interpolation over effective radius. Currently, r_eff should range between 2.5 and 21.5 (similar to RRTMGP)
-        const int r_idx = min(max(int(r_eff[ijk]-2.5), 0), 18);
-        const Float r_rest = fmod(r_eff[ijk]-Float(2.5),Float(1.));
+        const Float r_pos = r_eff[ijk] - Float(2.5);
+        const int r_idx = min(max(int(floor(r_pos)), 0), 18);
+        const Float r_rest = min(max(r_pos - Float(r_idx), Float(0.)), Float(1.));
 
         // interpolation between 1800 equally spaced scattering angles between 0 and PI (both inclusive).
         constexpr Float d_pi = Float(1.74629942e-03);

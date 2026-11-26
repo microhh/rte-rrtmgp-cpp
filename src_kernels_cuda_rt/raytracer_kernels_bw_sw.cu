@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include "raytracer_kernels_bw.h"
+#include "raytracer_kernels_bw_sw.h"
 #include "raytracer_definitions.h"
 
 
@@ -77,7 +77,11 @@ namespace
 
             if (photon.position.z > grid_size.z)
             {
-                return exp(Float(-1.) * (tau_min + bg_tau_cum[bg_idx]));
+                const Float zl_bot = z_lev_bg[bg_idx];
+                const Float zl_top = z_lev_bg[bg_idx+1];
+                const Float z_frac = min(max((zl_top - photon.position.z) / (zl_top - zl_bot), Float(0.)), Float(1.));
+                const Float vertical_tau_bg = bg_tau_cum[bg_idx+1] + z_frac*(bg_tau_cum[bg_idx] - bg_tau_cum[bg_idx+1]);
+                return exp(Float(-1.) * (tau_min + vertical_tau_bg / max(sun_dir.z, Float_epsilon)));
             }
             // main grid (dynamical)
             else
@@ -315,7 +319,7 @@ namespace
 }
 
 template<Bool tod_diffuse, Bool dz_constant>__global__
-void ray_tracer_kernel_bw(
+void ray_tracer_kernel_bw_sw(
         const int igpt,
         const Int photons_per_pixel,
         const Grid_knull* __restrict__ k_null_grid,
@@ -328,7 +332,6 @@ void ray_tracer_kernel_bw(
         const Float* __restrict__ z_lev_bg,
         const Float* __restrict__ r_eff,
         const Surface_props* __restrict__ surface_properties,
-        const Float mu,
         const Vector<Float> grid_size, const Vector<Float> grid_d,
         const Vector<int> grid_cells, const Vector<int> kn_grid,
         const Float* __restrict__ z_lev,
@@ -364,11 +367,10 @@ void ray_tracer_kernel_bw(
             }
         }
 
-        Float bg_tau = Float(0.);
+        bg_tau_cum[kbg] = Float(0.);
         for (int k=kbg-1; k >= 0; --k)
         {
-            bg_tau += k_ext_bg[k] * abs(z_lev_bg[k+1]-z_lev_bg[k]) / mu;
-            bg_tau_cum[k] = bg_tau;
+            bg_tau_cum[k] = bg_tau_cum[k+1] + k_ext_bg[k] * abs(z_lev_bg[k+1]-z_lev_bg[k]);
         }
     }
 
@@ -378,12 +380,10 @@ void ray_tracer_kernel_bw(
 
     const int n = blockDim.x * blockIdx.x + threadIdx.x;
 
-    const Float bg_transmissivity = exp(-bg_tau_cum[0]);
-
     const Vector<Float> kn_grid_d = grid_size / kn_grid;
     const Float z_top = z_lev_bg[kbg];
 
-    Random_number_generator<Float> rng(n+bw_kernel_block*bw_kernel_grid*igpt);
+    Random_number_generator<Float> rng(n+bw_sw_kernel_block*bw_sw_kernel_grid*igpt);
 
     const Float s_min = max(max(grid_size.z, grid_size.x), grid_size.y) * Float_epsilon;
     const Float s_min_bg = max(max(grid_size.x, grid_size.y), z_top) * Float_epsilon;
@@ -527,14 +527,13 @@ void ray_tracer_kernel_bw(
 
                         if (tod_diffuse)
                         {
-                            // TOD diffuse contribution
-                            const Float mu_tod = sqrt(rng());
+                            const Float mu_tod = rng();
                             const Float azi_tod = Float(2.*M_PI)*rng();
                             const Float sin_theta = sqrt(Float(1.) - mu_tod*mu_tod + Float_epsilon);
 
                             Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
 
-                            const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
+                            const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(4.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
                             const Float trans_dif = transmission_direct_sun<dz_constant>(photon,n,rng,diffuse_direction,
                                                         k_null_grid,k_ext,
                                                         bg_tau_cum, z_lev_bg, bg_idx,
@@ -614,13 +613,16 @@ void ray_tracer_kernel_bw(
                         const int ij = i + j*grid_cells.x;
                         d_max = Float(0.);
 
-                        const Float cos_i = max(-dot(photon.direction, surface_normal), Float(0.));
+                        const Surface_props& sfc = surface_properties[ij];
 
-                        // surface reflectances depending on scattering type
-                        const Surface_reflectance refl = surface_reflectance(surface_properties[ij], cos_i);
-                        const Float R_spec = refl.R_spec;
-                        const Float R_diff = refl.R_diff;
-                        const Float R_tot = R_spec + R_diff;
+                        const bool rough_surface = is_rough(sfc);
+                        const bool do_specular = (sfc.scattering_type != Surface_lambertian);
+
+                        // Surface reflectances, and direction of specular reflection, for flat or rough surfaces (is_rough is called again in function).
+                        const Surface_interaction si = surface_interaction(sfc, photon.direction, rng);
+                        const Float R_spec = si.R_spec;
+                        const Float R_diff = si.R_diff;
+                        const Float R_tot  = R_spec + R_diff;
 
                         auto trans_to = [&](const Vector<Float>& dir)
                         {
@@ -633,21 +635,22 @@ void ray_tracer_kernel_bw(
                                         s_min, s_min_bg);
                         };
 
-                        // TOD direct contribution
                         Float p_sun_spec = Float(0.);
                         Float p_sun_diff = Float(0.);
                         const Float cos_sun = max(dot(sun_direction, surface_normal), Float(0.));
 
-                        if (R_spec > Float(0.))
+                        if (do_specular)
                         {
-                            p_sun_spec = probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Specular);
+                            p_sun_spec = rough_surface
+                                ? cox_munk_brdf(photon.direction, sun_direction, sfc.sigma2) * sun_solid_angle // Fresnel reflectivity included in cox_munk_brdf
+                                : R_spec * probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Specular);
                         }
                         if (R_diff > Float(0.))
                         {
                             p_sun_diff = cos_sun * probability_from_source(photon, sun_direction, sun_solid_angle, Float(0.), mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, Phase_kind::Lambertian);
                         }
 
-                        const Float p_sun_tot = R_spec*p_sun_spec + R_diff*p_sun_diff;
+                        const Float p_sun_tot = p_sun_spec + R_diff*p_sun_diff;
                         if (p_sun_tot > Float(0.))
                         {
                             const Float trans_sun = trans_to(sun_direction);
@@ -659,11 +662,7 @@ void ray_tracer_kernel_bw(
                         {
                             if (R_spec > Float(0.))
                             {
-                                Vector<Float> dir_spec;
-
-                                dir_spec = specular(photon.direction, surface_normal);
-
-                                atomicAdd(&camera_count_diffuse[ij_cam], weight * R_spec * Float(2.0) * trans_to(dir_spec));
+                                atomicAdd(&camera_count_diffuse[ij_cam], weight * R_spec * Float(2.0) * trans_to(si.dir_spec));
                             }
 
                             if (R_diff > Float(0.))
@@ -677,21 +676,24 @@ void ray_tracer_kernel_bw(
                                 atomicAdd(&camera_count_diffuse[ij_cam], weight * R_diff * Float(2.0) * trans_to(diffuse_direction));
                             }
                         }
+
+                        const bool spec_branch = (R_spec > Float(0.)) && (rng() * R_tot < R_spec);
                         weight *= R_tot;
+
                         if (weight < w_thres)
                             weight = (rng() > weight) ? Float(0.) : Float(1.);
 
                         // only with nonzero weight continue ray tracing, else start new ray
                         if (weight > Float(0.))
                         {
-                            if (rng() * R_tot < R_spec)
+                            if (spec_branch)
                             {
-                                // specular
-                                photon.direction = specular(photon.direction, surface_normal);
+                                // specular (flat or rough)
+                                photon.direction = si.dir_spec;
                             }
                             else
                             {
-                                // Lambertian lobe
+                                // Lambertian
                                 const Float mu_surface = sqrt(rng());
                                 const Float azimuth_surface = Float(2.*M_PI)*rng();
                                 const Float sin_theta = sqrt(Float(1.) - mu_surface*mu_surface + Float_epsilon);
@@ -823,14 +825,13 @@ void ray_tracer_kernel_bw(
 
                             if (tod_diffuse)
                             {
-                                // TOD diffuse contribution
-                                const Float mu_tod = sqrt(rng());
+                                const Float mu_tod = rng();
                                 const Float azi_tod = Float(2.*M_PI)*rng();
                                 const Float sin_theta = sqrt(Float(1.) - mu_tod*mu_tod + Float_epsilon);
 
                                 Vector<Float> diffuse_direction = {sin_theta*sin(azi_tod), sin_theta*cos(azi_tod), mu_tod};
 
-                                const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(2.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, 0, 0, surface_normal, kind);
+                                const Float p_diffuse = probability_from_source(photon, diffuse_direction, Float(4.*M_PI), g, mie_phase_ang_shared, mie_phase, r_eff, ijk, mie_phase_table_size, surface_normal, kind);
                                 const Float trans_dif = transmission_direct_sun<dz_constant>(photon,n,rng,diffuse_direction,
                                                             k_null_grid,k_ext,
                                                             bg_tau_cum, z_lev_bg, bg_idx,
@@ -912,11 +913,11 @@ void ray_tracer_kernel_bw(
 
             if (camera.cam_type == 0)
             {
-                const Float photon_zenith = i * Float(.5) * M_PI / camera.f_zoom;
-                const Float photon_azimuth = j * Float(2.) * M_PI;
-                const Vector<Float> dir_tmp = {sin(photon_zenith) * sin(photon_azimuth), sin(photon_zenith) * cos(photon_azimuth), cos(photon_zenith)};
+                const Float photon_zenith = i * Float(.5) * camera.fov / Float(180.) * Float(M_PI);
+                const Float photon_azimuth = j * Float(2.) * Float(M_PI);
+                const Vector<Float> dir_tmp = {cos(photon_zenith), sin(photon_zenith) * cos(photon_azimuth), sin(photon_zenith) * sin(photon_azimuth)};
 
-                direction = {dot(camera.mx,  dir_tmp), dot(camera.my,  dir_tmp), dot(camera.mz,  dir_tmp) * Float(-1)};
+                direction = {dot(camera.mx,  dir_tmp), dot(camera.my,  dir_tmp), dot(camera.mz,  dir_tmp)};
                 position = camera.position + s_eps;
             }
             else if (camera.cam_type == 1)
@@ -926,9 +927,9 @@ void ray_tracer_kernel_bw(
             }
             else
             {
-                direction = {Float(0.), Float(0.), Float(-1)};
-                position = {i * grid_size.x / camera.nx,
-                            j * grid_size.y / camera.ny,
+                direction = {camera.mx.x, camera.my.x, camera.mz.x};
+                position = {i * grid_size.x,
+                            j * grid_size.y,
                             grid_size.z - 2*s_eps};
             }
 
@@ -999,7 +1000,7 @@ void ray_tracer_kernel_bw(
 
     }
 
-void launch_ray_tracer_kernel_bw(
+void launch_ray_tracer_kernel_bw_sw(
         const bool tod_diffuse,
         const bool dz_constant,
         const dim3 grid,
@@ -1017,7 +1018,6 @@ void launch_ray_tracer_kernel_bw(
         const Float* __restrict__ z_lev_bg,
         const Float* __restrict__ r_eff,
         const Surface_props* __restrict__ surface_properties,
-        const Float mu,
         const Vector<Float> grid_size, const Vector<Float> grid_d,
         const Vector<int> grid_cells, const Vector<int> kn_grid,
         const Float* __restrict__ z_lev,
@@ -1049,7 +1049,6 @@ void launch_ray_tracer_kernel_bw(
                 z_lev_bg,
                 r_eff,
                 surface_properties,
-                mu,
                 grid_size, grid_d, grid_cells, kn_grid,
                 z_lev, kn_z_lev, z_lut, kn_z_lut,
                 lut_dz, lut_size,
@@ -1061,7 +1060,7 @@ void launch_ray_tracer_kernel_bw(
     };
 
     if (tod_diffuse)
-        dz_constant ? launch(ray_tracer_kernel_bw<true, true>) : launch(ray_tracer_kernel_bw<true, false>);
+        dz_constant ? launch(ray_tracer_kernel_bw_sw<true, true>) : launch(ray_tracer_kernel_bw_sw<true, false>);
     else
-        dz_constant ? launch(ray_tracer_kernel_bw<false, true>) : launch(ray_tracer_kernel_bw<false, false>);
+        dz_constant ? launch(ray_tracer_kernel_bw_sw<false, true>) : launch(ray_tracer_kernel_bw_sw<false, false>);
 }
